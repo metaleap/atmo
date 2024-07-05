@@ -12,7 +12,7 @@ func main() {
 	lsp_server.On_textDocument_hover = func(params *lsp.HoverParams) (any, error) {
 		str := lsp.String("Test Hover")
 		return &lsp.Hover{
-			Contents: lsp.MarkupContentOrMarkedStringOrMarkedStrings{MarkedString: lsp.MarkedString{String: &str}},
+			Contents: &lsp.MarkupContentOrMarkedStringOrMarkedStrings{MarkedString: &lsp.StringOrLanguageStringWithValueString{String: &str}},
 		}, nil
 	}
 
