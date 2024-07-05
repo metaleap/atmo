@@ -21,6 +21,8 @@ func Main() {
 	panic(Server.Forever())
 }
 
+func ptr[T any](it T) *T { return &it }
+
 func dePtr[T any](ptr *T) (ret T) {
 	if ptr != nil {
 		ret = *ptr
