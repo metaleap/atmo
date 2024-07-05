@@ -2,6 +2,7 @@ package atmo_lsp
 
 import (
 	"fmt"
+	"yo/util/str"
 
 	"github.com/metaleap/atmo/util/sl"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func srcFilePath(it lsp.TextDocumentIdentifier) string {
-	return string(it.Uri)
+	return str.TrimPref(string(it.Uri), "file://")
 }
 
 func init() {
@@ -26,6 +27,15 @@ func init() {
 				}
 			})
 		return ret, nil
+	}
+
+	Server.On_workspace_symbol = func(params *lsp.WorkspaceSymbolParams) (any, error) {
+		return []lsp.WorkspaceSymbol{{
+			BaseSymbolInformation: lsp.BaseSymbolInformation{Name: "Atmo", Kind: lsp.SymbolKindInterface, ContainerName: ptr(lsp.String("Container"))},
+			Location: &lsp.LocationOrUriDocumentUri{Location: &lsp.Location{
+				Uri:   lsp.String("file://" + "/home/_/c/at/foo.at"),
+				Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}}}},
+		}}, nil
 	}
 
 	Server.On_textDocument_hover = func(params *lsp.HoverParams) (any, error) {

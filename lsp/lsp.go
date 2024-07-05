@@ -11,6 +11,7 @@ func Main() {
 	Server.Lang.Commands = []string{}
 	Server.Lang.CompletionTriggerChars = []string{"."}
 	Server.Lang.SignatureTriggerChars = []string{","}
+	Server.Lang.DocumentSymbolsMultiTreeLabel = "Atmo"
 
 	Server.On_workspace_executeCommand = func(params *lsp.ExecuteCommandParams) (any, error) {
 		if params.Command == "announce-atmo-vscode-ext" {
