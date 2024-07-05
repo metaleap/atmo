@@ -13,14 +13,18 @@ func srcFilePath(it lsp.TextDocumentIdentifier) string {
 	return str.TrimPref(string(it.Uri), "file://")
 }
 
+func srcFileUri(srcFilePath string) string {
+	return "file://" + srcFilePath
+}
+
 func init() {
 	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) (any, error) {
-		source_file_path := srcFilePath(params.TextDocument)
+		src_file_path := srcFilePath(params.TextDocument)
 		ret := sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
 			func(it lsp.SymbolKind) lsp.DocumentSymbol {
 				return lsp.DocumentSymbol{
 					Name:           it.String(),
-					Detail:         ptr(lsp.String(fmt.Sprintf("**TODO:** documentSymbols for `%v`", source_file_path))),
+					Detail:         ptr(lsp.String(fmt.Sprintf("**TODO:** documentSymbols for `%v`", src_file_path))),
 					Kind:           it,
 					Range:          lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}},
 					SelectionRange: lsp.Range{Start: lsp.Position{Line: 2, Character: 3}, End: lsp.Position{Line: 2, Character: 6}},
@@ -45,4 +49,37 @@ func init() {
 		}, nil
 	}
 
+	Server.On_textDocument_definition = func(params *lsp.DefinitionParams) (any, error) {
+		return dummyLocs(srcFilePath(params.TextDocument)), nil
+	}
+
+	Server.On_textDocument_declaration = func(params *lsp.DeclarationParams) (any, error) {
+		return dummyLocs(srcFilePath(params.TextDocument)), nil
+	}
+
+	Server.On_textDocument_typeDefinition = func(params *lsp.TypeDefinitionParams) (any, error) {
+		return dummyLocs(srcFilePath(params.TextDocument)), nil
+	}
+
+	Server.On_textDocument_implementation = func(params *lsp.ImplementationParams) (any, error) {
+		return dummyLocs(srcFilePath(params.TextDocument)), nil
+	}
+
+	Server.On_textDocument_references = func(params *lsp.ReferenceParams) (any, error) {
+		return dummyLocs(srcFilePath(params.TextDocument)), nil
+	}
+
+	Server.On_textDocument_documentHighlight = func(params *lsp.DocumentHighlightParams) (any, error) {
+		return sl.As(dummyLocs(srcFilePath(params.TextDocument)), func(it lsp.Location) lsp.DocumentHighlight {
+			return lsp.DocumentHighlight{Range: it.Range, Kind: lsp.DocumentHighlightKindText}
+		}), nil
+	}
+
+}
+
+func dummyLocs(srcFilePath string) []lsp.Location {
+	return []lsp.Location{
+		{Uri: lsp.String(srcFileUri(srcFilePath)), Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}}},
+		{Uri: lsp.String(srcFileUri(srcFilePath)), Range: lsp.Range{Start: lsp.Position{Line: 4, Character: 1}, End: lsp.Position{Line: 4, Character: 8}}},
+	}
 }

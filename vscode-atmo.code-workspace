@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "../../../vs/vscode-atmo"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../../../at"
+		},
+		{
+			"path": "../../src/github.com/metaleap/polyglot-lsp"
+		}
+	],
+	"settings": {
+		"typescript.tsc.autoDetect": "off"
+	}
+}
