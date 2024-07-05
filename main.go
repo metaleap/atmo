@@ -1,26 +1,20 @@
 package main
 
 import (
-	lsp "github.com/metaleap/polyglot-lsp/lang_go/lsp_v3.17"
+	"os"
+
+	lsp "github.com/metaleap/atmo/lsp"
 )
 
 func main() {
-	var lsp_server lsp.Server
-
-	lsp_server.LogPrefixSendRecvJsons = "atom"
-
-	lsp_server.On_textDocument_hover = func(params *lsp.HoverParams) (any, error) {
-		str := lsp.String("**Test** _Hover_")
-		return &lsp.Hover{
-			Contents: &lsp.MarkupContentOrMarkedStringOrMarkedStrings{MarkedString: &lsp.StringOrLanguageStringWithValueString{String: &str}},
-		}, nil
+	if len(os.Args) < 2 {
+		panic("expected command, one of: lsp, build")
 	}
 
-	lsp_server.On_workspace_executeCommand = func(params *lsp.ExecuteCommandParams) (any, error) {
-		if params.Command == "announce-atmo-vscode-ext" {
-		}
-		return nil, nil
+	switch cmd_name := os.Args[1]; cmd_name {
+	case "lsp":
+		lsp.Main()
+	default:
+		panic("unknown command '" + cmd_name + "'")
 	}
-
-	panic(lsp_server.Forever())
 }
