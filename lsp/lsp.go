@@ -9,8 +9,8 @@ var Server lsp.Server
 func Main() {
 	Server.LogPrefixSendRecvJsons = "atmo"
 	Server.Lang.Commands = []string{}
-	Server.Lang.CompletionTriggerChars = []string{"."}
-	Server.Lang.SignatureTriggerChars = []string{","}
+	Server.Lang.TriggerChars.Completion = []string{"."}
+	Server.Lang.TriggerChars.Signature = []string{","}
 	Server.Lang.DocumentSymbolsMultiTreeLabel = "Atmo"
 
 	Server.On_workspace_executeCommand = func(params *lsp.ExecuteCommandParams) (any, error) {
