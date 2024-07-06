@@ -2,9 +2,10 @@ package atmo_lsp
 
 import (
 	"fmt"
-	"yo/util/str"
 
-	"github.com/metaleap/atmo/util/sl"
+	"atmo/util"
+	"atmo/util/sl"
+	"atmo/util/str"
 
 	lsp "github.com/metaleap/polyglot-lsp/lang_go/lsp_v3.17"
 )
@@ -133,6 +134,27 @@ func init() {
 				}},
 			},
 		}, nil
+	}
+
+	Server.On_textDocument_signatureHelp = func(params *lsp.SignatureHelpParams) (any, error) {
+		src_file_path := srcFilePath(params.TextDocument)
+		return lsp.SignatureHelp{
+			Signatures: util.If(params.Position.Line > 0,
+				nil,
+				[]lsp.SignatureInformation{{
+					Label: "(foo bar: #baz)",
+					Documentation: &lsp.StringOrMarkupContent{MarkupContent: &lsp.MarkupContent{
+						Kind:  lsp.MarkupKindMarkdown,
+						Value: str.Fmt("**TODO**: sig help for `%s` @ %d,%d", src_file_path, params.Position.Line, params.Position.Character)}},
+				}}),
+		}, nil
+	}
+
+	Server.On_textDocument_codeAction = func(params *lsp.CodeActionParams) (any, error) {
+		if ClientIsAtmoVscExt || (params.Range.Start == params.Range.End) {
+			return nil, nil
+		}
+		return []lsp.Command{{Title: "Eval", Command: "eval", Arguments: []any{params}}}, nil
 	}
 
 }

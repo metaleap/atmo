@@ -2,9 +2,10 @@ package util
 
 import (
 	"cmp"
+	"encoding/json"
 	"strings"
 
-	"github.com/metaleap/atmo/util/str"
+	"atmo/util/str"
 )
 
 type (
@@ -106,4 +107,10 @@ func ToIdentWith(s string, replaceChar byte) string {
 		}
 	}
 	return buf.String()
+}
+
+func JsonAs[T any](v any) (ret T, err error) {
+	json_bytes, _ := json.Marshal(v)
+	err = json.Unmarshal(json_bytes, &ret)
+	return
 }

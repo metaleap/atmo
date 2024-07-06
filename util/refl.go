@@ -6,7 +6,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/metaleap/atmo/util/str"
+	"atmo/util/str"
 )
 
 var ReflTypeTime = reflect.TypeOf(time.Time{})

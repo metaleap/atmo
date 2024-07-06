@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/metaleap/atmo/util/str"
+	"atmo/util/str"
 )
 
 func FsDelFile(filePath string) { _ = os.Remove(filePath) }
