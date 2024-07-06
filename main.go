@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	lsp "atmo/lsp"
+	"atmo/lsp"
 )
 
 func main() {

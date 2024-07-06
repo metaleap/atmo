@@ -1,10 +1,17 @@
-package atmo_session
+package session
 
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"atmo/util"
+)
+
+var (
+	allSrcFiles map[string]*SrcFile
+
+	OnNoticesChanged func(map[string][]*SrcFileNotice)
 )
 
 type SrcFilePos struct {
@@ -17,17 +24,8 @@ type SrcFileSpan struct {
 	End   SrcFilePos
 }
 
-type Session struct {
-	allSrcFiles map[string]*SrcFile
-
-	OnNoticesChanged func(map[string][]*SrcFileNotice)
-}
-
-func New() *Session {
-	me := Session{
-		allSrcFiles: map[string]*SrcFile{},
-	}
-	return &me
+func init() {
+	allSrcFiles = map[string]*SrcFile{}
 }
 
 type SrcFile struct {
@@ -36,28 +34,28 @@ type SrcFile struct {
 	LastReadErr error
 }
 
-func (me *Session) OnSrcFileEvents(removed []string, added []string, changed []string) {
+func OnSrcFileEvents(removed []string, added []string, changed []string) {
 	for _, file_path := range removed {
-		delete(me.allSrcFiles, file_path)
+		delete(allSrcFiles, file_path)
 	}
 	for _, file_path := range added {
-		me.ensureSrcFile(file_path, nil).Notices()
+		ensureSrcFile(file_path, nil)
 	}
 	for _, file_path := range changed {
-		me.ensureSrcFile(file_path, nil).Notices()
+		ensureSrcFile(file_path, nil)
 	}
 }
 
-func (me *Session) OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	me.ensureSrcFile(srcFilePath, &curFullContent)
+func OnSrcFileEdit(srcFilePath string, curFullContent string) {
+	ensureSrcFile(srcFilePath, &curFullContent)
 }
 
-func (me *Session) ensureSrcFile(srcFilePath string, curFullContent *string) *SrcFile {
+func ensureSrcFile(srcFilePath string, curFullContent *string) *SrcFile {
 	util.Assert(filepath.IsAbs(srcFilePath), srcFilePath)
-	src_file := me.allSrcFiles[srcFilePath]
+	src_file := allSrcFiles[srcFilePath]
 	if src_file == nil {
 		src_file = &SrcFile{FilePath: srcFilePath}
-		me.allSrcFiles[srcFilePath] = src_file
+		allSrcFiles[srcFilePath] = src_file
 	}
 	if curFullContent != nil {
 		src_file.Content, src_file.LastReadErr = *curFullContent, nil
@@ -66,4 +64,8 @@ func (me *Session) ensureSrcFile(srcFilePath string, curFullContent *string) *Sr
 		src_file.Content, src_file.LastReadErr = string(src_file_bytes), err
 	}
 	return src_file
+}
+
+func IsSrcFilePath(filePath string) bool {
+	return filepath.Ext(filePath) == ".at" && (!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
 }

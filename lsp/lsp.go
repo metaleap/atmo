@@ -1,8 +1,7 @@
-package atmo_lsp
+package lsp
 
 import (
 	"errors"
-	"path/filepath"
 
 	"atmo/util"
 	"atmo/util/str"
@@ -27,16 +26,12 @@ func Main() {
 			return nil, nil
 		case "eval":
 			code_action_params, err := util.JsonAs[lsp.CodeActionParams](params.Arguments[0])
-			return str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", srcFilePath(code_action_params.TextDocument.Uri)), err
+			return str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", toFsPath(code_action_params.TextDocument.Uri)), err
 		}
 		return nil, errors.New("unknown command: '" + params.Command + "'")
 	}
 
 	panic(Server.Forever())
-}
-
-func IsSrcFilePath(filePath string) bool {
-	return filepath.Ext(filePath) == ".at"
 }
 
 func ptr[T any](it T) *T { return &it }

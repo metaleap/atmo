@@ -1,4 +1,4 @@
-package atmo_session
+package session
 
 type SrcFileNoticeKind int
 
