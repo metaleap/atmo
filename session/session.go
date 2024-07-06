@@ -29,39 +29,53 @@ func init() {
 }
 
 type SrcFile struct {
-	FilePath    string
-	Content     string
-	LastReadErr error
+	FilePath string
+	Content  struct {
+		Src  string
+		Toks Tokens
+		Ast  *AstFile
+	}
+	Notices struct {
+		LastReadErr *SrcFileNotice
+		ParseErrs   []*SrcFileNotice
+	}
 }
 
-func OnSrcFileEvents(removed []string, added []string, changed []string) {
+func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
 	for _, file_path := range removed {
 		delete(allSrcFiles, file_path)
 	}
-	for _, file_path := range added {
-		ensureSrcFile(file_path, nil)
+	for _, file_path := range current {
+		ensureSrcFile(file_path, nil, canSkipFileRead)
 	}
-	for _, file_path := range changed {
-		ensureSrcFile(file_path, nil)
-	}
+	refreshAndPublishNotices(append(removed, current...)...)
 }
 
 func OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	ensureSrcFile(srcFilePath, &curFullContent)
+	ensureSrcFile(srcFilePath, &curFullContent, true)
+	refreshAndPublishNotices(srcFilePath)
 }
 
-func ensureSrcFile(srcFilePath string, curFullContent *string) *SrcFile {
+func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
 	util.Assert(filepath.IsAbs(srcFilePath), srcFilePath)
 	src_file := allSrcFiles[srcFilePath]
 	if src_file == nil {
 		src_file = &SrcFile{FilePath: srcFilePath}
 		allSrcFiles[srcFilePath] = src_file
 	}
+	old_content, had_read_err := src_file.Content.Src, (src_file.Notices.LastReadErr != nil)
 	if curFullContent != nil {
-		src_file.Content, src_file.LastReadErr = *curFullContent, nil
-	} else {
+		src_file.Content.Src, src_file.Notices.LastReadErr = *curFullContent, nil
+	} else if (!canSkipFileRead) || had_read_err || (old_content == "") {
 		src_file_bytes, err := os.ReadFile(srcFilePath)
-		src_file.Content, src_file.LastReadErr = string(src_file_bytes), err
+		src_file.Content.Src, src_file.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError)
+	}
+	if (src_file.Content.Src != old_content) || had_read_err || (src_file.Notices.LastReadErr != nil) {
+		src_file.Content.Ast, src_file.Content.Toks, src_file.Notices.ParseErrs = nil, nil, nil
+		if src_file.Notices.LastReadErr == nil {
+			src_file.Content.Toks = tokenize(src_file.Content.Src)
+			src_file.Content.Ast, src_file.Notices.ParseErrs = parse(src_file.Content.Toks, src_file.Content.Src, srcFilePath)
+		}
 	}
 	return src_file
 }

@@ -89,8 +89,8 @@ func (me AstNodeBraced) String(indent int) (s string) {
 	return
 }
 
-func parse(toks Tokens, origSrc string, srcFilePath string) (ret AstFile, errs []error) {
-	ret.toks, ret.srcFilePath, ret.origSrc = toks, srcFilePath, origSrc
+func parse(toks Tokens, origSrc string, srcFilePath string) (ret *AstFile, errs []*SrcFileNotice) {
+	ret = &AstFile{toks: toks, srcFilePath: srcFilePath, origSrc: origSrc}
 	toplevelchunks := toks.indentLevelChunks(0)
 	for _, tlc := range toplevelchunks {
 		if node, err := ret.parseNode(tlc); err != nil {
@@ -102,7 +102,7 @@ func parse(toks Tokens, origSrc string, srcFilePath string) (ret AstFile, errs [
 	return
 }
 
-func (me *AstFile) parseNode(toks Tokens) (AstNode, error) {
+func (me *AstFile) parseNode(toks Tokens) (AstNode, *SrcFileNotice) {
 	nodes, err := me.parseNodes(toks)
 	if err != nil || len(nodes) == 0 {
 		return nil, err
@@ -113,7 +113,7 @@ func (me *AstFile) parseNode(toks Tokens) (AstNode, error) {
 	return nodes[0], err
 }
 
-func (me *AstFile) parseNodes(toks Tokens) (ret []AstNode, err error) {
+func (me *AstFile) parseNodes(toks Tokens) (ret []AstNode, err *SrcFileNotice) {
 	for len(toks) > 0 {
 		var node AstNode
 		if t := &toks[0]; t.kind == tokKindComment {
@@ -151,7 +151,7 @@ func (me *AstFile) parseNodes(toks Tokens) (ret []AstNode, err error) {
 	return
 }
 
-func (me *AstFile) parseNodeBraced(toks Tokens) (ret AstNodeBraced, tail Tokens, err error) {
+func (me *AstFile) parseNodeBraced(toks Tokens) (ret AstNodeBraced, tail Tokens, err *SrcFileNotice) {
 	ret.toks, ret.square, ret.curly = toks, (toks[0].src == "["), (toks[0].src == "{")
 	idx := toks.idxOfClosingBrace()
 	if idx <= 0 {
@@ -164,7 +164,7 @@ func (me *AstFile) parseNodeBraced(toks Tokens) (ret AstNodeBraced, tail Tokens,
 	return
 }
 
-func (me *AstFile) parseNodeList(toks Tokens, sepOrOps ...string) (ret AstNodeList, err error) {
+func (me *AstFile) parseNodeList(toks Tokens, sepOrOps ...string) (ret AstNodeList, err *SrcFileNotice) {
 	tokss, sep, err := toks.split(sepOrOps...)
 	ret.sep, ret.toks = sep, toks
 	for _, nodetoks := range tokss {
@@ -177,7 +177,7 @@ func (me *AstFile) parseNodeList(toks Tokens, sepOrOps ...string) (ret AstNodeLi
 	return
 }
 
-func (me *AstFile) parseNodePair(toks Tokens, idx int) (ret AstNodePair, err error) {
+func (me *AstFile) parseNodePair(toks Tokens, idx int) (ret AstNodePair, err *SrcFileNotice) {
 	ret.toks, ret.sep = toks, toks[idx].src
 	if ret.lhs, err = me.parseNode(toks[:idx]); err == nil {
 		ret.rhs, err = me.parseNode(toks[idx+1:])

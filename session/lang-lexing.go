@@ -204,7 +204,7 @@ func (me Tokens) indentLevelChunks(col0 int) (ret []Tokens) {
 	return
 }
 
-func (me Tokens) split(sepsOrOps ...string) (ret []Tokens, sep string, err error) {
+func (me Tokens) split(sepsOrOps ...string) (ret []Tokens, sep string, err *SrcFileNotice) {
 	var idxlast int
 	var level int
 	for i := range me {
