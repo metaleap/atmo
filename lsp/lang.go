@@ -10,8 +10,8 @@ import (
 	lsp "github.com/metaleap/polyglot-lsp/lang_go/lsp_v3.17"
 )
 
-func srcFilePath(it lsp.TextDocumentIdentifier) string {
-	return str.TrimPref(string(it.Uri), "file://")
+func srcFilePath(it lsp.URI) string {
+	return str.TrimPref(string(it), "file://")
 }
 
 func srcFileUri(srcFilePath string) string {
@@ -20,7 +20,7 @@ func srcFileUri(srcFilePath string) string {
 
 func init() {
 	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) (any, error) {
-		src_file_path := srcFilePath(params.TextDocument)
+		src_file_path := srcFilePath(params.TextDocument.Uri)
 		return sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
 			func(it lsp.SymbolKind) lsp.DocumentSymbol {
 				return lsp.DocumentSymbol{
@@ -43,33 +43,33 @@ func init() {
 	}
 
 	Server.On_textDocument_definition = func(params *lsp.DefinitionParams) (any, error) {
-		return dummyLocs(srcFilePath(params.TextDocument)), nil
+		return dummyLocs(srcFilePath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_declaration = func(params *lsp.DeclarationParams) (any, error) {
-		return dummyLocs(srcFilePath(params.TextDocument)), nil
+		return dummyLocs(srcFilePath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_typeDefinition = func(params *lsp.TypeDefinitionParams) (any, error) {
-		return dummyLocs(srcFilePath(params.TextDocument)), nil
+		return dummyLocs(srcFilePath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_implementation = func(params *lsp.ImplementationParams) (any, error) {
-		return dummyLocs(srcFilePath(params.TextDocument)), nil
+		return dummyLocs(srcFilePath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_references = func(params *lsp.ReferenceParams) (any, error) {
-		return dummyLocs(srcFilePath(params.TextDocument)), nil
+		return dummyLocs(srcFilePath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_documentHighlight = func(params *lsp.DocumentHighlightParams) (any, error) {
-		return sl.As(dummyLocs(srcFilePath(params.TextDocument)), func(it lsp.Location) lsp.DocumentHighlight {
+		return sl.As(dummyLocs(srcFilePath(params.TextDocument.Uri)), func(it lsp.Location) lsp.DocumentHighlight {
 			return lsp.DocumentHighlight{Range: it.Range, Kind: lsp.DocumentHighlightKindText}
 		}), nil
 	}
 
 	Server.On_textDocument_completion = func(params *lsp.CompletionParams) (any, error) {
-		src_file_path := srcFilePath(params.TextDocument)
+		src_file_path := srcFilePath(params.TextDocument.Uri)
 		return sl.As([]lsp.CompletionItemKind{
 			lsp.CompletionItemKindClass,
 			lsp.CompletionItemKindColor,
@@ -112,7 +112,7 @@ func init() {
 	}
 
 	Server.On_textDocument_hover = func(params *lsp.HoverParams) (any, error) {
-		src_file_path := srcFilePath(params.TextDocument)
+		src_file_path := srcFilePath(params.TextDocument.Uri)
 		str := lsp.String(str.Fmt("**TODO** _Hover_ for `%s` @ %d,%d", src_file_path, params.Position.Line, params.Position.Character))
 		return lsp.Hover{
 			Contents: &lsp.MarkupContentOrMarkedStringOrMarkedStrings{MarkedString: &lsp.StringOrLanguageStringWithValueString{String: &str}},
@@ -120,12 +120,12 @@ func init() {
 	}
 
 	Server.On_textDocument_prepareRename = func(params *lsp.PrepareRenameParams) (any, error) {
-		// src_file_path := srcFilePath(params.TextDocument)
+		// src_file_path := srcFilePath(params.TextDocument.Uri)
 		return lsp.Range{Start: params.Position, End: lsp.Position{Line: params.Position.Line, Character: 4 + params.Position.Character}}, nil
 	}
 
 	Server.On_textDocument_rename = func(params *lsp.RenameParams) (any, error) {
-		src_file_path := srcFilePath(params.TextDocument)
+		src_file_path := srcFilePath(params.TextDocument.Uri)
 		return lsp.WorkspaceEdit{
 			Changes: map[lsp.String][]lsp.TextEdit{
 				lsp.String(srcFileUri(src_file_path)): {{
@@ -137,7 +137,7 @@ func init() {
 	}
 
 	Server.On_textDocument_signatureHelp = func(params *lsp.SignatureHelpParams) (any, error) {
-		src_file_path := srcFilePath(params.TextDocument)
+		src_file_path := srcFilePath(params.TextDocument.Uri)
 		return lsp.SignatureHelp{
 			Signatures: util.If(params.Position.Line > 0,
 				nil,

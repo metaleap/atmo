@@ -11,6 +11,18 @@
 		},
 		{
 			"path": "../../src/github.com/metaleap/polyglot-lsp"
+		},
+		{
+			"path": "../../src/github.com/metaleap/go-machines/toylam"
+		},
+		{
+			"path": "../../src/github.com/metaleap/atmo-2019-2021/_old_old_old/old_go_zig/v2019/ast"
+		},
+		{
+			"path": "../../src/github.com/metaleap/atmo-2019-2021/_old_old_old/old_go_zig/atproto"
+		},
+		{
+			"path": "../../src/github.com/metaleap/atmo-2019-2021/gat0"
 		}
 	],
 	"settings": {
