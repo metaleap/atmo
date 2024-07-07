@@ -45,7 +45,7 @@ const (
 )
 
 type Tok struct {
-	SrcFilePos
+	Pos        SrcFilePos
 	Kind       TokKind
 	ByteOffset int
 	Src        string
@@ -69,7 +69,7 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 
 	var toks_flat Toks
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
-		tok := Tok{SrcFilePos: SrcFilePos{Line: scan.Line, Char: scan.Column}, ByteOffset: scan.Offset, Src: scan.TokenText()}
+		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, ByteOffset: scan.Offset, Src: scan.TokenText()}
 		switch lexeme {
 		case scanner.Char:
 			tok.Kind = TokKindLitChar
