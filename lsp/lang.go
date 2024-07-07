@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	lsp "atmo/lsp/sdk"
+	"atmo/session"
 	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
@@ -151,11 +152,44 @@ func init() {
 		return []lsp.Command{{Title: "Eval", Command: "eval", Arguments: []any{params}}}, nil
 	}
 
+	session.OnNoticesChanged = func(pub map[string][]*session.SrcFileNotice) {
+		util.Assert(Server.Initialized.Client != nil && Server.Initialized.Server != nil, nil)
+		for file_path, diags := range pub {
+			Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
+				Uri: lsp.FsPathToUri(file_path),
+				Diagnostics: sl.As(diags, func(it *session.SrcFileNotice) lsp.Diagnostic {
+					return lsp.Diagnostic{
+						Code:            string(it.Code),
+						CodeDescription: &lsp.CodeDescription{Href: "https://github.com/metaleap/atom/docs/errs.md#" + string(it.Code)},
+						Range:           toLspRange(it.Span),
+						Message:         it.Message,
+						Severity:        toLspDiagSeverity(it.Kind),
+					}
+				}),
+			})
+		}
+	}
+
 }
 
 func dummyLocs(srcFilePath string) []lsp.Location {
 	return []lsp.Location{
 		{Uri: lsp.FsPathToUri(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}}},
 		{Uri: lsp.FsPathToUri(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 4, Character: 1}, End: lsp.Position{Line: 4, Character: 8}}},
+	}
+}
+
+func toLspDiagSeverity(kind session.SrcFileNoticeKind) lsp.DiagnosticSeverity {
+	switch kind {
+	case session.NoticeKindErr:
+		return lsp.DiagnosticSeverityError
+	case session.NoticeKindWarn:
+		return lsp.DiagnosticSeverityWarning
+	case session.NoticeKindInfo:
+		return lsp.DiagnosticSeverityInformation
+	case session.NoticeKindHint:
+		return lsp.DiagnosticSeverityHint
+	default:
+		panic(kind)
 	}
 }

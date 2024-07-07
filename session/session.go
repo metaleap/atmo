@@ -37,18 +37,18 @@ func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) 
 		delete(allSrcFiles, file_path)
 	}
 	for _, file_path := range current {
-		ensureSrcFile(file_path, nil, canSkipFileRead)
+		EnsureSrcFile(file_path, nil, canSkipFileRead)
 	}
 	refreshAndPublishNotices(append(removed, current...)...)
 }
 
 func OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	ensureSrcFile(srcFilePath, &curFullContent, true)
+	EnsureSrcFile(srcFilePath, &curFullContent, true)
 	refreshAndPublishNotices(srcFilePath)
 }
 
-func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
-	util.Assert(filepath.IsAbs(srcFilePath), srcFilePath)
+func EnsureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
+	util.Assert(IsSrcFilePath(srcFilePath), srcFilePath)
 	src_file := allSrcFiles[srcFilePath]
 	if src_file == nil {
 		src_file = &SrcFile{FilePath: srcFilePath}
@@ -73,5 +73,6 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 }
 
 func IsSrcFilePath(filePath string) bool {
-	return filepath.Ext(filePath) == ".at" && (!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
+	return filepath.IsAbs(filePath) && filepath.Ext(filePath) == ".at" &&
+		(!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
 }
