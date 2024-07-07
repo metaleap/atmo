@@ -3,12 +3,11 @@ package lsp
 import (
 	"errors"
 
+	lsp "atmo/lsp/sdk"
 	"atmo/session"
 	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
-
-	lsp "github.com/metaleap/polyglot-lsp/lang_go/lsp_v3.17"
 )
 
 var Server lsp.Server
@@ -19,12 +18,12 @@ func init() {
 		util.Assert(Server.Initialized.Client != nil && Server.Initialized.Server != nil, nil)
 		for file_path, diags := range pub {
 			Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
-				Uri: lsp.String(toUri(file_path)),
+				Uri: lsp.FsPathToUri(file_path),
 				Diagnostics: sl.As(diags, func(it *session.SrcFileNotice) lsp.Diagnostic {
 					code := str.Fmt("%04d", it.Code)
 					return lsp.Diagnostic{
-						Code:            &lsp.IntegerOrString{String: ptr(lsp.String(code))},
-						CodeDescription: &lsp.CodeDescription{Href: lsp.String("https://github.com/metaleap/atom/docs/errs.md#" + code)},
+						Code:            code,
+						CodeDescription: &lsp.CodeDescription{Href: "https://github.com/metaleap/atom/docs/errs.md#" + code},
 						Range:           toLspRange(it.Span),
 						Message:         it.Message,
 						Severity:        toLspDiagSeverity(it.Kind),
@@ -36,7 +35,7 @@ func init() {
 }
 
 func toLspPos(pos session.SrcFilePos) lsp.Position {
-	return lsp.Position{Line: uint(util.If(pos.Line <= 0, 0, pos.Line-1)), Character: uint(util.If(pos.Char <= 0, 0, pos.Char-1))}
+	return lsp.Position{Line: util.If(pos.Line <= 0, 0, pos.Line-1), Character: util.If(pos.Char <= 0, 0, pos.Char-1)}
 }
 
 func toLspRange(span session.SrcFileSpan) lsp.Range {
@@ -72,7 +71,7 @@ func Main() {
 			return nil, nil
 		case "eval":
 			code_action_params, err := util.JsonAs[lsp.CodeActionParams](params.Arguments[0])
-			return str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", toFsPath(code_action_params.TextDocument.Uri)), err
+			return str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.UriToFsPath(code_action_params.TextDocument.Uri)), err
 		}
 		return nil, errors.New("unknown command: '" + params.Command + "'")
 	}

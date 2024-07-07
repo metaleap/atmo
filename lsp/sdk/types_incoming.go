@@ -16,14 +16,8 @@ type Range struct {
 	End   Position `json:"end"`
 }
 
-type WithUri struct {
-	Uri string `json:"uri,omitempty"`
-}
-
-func (me *WithUri) FsPath() string { return UriToFsPath(me.Uri) }
-
 type TextDocumentIdentifier struct {
-	WithUri
+	Uri string `json:"uri,omitempty"`
 }
 
 type TextDocumentPositionParams struct {
@@ -36,7 +30,7 @@ type HoverParams struct {
 }
 
 type FileEvent struct {
-	WithUri
+	Uri  string         `json:"uri,omitempty"`
 	Type FileChangeType `json:"type"`
 }
 
@@ -53,7 +47,7 @@ type DidChangeWatchedFilesParams struct {
 }
 
 type WorkspaceFolder struct {
-	WithUri
+	Uri  string `json:"uri,omitempty"`
 	Name string `json:"name,omitempty"`
 }
 
@@ -67,7 +61,7 @@ type DidChangeWorkspaceFoldersParams struct {
 }
 
 type TextDocumentItem struct {
-	WithUri
+	Uri        string `json:"uri,omitempty"`
 	LanguageId string `json:"languageId"`
 	Version    int    `json:"version,omitempty"`
 	Text       string `json:"text"`

@@ -324,7 +324,7 @@ type SignatureInformation struct {
 }
 
 type PublishDiagnosticsParams struct {
-	WithUri
+	Uri         string       `json:"uri,omitempty"`
 	Diagnostics []Diagnostic `json:"diagnostics"`
 }
 
