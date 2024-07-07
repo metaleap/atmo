@@ -16,9 +16,9 @@ const (
 	_ SrcFileNoticeCode = iota
 	NoticeCodeOtherError
 	NoticeCodeFileReadError
+	NoticeCodeLexingError
 	NoticeCodeUnmatchedBrace
 	NoticeCodeNoPrecedence
-	NoticeCodeMultipleAstNodes
 )
 
 type SrcFileNotice struct {

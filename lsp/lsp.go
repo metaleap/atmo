@@ -16,7 +16,6 @@ var ClientIsAtmoVscExt bool
 
 func init() {
 	session.OnNoticesChanged = func(pub map[string][]*session.SrcFileNotice) {
-		return
 		util.Assert(Server.Initialized.Client != nil && Server.Initialized.Server != nil, nil)
 		for file_path, diags := range pub {
 			Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
@@ -37,7 +36,7 @@ func init() {
 }
 
 func toLspPos(pos session.SrcFilePos) lsp.Position {
-	return lsp.Position{Line: uint(pos.Line), Character: uint(pos.Char)}
+	return lsp.Position{Line: uint(util.If(pos.Line <= 0, 0, pos.Line-1)), Character: uint(util.If(pos.Char <= 0, 0, pos.Char-1))}
 }
 
 func toLspRange(span session.SrcFileSpan) lsp.Range {
