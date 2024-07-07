@@ -20,7 +20,7 @@ type Void struct{}
 type Server struct {
 	stdioLock sync.Mutex // to sync writes to stdout
 	stdout    io.Writer
-	waiters   map[any]func(any)
+	waiters   map[any]func(any, any)
 
 	LogPrefixSendRecvJsons string
 	Initialized            struct {
@@ -67,36 +67,33 @@ type Server struct {
 }
 
 func (it *Server) Notify_window_showMessage(params ShowMessageParams) {
-	var on_resp func(any)
-	go it.send("window/showMessage", params, false, on_resp)
+	go it.send("window/showMessage", params, false, nil)
 }
 
 func (it *Server) Notify_window_logMessage(params LogMessageParams) {
-	var on_resp func(any)
-	go it.send("window/logMessage", params, false, on_resp)
+	go it.send("window/logMessage", params, false, nil)
 }
 
 func (it *Server) Notify_textDocument_publishDiagnostics(params PublishDiagnosticsParams) {
-	var on_resp func(any)
-	go it.send("textDocument/publishDiagnostics", params, false, on_resp)
+	go it.send("textDocument/publishDiagnostics", params, false, nil)
 }
 
 func (it *Server) Request_workspace_workspaceFolders(params Void, onResp func([]WorkspaceFolder)) {
-	var on_resp func(any) = serverOnResp(it, onResp)
+	var on_resp func(any, any) = serverOnResp(it, onResp)
 	go it.send("workspace/workspaceFolders", params, true, on_resp)
 }
 
 func (it *Server) Request_client_registerCapability(params RegistrationParams, onResp func(Void)) {
-	var on_resp func(any) = serverOnResp(it, onResp)
+	var on_resp func(any, any) = serverOnResp(it, onResp)
 	go it.send("client/registerCapability", params, true, on_resp)
 }
 
 func (it *Server) Request_window_showMessageRequest(params ShowMessageRequestParams, onResp func(*MessageActionItem)) {
-	var on_resp func(any) = serverOnResp(it, onResp)
+	var on_resp func(any, any) = serverOnResp(it, onResp)
 	go it.send("window/showMessageRequest", params, true, on_resp)
 }
 
-func (it *Server) send(methodName string, params any, isReq bool, onResp func(any)) {
+func (it *Server) send(methodName string, params any, isReq bool, onResp func(any, any)) {
 	req_id := strconv.FormatInt(time.Now().UnixNano(), 36)
 	req := map[string]any{"method": methodName, "params": params}
 	if onResp != nil {
@@ -126,7 +123,7 @@ type jsonRpcError struct {
 	Message string     `json:"message"`
 }
 
-func (it *Server) sendErrMsg(err any) {
+func (it *Server) sendErrMsg(err any, msgId any) {
 	if err == nil {
 		return
 	}
@@ -137,7 +134,11 @@ func (it *Server) sendErrMsg(err any) {
 		}
 		json_rpc_err_msg = &jsonRpcError{Code: ErrorCodesInternalError, Message: fmt.Sprintf("%v", err)}
 	}
-	it.sendMsg(json_rpc_err_msg)
+	it.sendMsg(map[string]any{
+		"jsonrpc": "2.0",
+		"error":   json_rpc_err_msg,
+		"id":      msgId,
+	})
 }
 
 func (it *Server) handleIncoming(raw map[string]any) *jsonRpcError {
@@ -261,7 +262,7 @@ func (it *Server) handleIncoming(raw map[string]any) *jsonRpcError {
 			return init.Server, nil
 		}, msg_method, msg_id, raw["params"])
 	default: // msg is an incoming Request or Notification
-		if msg_id != nil { // a Request (not a Notification) that
+		if msg_id != nil { // a Request (not a Notification) that was sent despite lacking server support
 			return &jsonRpcError{Code: ErrorCodesMethodNotFound, Message: "unknown method: " + msg_method}
 		}
 	}
@@ -316,7 +317,7 @@ func (it *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[s
 	const buf_cap = 1024 * 1024
 
 	it.stdout = out
-	it.waiters = map[any]func(any){}
+	it.waiters = map[any]func(any, any){}
 
 	stdin := bufio.NewScanner(in)
 	stdin.Split(func(data []byte, ateof bool) (advance int, token []byte, err error) {
@@ -344,8 +345,9 @@ func (it *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[s
 			println(it.LogPrefixSendRecvJsons + ".RECV<<" + string(json_bytes) + "<<")
 			it.stdioLock.Unlock()
 		}
+		msg_id := raw["id"]
 		if err := json.Unmarshal(json_bytes, &raw); err != nil {
-			it.sendErrMsg(&jsonRpcError{Code: ErrorCodesParseError, Message: err.Error()})
+			it.sendErrMsg(&jsonRpcError{Code: ErrorCodesParseError, Message: err.Error()}, msg_id)
 			continue
 		}
 
@@ -355,27 +357,27 @@ func (it *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[s
 			it.stdioLock.Unlock()
 			continue
 		}
-		if msg_id := raw["id"]; raw["method"] == nil { // received a Response message
+		if raw["method"] == nil { // received a Response message
 			handler := it.waiters[msg_id]
 			delete(it.waiters, msg_id)
-			go handler(raw["result"])
+			go handler(raw["result"], msg_id)
 		} else {
-			it.sendErrMsg(handleIncoming(raw))
+			it.sendErrMsg(handleIncoming(raw), msg_id)
 		}
 	}
 	return stdin.Err()
 }
 
-func serverOnResp[T any](it *Server, onResp func(T)) func(any) {
+func serverOnResp[T any](it *Server, onResp func(T)) func(any, any) {
 	if onResp == nil {
 		return nil
 	}
-	return func(resultAsMap any) {
+	return func(resultAsMap any, msgId any) {
 		var result, none T
 		if resultAsMap != nil {
 			json_bytes, _ := json.Marshal(resultAsMap)
 			if err := json.Unmarshal(json_bytes, &result); err != nil {
-				it.sendErrMsg(err)
+				it.sendErrMsg(err, msgId)
 				return
 			}
 		}
@@ -386,7 +388,7 @@ func serverOnResp[T any](it *Server, onResp func(T)) func(any) {
 func serverHandleIncoming[TIn any, TOut any](it *Server, handler func(*TIn) (TOut, error), msgMethodName string, msgId any, msgParams any) {
 	if handler == nil {
 		if msgId != nil {
-			it.sendErrMsg(errors.New("unimplemented: " + msgMethodName))
+			it.sendErrMsg(errors.New("unimplemented: "+msgMethodName), msgId)
 		}
 		return
 	}
@@ -394,7 +396,7 @@ func serverHandleIncoming[TIn any, TOut any](it *Server, handler func(*TIn) (TOu
 	if msgParams != nil {
 		json_bytes, _ := json.Marshal(msgParams)
 		if err := json.Unmarshal(json_bytes, &params); err != nil {
-			it.sendErrMsg(&jsonRpcError{Code: ErrorCodesInvalidParams, Message: err.Error()})
+			it.sendErrMsg(&jsonRpcError{Code: ErrorCodesInvalidParams, Message: err.Error()}, msgId)
 			return
 		}
 	}
@@ -403,21 +405,19 @@ func serverHandleIncoming[TIn any, TOut any](it *Server, handler func(*TIn) (TOu
 			params = nil
 		}
 		result, err := handler(params)
-		resp := map[string]any{
-			"jsonrpc": "2.0",
-			"result":  result,
-			"id":      msgId,
-		}
-		if err != nil {
-			if msgId != nil {
-				resp["error"] = &jsonRpcError{Code: ErrorCodesInternalError, Message: fmt.Sprintf("%v", err)}
-			} else {
-				it.sendErrMsg(err)
-				return
-			}
-		}
 		if msgId != nil {
+			resp := map[string]any{
+				"jsonrpc": "2.0",
+				"result":  result,
+				"id":      msgId,
+			}
+			if err != nil {
+				delete(resp, "result")
+				resp["error"] = &jsonRpcError{Code: ErrorCodesInternalError, Message: fmt.Sprintf("%v", err)}
+			}
 			it.sendMsg(resp)
+		} else if err != nil {
+			println("handler for Notification '" + msgMethodName + "' failed: " + err.Error()) // goes to stderr
 		}
 	}(&params)
 }
