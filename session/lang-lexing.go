@@ -98,6 +98,13 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 		}
 		toks_flat = append(toks_flat, tok)
 	}
+	for i := 1; i < len(toks_flat); i++ {
+		if (toks_flat[i-1].Kind == TokKindOp) && (toks_flat[i].Kind == TokKindOp) && ((toks_flat[i-1].Pos.Char + len(toks_flat[i-1].Src)) == toks_flat[i].Pos.Char) {
+			toks_flat[i-1].Src += toks_flat[i].Src
+			toks_flat = append(toks_flat[:i], toks_flat[i+1:]...)
+			i--
+		}
+	}
 	ret = append(ret, toks_flat)
 	return
 }
