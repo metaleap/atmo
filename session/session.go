@@ -21,9 +21,9 @@ func init() {
 type SrcFile struct {
 	FilePath string
 	Content  struct {
-		Src  string
-		Toks Toks
-		Ast  any
+		Src                string
+		TopLevelToksChunks ToksChunks
+		TopLevelAstNodes   any
 	}
 	Notices struct {
 		LastReadErr *SrcFileNotice
@@ -62,9 +62,10 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 		src_file.Content.Src, src_file.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError)
 	}
 	if (src_file.Content.Src != old_content) || had_last_read_err || (src_file.Notices.LastReadErr != nil) {
-		src_file.Content.Ast, src_file.Content.Toks, src_file.Notices.LexErrs, src_file.Notices.ParseErrs = nil, nil, nil, nil
+		src_file.Content.TopLevelAstNodes, src_file.Content.TopLevelToksChunks, src_file.Notices.LexErrs, src_file.Notices.ParseErrs =
+			nil, nil, nil, nil
 		if src_file.Notices.LastReadErr == nil {
-			src_file.Content.Toks, src_file.Notices.LexErrs = tokenize(src_file.Content.Src, srcFilePath)
+			src_file.Content.TopLevelToksChunks, src_file.Notices.LexErrs = tokenize(src_file.Content.Src, srcFilePath)
 			// src_file.Content.Ast, src_file.Notices.ParseErrs = parse(src_file.Content.Toks, src_file.Content.Src, srcFilePath)
 		}
 	}

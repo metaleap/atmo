@@ -16,7 +16,8 @@ const (
 	_ SrcFileNoticeCode = iota
 	NoticeCodeOtherError
 	NoticeCodeFileReadError
-	NoticeCodeLexingError
+	NoticeCodeLexingUnknownLexeme
+	NoticeCodeLexingOtherError
 	NoticeCodeUnmatchedBrace
 	NoticeCodeNoPrecedence
 )
