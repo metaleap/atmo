@@ -44,10 +44,11 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 	for _, src_file_path := range provokingFilePaths {
 		pub[src_file_path] = nil
 		if src_file := allSrcFiles[src_file_path]; src_file != nil {
-			pub[src_file_path] = src_file.Notices.ParseErrs
 			if src_file.Notices.LastReadErr != nil {
 				pub[src_file_path] = append(pub[src_file_path], src_file.Notices.LastReadErr)
 			}
+			pub[src_file_path] = append(pub[src_file_path], src_file.Notices.LexErrs...)
+			pub[src_file_path] = append(pub[src_file_path], src_file.Notices.ParseErrs...)
 		}
 	}
 	OnNoticesChanged(pub)

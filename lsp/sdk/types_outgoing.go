@@ -58,7 +58,7 @@ type DocumentSymbol struct {
 	Tags           []SymbolTag      `json:"tags,omitempty"`
 	Range          Range            `json:"range"`
 	SelectionRange Range            `json:"selectionRange"`
-	Children       []DocumentSymbol `json:"children"`
+	Children       []DocumentSymbol `json:"children,omitempty"`
 }
 
 // A symbol kind.

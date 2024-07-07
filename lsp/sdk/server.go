@@ -261,7 +261,9 @@ func (it *Server) handleIncoming(raw map[string]any) *jsonRpcError {
 			return init.Server, nil
 		}, msg_method, msg_id, raw["params"])
 	default: // msg is an incoming Request or Notification
-		return &jsonRpcError{Code: ErrorCodesMethodNotFound, Message: "unknown method: " + msg_method}
+		if msg_id != nil { // a Request (not a Notification) that
+			return &jsonRpcError{Code: ErrorCodesMethodNotFound, Message: "unknown method: " + msg_method}
+		}
 	}
 
 	return nil
