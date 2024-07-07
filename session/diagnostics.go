@@ -10,16 +10,13 @@ const (
 	NoticeKindHint
 )
 
-type SrcFileNoticeCode int
+type SrcFileNoticeCode string
 
 const (
-	_ SrcFileNoticeCode = iota
-	NoticeCodeOtherError
-	NoticeCodeFileReadError
-	NoticeCodeLexingUnknownLexeme
-	NoticeCodeLexingOtherError
-	NoticeCodeUnmatchedBrace
-	NoticeCodeNoPrecedence
+	NoticeCodeFileReadError  SrcFileNoticeCode = "FileReadError"
+	NoticeCodeLexingError    SrcFileNoticeCode = "LexingError"
+	NoticeCodeUnmatchedBrace SrcFileNoticeCode = "UnmatchedBrace"
+	NoticeCodeNoPrecedence   SrcFileNoticeCode = "NoPrecedence"
 )
 
 type SrcFileNotice struct {

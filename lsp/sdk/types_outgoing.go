@@ -93,8 +93,8 @@ const (
 	SymbolKindTypeParameter SymbolKind = 26
 )
 
-func (it SymbolKind) String() string {
-	switch it {
+func (me SymbolKind) String() string {
+	switch me {
 	case SymbolKindFile:
 		return "File"
 	case SymbolKindModule:
@@ -148,7 +148,7 @@ func (it SymbolKind) String() string {
 	case SymbolKindTypeParameter:
 		return "TypeParameter"
 	}
-	return str.FromInt(int(it))
+	return str.FromInt(int(me))
 }
 
 type SymbolTag uint
@@ -157,8 +157,8 @@ const (
 	SymbolTagDeprecated SymbolTag = 1
 )
 
-func (it SymbolTag) String() string {
-	switch it {
+func (me SymbolTag) String() string {
+	switch me {
 	case SymbolTagDeprecated:
 		return "Deprecated"
 	}
@@ -211,12 +211,12 @@ const (
 	CompletionItemTagDeprecated CompletionItemTag = 1
 )
 
-func (it CompletionItemTag) String() string {
-	switch it {
+func (me CompletionItemTag) String() string {
+	switch me {
 	case CompletionItemTagDeprecated:
 		return "Deprecated"
 	}
-	return str.FromInt(int(it))
+	return str.FromInt(int(me))
 }
 
 type CompletionItemKind uint
@@ -249,8 +249,8 @@ const (
 	CompletionItemKindTypeParameter CompletionItemKind = 25
 )
 
-func (it CompletionItemKind) String() string {
-	switch it {
+func (me CompletionItemKind) String() string {
+	switch me {
 	case CompletionItemKindText:
 		return "Text"
 	case CompletionItemKindMethod:
@@ -302,7 +302,7 @@ func (it CompletionItemKind) String() string {
 	case CompletionItemKindTypeParameter:
 		return "TypeParameter"
 	}
-	return str.FromInt(int(it))
+	return str.FromInt(int(me))
 }
 
 type TextEdit struct {
@@ -351,8 +351,8 @@ const (
 	DiagnosticSeverityHint        DiagnosticSeverity = 4
 )
 
-func (it DiagnosticSeverity) String() string {
-	switch it {
+func (me DiagnosticSeverity) String() string {
+	switch me {
 	case DiagnosticSeverityError:
 		return "Error"
 	case DiagnosticSeverityWarning:
@@ -362,7 +362,7 @@ func (it DiagnosticSeverity) String() string {
 	case DiagnosticSeverityHint:
 		return "Hint"
 	}
-	return str.FromInt(int(it))
+	return str.FromInt(int(me))
 }
 
 type DiagnosticTag uint
@@ -372,14 +372,14 @@ const (
 	DiagnosticTagDeprecated  DiagnosticTag = 2
 )
 
-func (it DiagnosticTag) String() string {
-	switch it {
+func (me DiagnosticTag) String() string {
+	switch me {
 	case DiagnosticTagUnnecessary:
 		return "Unnecessary"
 	case DiagnosticTagDeprecated:
 		return "Deprecated"
 	}
-	return str.FromInt(int(it))
+	return str.FromInt(int(me))
 }
 
 type Command struct {
@@ -408,8 +408,8 @@ const (
 	MessageTypeDebug   MessageType = 5
 )
 
-func (it MessageType) String() string {
-	switch it {
+func (me MessageType) String() string {
+	switch me {
 	case MessageTypeError:
 		return "Error"
 	case MessageTypeWarning:
@@ -421,7 +421,7 @@ func (it MessageType) String() string {
 	case MessageTypeDebug:
 		return "Debug"
 	}
-	return str.FromInt(int(it))
+	return str.FromInt(int(me))
 }
 
 type InitializeResult struct {
@@ -499,8 +499,8 @@ const (
 	TextDocumentSyncKindIncremental TextDocumentSyncKind = 2
 )
 
-func (it TextDocumentSyncKind) String() string {
-	switch it {
+func (me TextDocumentSyncKind) String() string {
+	switch me {
 	case TextDocumentSyncKindNone:
 		return "None"
 	case TextDocumentSyncKindFull:
@@ -508,7 +508,7 @@ func (it TextDocumentSyncKind) String() string {
 	case TextDocumentSyncKindIncremental:
 		return "Incremental"
 	}
-	return str.FromInt(int(it))
+	return str.FromInt(int(me))
 }
 
 type ErrorCodes int
@@ -523,8 +523,8 @@ const (
 	ErrorCodesUnknownErrorCode     ErrorCodes = -32001
 )
 
-func (it ErrorCodes) String() string {
-	switch it {
+func (me ErrorCodes) String() string {
+	switch me {
 	case ErrorCodesParseError:
 		return "ParseError"
 	case ErrorCodesInvalidRequest:
@@ -540,7 +540,7 @@ func (it ErrorCodes) String() string {
 	case ErrorCodesUnknownErrorCode:
 		return "UnknownErrorCode"
 	}
-	return str.FromInt(int(it))
+	return str.FromInt(int(me))
 }
 
 type ShowMessageRequestParams struct {

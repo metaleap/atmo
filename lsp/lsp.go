@@ -20,10 +20,9 @@ func init() {
 			Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
 				Uri: lsp.FsPathToUri(file_path),
 				Diagnostics: sl.As(diags, func(it *session.SrcFileNotice) lsp.Diagnostic {
-					code := str.Fmt("%04d", it.Code)
 					return lsp.Diagnostic{
-						Code:            code,
-						CodeDescription: &lsp.CodeDescription{Href: "https://github.com/metaleap/atom/docs/errs.md#" + code},
+						Code:            string(it.Code),
+						CodeDescription: &lsp.CodeDescription{Href: "https://github.com/metaleap/atom/docs/errs.md#" + string(it.Code)},
 						Range:           toLspRange(it.Span),
 						Message:         it.Message,
 						Severity:        toLspDiagSeverity(it.Kind),

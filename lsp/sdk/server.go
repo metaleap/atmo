@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -13,14 +12,16 @@ import (
 	"time"
 
 	"atmo/util"
+	"atmo/util/str"
 )
 
 type Void struct{}
 
 type Server struct {
-	stdioLock sync.Mutex // to sync writes to stdout
 	stdout    io.Writer
+	stdioMu   sync.Mutex // to sync writes to stdout
 	waiters   map[any]func(any, any)
+	waitersMu sync.Mutex
 
 	LogPrefixSendRecvJsons string
 	Initialized            struct {
@@ -66,56 +67,58 @@ type Server struct {
 	On_workspace_executeCommand            func(params *ExecuteCommandParams) (any, error)
 }
 
-func (it *Server) Notify_window_showMessage(params ShowMessageParams) {
-	go it.send("window/showMessage", params, false, nil)
+func (me *Server) Notify_window_showMessage(params ShowMessageParams) {
+	go me.send("window/showMessage", params, false, nil)
 }
 
-func (it *Server) Notify_window_logMessage(params LogMessageParams) {
-	go it.send("window/logMessage", params, false, nil)
+func (me *Server) Notify_window_logMessage(params LogMessageParams) {
+	go me.send("window/logMessage", params, false, nil)
 }
 
-func (it *Server) Notify_textDocument_publishDiagnostics(params PublishDiagnosticsParams) {
-	go it.send("textDocument/publishDiagnostics", params, false, nil)
+func (me *Server) Notify_textDocument_publishDiagnostics(params PublishDiagnosticsParams) {
+	go me.send("textDocument/publishDiagnostics", params, false, nil)
 }
 
-func (it *Server) Request_workspace_workspaceFolders(params Void, onResp func([]WorkspaceFolder)) {
-	var on_resp func(any, any) = serverOnResp(it, onResp)
-	go it.send("workspace/workspaceFolders", params, true, on_resp)
+func (me *Server) Request_workspace_workspaceFolders(params Void, onResp func([]WorkspaceFolder)) {
+	var on_resp func(any, any) = serverOnResp(me, onResp)
+	go me.send("workspace/workspaceFolders", params, true, on_resp)
 }
 
-func (it *Server) Request_client_registerCapability(params RegistrationParams, onResp func(Void)) {
-	var on_resp func(any, any) = serverOnResp(it, onResp)
-	go it.send("client/registerCapability", params, true, on_resp)
+func (me *Server) Request_client_registerCapability(params RegistrationParams, onResp func(Void)) {
+	var on_resp func(any, any) = serverOnResp(me, onResp)
+	go me.send("client/registerCapability", params, true, on_resp)
 }
 
-func (it *Server) Request_window_showMessageRequest(params ShowMessageRequestParams, onResp func(*MessageActionItem)) {
-	var on_resp func(any, any) = serverOnResp(it, onResp)
-	go it.send("window/showMessageRequest", params, true, on_resp)
+func (me *Server) Request_window_showMessageRequest(params ShowMessageRequestParams, onResp func(*MessageActionItem)) {
+	var on_resp func(any, any) = serverOnResp(me, onResp)
+	go me.send("window/showMessageRequest", params, true, on_resp)
 }
 
-func (it *Server) send(methodName string, params any, isReq bool, onResp func(any, any)) {
+func (me *Server) send(methodName string, params any, isReq bool, onResp func(any, any)) {
 	req_id := strconv.FormatInt(time.Now().UnixNano(), 36)
 	req := map[string]any{"method": methodName, "params": params}
 	if onResp != nil {
-		it.waiters[req_id] = onResp
+		me.waitersMu.Lock()
+		me.waiters[req_id] = onResp
+		me.waitersMu.Unlock()
 	}
 	if isReq {
 		req["id"] = req_id
 	}
-	it.sendMsg(req)
+	me.sendMsg(req)
 }
 
-func (it *Server) sendMsg(jsonable any) {
+func (me *Server) sendMsg(jsonable any) {
 	json_bytes, _ := json.Marshal(jsonable)
-	it.stdioLock.Lock()
-	defer it.stdioLock.Unlock()
-	if it.LogPrefixSendRecvJsons != "" {
-		println(it.LogPrefixSendRecvJsons + ".SEND>>" + string(json_bytes) + ">>")
+	me.stdioMu.Lock()
+	defer me.stdioMu.Unlock()
+	if me.LogPrefixSendRecvJsons != "" {
+		println(me.LogPrefixSendRecvJsons + ".SEND>>" + string(json_bytes) + ">>")
 	}
-	_, _ = it.stdout.Write([]byte("Content-Length: "))
-	_, _ = it.stdout.Write([]byte(strconv.Itoa(len(json_bytes))))
-	_, _ = it.stdout.Write([]byte("\r\n\r\n"))
-	_, _ = it.stdout.Write(json_bytes)
+	_, _ = me.stdout.Write([]byte("Content-Length: "))
+	_, _ = me.stdout.Write([]byte(strconv.Itoa(len(json_bytes))))
+	_, _ = me.stdout.Write([]byte("\r\n\r\n"))
+	_, _ = me.stdout.Write(json_bytes)
 }
 
 type jsonRpcError struct {
@@ -123,7 +126,7 @@ type jsonRpcError struct {
 	Message string     `json:"message"`
 }
 
-func (it *Server) sendErrMsg(err any, msgId any) {
+func (me *Server) sendErrMsg(err any, msgId any) {
 	if err == nil {
 		return
 	}
@@ -132,76 +135,76 @@ func (it *Server) sendErrMsg(err any, msgId any) {
 		if is_json_rpc_err_msg {
 			return
 		}
-		json_rpc_err_msg = &jsonRpcError{Code: ErrorCodesInternalError, Message: fmt.Sprintf("%v", err)}
+		json_rpc_err_msg = &jsonRpcError{Code: ErrorCodesInternalError, Message: str.Fmt("%v", err)}
 	}
-	it.sendMsg(map[string]any{
+	me.sendMsg(map[string]any{
 		"jsonrpc": "2.0",
 		"error":   json_rpc_err_msg,
 		"id":      msgId,
 	})
 }
 
-func (it *Server) handleIncoming(raw map[string]any) *jsonRpcError {
+func (me *Server) handleIncoming(raw map[string]any) *jsonRpcError {
 	msg_id, msg_method := raw["id"], raw["method"]
 
 	switch msg_method, _ := msg_method.(string); msg_method {
 	case "workspace/didChangeWorkspaceFolders":
-		serverHandleIncoming(it, it.On_workspace_didChangeWorkspaceFolders, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_workspace_didChangeWorkspaceFolders, msg_method, msg_id, raw["params"])
 	case "initialized":
-		serverHandleIncoming(it, it.On_initialized, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_initialized, msg_method, msg_id, raw["params"])
 	case "exit":
-		serverHandleIncoming(it, it.On_exit, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_exit, msg_method, msg_id, raw["params"])
 	case "textDocument/didOpen":
-		serverHandleIncoming(it, it.On_textDocument_didOpen, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_didOpen, msg_method, msg_id, raw["params"])
 	case "textDocument/didChange":
-		serverHandleIncoming(it, it.On_textDocument_didChange, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_didChange, msg_method, msg_id, raw["params"])
 	case "textDocument/didClose":
-		serverHandleIncoming(it, it.On_textDocument_didClose, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_didClose, msg_method, msg_id, raw["params"])
 	case "textDocument/didSave":
-		serverHandleIncoming(it, it.On_textDocument_didSave, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_didSave, msg_method, msg_id, raw["params"])
 	case "workspace/didChangeWatchedFiles":
-		serverHandleIncoming(it, it.On_workspace_didChangeWatchedFiles, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_workspace_didChangeWatchedFiles, msg_method, msg_id, raw["params"])
 	case "textDocument/implementation":
-		serverHandleIncoming(it, it.On_textDocument_implementation, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_implementation, msg_method, msg_id, raw["params"])
 	case "textDocument/typeDefinition":
-		serverHandleIncoming(it, it.On_textDocument_typeDefinition, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_typeDefinition, msg_method, msg_id, raw["params"])
 	case "textDocument/declaration":
-		serverHandleIncoming(it, it.On_textDocument_declaration, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_declaration, msg_method, msg_id, raw["params"])
 	case "textDocument/selectionRange":
-		serverHandleIncoming(it, it.On_textDocument_selectionRange, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_selectionRange, msg_method, msg_id, raw["params"])
 	case "shutdown":
-		serverHandleIncoming(it, it.On_shutdown, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_shutdown, msg_method, msg_id, raw["params"])
 	case "textDocument/completion":
-		serverHandleIncoming(it, it.On_textDocument_completion, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_completion, msg_method, msg_id, raw["params"])
 	case "textDocument/hover":
-		serverHandleIncoming(it, it.On_textDocument_hover, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_hover, msg_method, msg_id, raw["params"])
 	case "textDocument/signatureHelp":
-		serverHandleIncoming(it, it.On_textDocument_signatureHelp, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_signatureHelp, msg_method, msg_id, raw["params"])
 	case "textDocument/definition":
-		serverHandleIncoming(it, it.On_textDocument_definition, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_definition, msg_method, msg_id, raw["params"])
 	case "textDocument/references":
-		serverHandleIncoming(it, it.On_textDocument_references, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_references, msg_method, msg_id, raw["params"])
 	case "textDocument/documentHighlight":
-		serverHandleIncoming(it, it.On_textDocument_documentHighlight, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_documentHighlight, msg_method, msg_id, raw["params"])
 	case "textDocument/documentSymbol":
-		serverHandleIncoming(it, it.On_textDocument_documentSymbol, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_documentSymbol, msg_method, msg_id, raw["params"])
 	case "textDocument/codeAction":
-		serverHandleIncoming(it, it.On_textDocument_codeAction, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_codeAction, msg_method, msg_id, raw["params"])
 	case "workspace/symbol":
-		serverHandleIncoming(it, it.On_workspace_symbol, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_workspace_symbol, msg_method, msg_id, raw["params"])
 	case "textDocument/formatting":
-		serverHandleIncoming(it, it.On_textDocument_formatting, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_formatting, msg_method, msg_id, raw["params"])
 	case "textDocument/rangeFormatting":
-		serverHandleIncoming(it, it.On_textDocument_rangeFormatting, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_rangeFormatting, msg_method, msg_id, raw["params"])
 	case "textDocument/rename":
-		serverHandleIncoming(it, it.On_textDocument_rename, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_rename, msg_method, msg_id, raw["params"])
 	case "textDocument/prepareRename":
-		serverHandleIncoming(it, it.On_textDocument_prepareRename, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_textDocument_prepareRename, msg_method, msg_id, raw["params"])
 	case "workspace/executeCommand":
-		serverHandleIncoming(it, it.On_workspace_executeCommand, msg_method, msg_id, raw["params"])
+		serverHandleIncoming(me, me.On_workspace_executeCommand, msg_method, msg_id, raw["params"])
 	case "initialize":
-		serverHandleIncoming(it, func(params *InitializeParams) (any, error) {
-			init := &it.Initialized
+		serverHandleIncoming(me, func(params *InitializeParams) (any, error) {
+			init := &me.Initialized
 			init.Client = params
 			init.Server = &InitializeResult{
 				ServerInfo: struct {
@@ -210,46 +213,46 @@ func (it *Server) handleIncoming(raw map[string]any) *jsonRpcError {
 				}{Name: os.Args[0]},
 			}
 			caps := &init.Server.Capabilities
-			if it.On_textDocument_didClose != nil || it.On_textDocument_didOpen != nil ||
-				it.On_textDocument_didChange != nil || it.On_textDocument_didSave != nil {
+			if me.On_textDocument_didClose != nil || me.On_textDocument_didOpen != nil ||
+				me.On_textDocument_didChange != nil || me.On_textDocument_didSave != nil {
 				caps.TextDocumentSync = &TextDocumentSyncOptions{
-					OpenClose: it.On_textDocument_didClose != nil || it.On_textDocument_didOpen != nil,
-					Change:    util.If(it.On_textDocument_didChange != nil, TextDocumentSyncKindFull, TextDocumentSyncKindNone),
-					Save:      util.If(it.On_textDocument_didSave != nil, &SaveOptions{IncludeText: true}, nil),
+					OpenClose: me.On_textDocument_didClose != nil || me.On_textDocument_didOpen != nil,
+					Change:    util.If(me.On_textDocument_didChange != nil, TextDocumentSyncKindFull, TextDocumentSyncKindNone),
+					Save:      util.If(me.On_textDocument_didSave != nil, &SaveOptions{IncludeText: true}, nil),
 				}
 			}
-			if it.On_textDocument_completion != nil {
-				caps.CompletionProvider = &CompletionOptions{TriggerCharacters: it.Lang.TriggerChars.Completion}
+			if me.On_textDocument_completion != nil {
+				caps.CompletionProvider = &CompletionOptions{TriggerCharacters: me.Lang.TriggerChars.Completion}
 			}
-			if it.On_textDocument_signatureHelp != nil {
-				caps.SignatureHelpProvider = &SignatureHelpOptions{TriggerCharacters: it.Lang.TriggerChars.Signature}
+			if me.On_textDocument_signatureHelp != nil {
+				caps.SignatureHelpProvider = &SignatureHelpOptions{TriggerCharacters: me.Lang.TriggerChars.Signature}
 			}
-			if it.On_textDocument_rename != nil {
+			if me.On_textDocument_rename != nil {
 				caps.RenameProvider = &RenameOptions{
-					PrepareProvider: (it.On_textDocument_prepareRename != nil),
+					PrepareProvider: (me.On_textDocument_prepareRename != nil),
 				}
 			}
-			if it.On_workspace_executeCommand != nil {
-				caps.ExecuteCommandProvider = &ExecuteCommandOptions{Commands: it.Lang.Commands}
+			if me.On_workspace_executeCommand != nil {
+				caps.ExecuteCommandProvider = &ExecuteCommandOptions{Commands: me.Lang.Commands}
 			}
-			caps.HoverProvider = (it.On_textDocument_hover != nil)
-			caps.DeclarationProvider = (it.On_textDocument_declaration != nil)
-			caps.DefinitionProvider = (it.On_textDocument_definition != nil)
-			caps.TypeDefinitionProvider = (it.On_textDocument_typeDefinition != nil)
-			caps.ImplementationProvider = (it.On_textDocument_implementation != nil)
-			caps.ReferencesProvider = (it.On_textDocument_references != nil)
-			caps.DocumentHighlightProvider = (it.On_textDocument_documentHighlight != nil)
-			caps.CodeActionProvider = (it.On_textDocument_codeAction != nil)
-			caps.DocumentFormattingProvider = (it.On_textDocument_formatting != nil)
-			caps.DocumentRangeFormattingProvider = (it.On_textDocument_rangeFormatting != nil)
-			caps.SelectionRangeProvider = (it.On_textDocument_selectionRange != nil)
-			caps.WorkspaceSymbolProvider = (it.On_workspace_symbol != nil)
-			if it.On_textDocument_documentSymbol != nil {
+			caps.HoverProvider = (me.On_textDocument_hover != nil)
+			caps.DeclarationProvider = (me.On_textDocument_declaration != nil)
+			caps.DefinitionProvider = (me.On_textDocument_definition != nil)
+			caps.TypeDefinitionProvider = (me.On_textDocument_typeDefinition != nil)
+			caps.ImplementationProvider = (me.On_textDocument_implementation != nil)
+			caps.ReferencesProvider = (me.On_textDocument_references != nil)
+			caps.DocumentHighlightProvider = (me.On_textDocument_documentHighlight != nil)
+			caps.CodeActionProvider = (me.On_textDocument_codeAction != nil)
+			caps.DocumentFormattingProvider = (me.On_textDocument_formatting != nil)
+			caps.DocumentRangeFormattingProvider = (me.On_textDocument_rangeFormatting != nil)
+			caps.SelectionRangeProvider = (me.On_textDocument_selectionRange != nil)
+			caps.WorkspaceSymbolProvider = (me.On_workspace_symbol != nil)
+			if me.On_textDocument_documentSymbol != nil {
 				caps.DocumentSymbolProvider = &DocumentSymbolOptions{
-					Label: util.If(it.Lang.DocumentSymbolsMultiTreeLabel == "", "(lsp.Server.Lang.DocumentSymbolsMultiTreeLabel)", it.Lang.DocumentSymbolsMultiTreeLabel),
+					Label: util.If(me.Lang.DocumentSymbolsMultiTreeLabel == "", "(lsp.Server.Lang.DocumentSymbolsMultiTreeLabel)", me.Lang.DocumentSymbolsMultiTreeLabel),
 				}
 			}
-			if it.On_workspace_didChangeWorkspaceFolders != nil {
+			if me.On_workspace_didChangeWorkspaceFolders != nil {
 				caps.Workspace = struct {
 					WorkspaceFolders WorkspaceFoldersServerCapabilities "json:\"workspaceFolders,omitempty\""
 				}{
@@ -272,25 +275,25 @@ func (it *Server) handleIncoming(raw map[string]any) *jsonRpcError {
 
 // Forever keeps reading and handling LSP JSON-RPC messages incoming over `os.Stdin`
 // until reading from `os.Stdin` fails, then returns that IO read error.
-func (it *Server) Forever() error {
+func (me *Server) Forever() error {
 	{ // users shouldn't have to set up no-op handlers for these routine teardown lifecycle messages:
-		old_shutdown, old_exit, old_initialized := it.On_shutdown, it.On_exit, it.On_initialized
-		it.On_shutdown = func(params *Void) (any, error) {
+		old_shutdown, old_exit, old_initialized := me.On_shutdown, me.On_exit, me.On_initialized
+		me.On_shutdown = func(params *Void) (any, error) {
 			if old_shutdown != nil {
 				return old_shutdown(params)
 			}
 			return nil, nil
 		}
-		it.On_exit = func(params *Void) (any, error) {
+		me.On_exit = func(params *Void) (any, error) {
 			if old_exit != nil {
 				return old_exit(params)
 			}
 			os.Exit(0)
 			return nil, nil
 		}
-		it.On_initialized = func(params *InitializedParams) (any, error) {
-			if it.On_workspace_didChangeWatchedFiles != nil {
-				it.Request_client_registerCapability(RegistrationParams{
+		me.On_initialized = func(params *InitializedParams) (any, error) {
+			if me.On_workspace_didChangeWatchedFiles != nil {
+				me.Request_client_registerCapability(RegistrationParams{
 					Registrations: []Registration{
 						{Method: "workspace/didChangeWatchedFiles", Id: "workspace/didChangeWatchedFiles",
 							RegisterOptions: DidChangeWatchedFilesRegistrationOptions{Watchers: []FileSystemWatcher{
@@ -308,16 +311,16 @@ func (it *Server) Forever() error {
 		}
 	}
 
-	return it.forever(os.Stdin, os.Stdout, it.handleIncoming)
+	return me.forever(os.Stdin, os.Stdout, me.handleIncoming)
 }
 
 // forever keeps reading and handling LSP JSON-RPC messages incoming over
 // `in` until reading from `in` fails, then returns that IO read error.
-func (it *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[string]any) *jsonRpcError) error {
+func (me *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[string]any) *jsonRpcError) error {
 	const buf_cap = 1024 * 1024
 
-	it.stdout = out
-	it.waiters = map[any]func(any, any){}
+	me.stdout = out
+	me.waiters = map[any]func(any, any){}
 
 	stdin := bufio.NewScanner(in)
 	stdin.Split(func(data []byte, ateof bool) (advance int, token []byte, err error) {
@@ -340,35 +343,38 @@ func (it *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[s
 	for stdin.Scan() {
 		raw := map[string]any{}
 		json_bytes := stdin.Bytes()
-		if it.LogPrefixSendRecvJsons != "" {
-			it.stdioLock.Lock()
-			println(it.LogPrefixSendRecvJsons + ".RECV<<" + string(json_bytes) + "<<")
-			it.stdioLock.Unlock()
+		if me.LogPrefixSendRecvJsons != "" {
+			me.stdioMu.Lock()
+			println(me.LogPrefixSendRecvJsons + ".RECV<<" + string(json_bytes) + "<<")
+			me.stdioMu.Unlock()
+		}
+		if err := json.Unmarshal(json_bytes, &raw); err != nil {
+			println("failed to parse incoming JSON message '" + string(json_bytes) + "': " + err.Error()) // goes to stderr
+			continue
 		}
 		msg_id := raw["id"]
-		if err := json.Unmarshal(json_bytes, &raw); err != nil {
-			it.sendErrMsg(&jsonRpcError{Code: ErrorCodesParseError, Message: err.Error()}, msg_id)
+		me.waitersMu.Lock()
+		handler := me.waiters[msg_id]
+		delete(me.waiters, msg_id)
+		me.waitersMu.Unlock()
+
+		if raw["code"] != nil { // received an error message
+			me.stdioMu.Lock()
+			println(string(json_bytes)) // goes to stderr
+			me.stdioMu.Unlock()
 			continue
 		}
 
-		if raw["code"] != nil { // received an error message
-			it.stdioLock.Lock()
-			println(string(json_bytes)) // goes to stderr
-			it.stdioLock.Unlock()
-			continue
-		}
 		if raw["method"] == nil { // received a Response message
-			handler := it.waiters[msg_id]
-			delete(it.waiters, msg_id)
 			go handler(raw["result"], msg_id)
 		} else {
-			it.sendErrMsg(handleIncoming(raw), msg_id)
+			me.sendErrMsg(handleIncoming(raw), msg_id)
 		}
 	}
 	return stdin.Err()
 }
 
-func serverOnResp[T any](it *Server, onResp func(T)) func(any, any) {
+func serverOnResp[T any](me *Server, onResp func(T)) func(any, any) {
 	if onResp == nil {
 		return nil
 	}
@@ -377,7 +383,7 @@ func serverOnResp[T any](it *Server, onResp func(T)) func(any, any) {
 		if resultAsMap != nil {
 			json_bytes, _ := json.Marshal(resultAsMap)
 			if err := json.Unmarshal(json_bytes, &result); err != nil {
-				it.sendErrMsg(err, msgId)
+				me.sendErrMsg(err, msgId)
 				return
 			}
 		}
@@ -385,10 +391,10 @@ func serverOnResp[T any](it *Server, onResp func(T)) func(any, any) {
 	}
 }
 
-func serverHandleIncoming[TIn any, TOut any](it *Server, handler func(*TIn) (TOut, error), msgMethodName string, msgId any, msgParams any) {
+func serverHandleIncoming[TIn any, TOut any](me *Server, handler func(*TIn) (TOut, error), msgMethodName string, msgId any, msgParams any) {
 	if handler == nil {
 		if msgId != nil {
-			it.sendErrMsg(errors.New("unimplemented: "+msgMethodName), msgId)
+			me.sendErrMsg(errors.New("unimplemented: "+msgMethodName), msgId)
 		}
 		return
 	}
@@ -396,7 +402,7 @@ func serverHandleIncoming[TIn any, TOut any](it *Server, handler func(*TIn) (TOu
 	if msgParams != nil {
 		json_bytes, _ := json.Marshal(msgParams)
 		if err := json.Unmarshal(json_bytes, &params); err != nil {
-			it.sendErrMsg(&jsonRpcError{Code: ErrorCodesInvalidParams, Message: err.Error()}, msgId)
+			me.sendErrMsg(&jsonRpcError{Code: ErrorCodesInvalidParams, Message: err.Error()}, msgId)
 			return
 		}
 	}
@@ -413,9 +419,9 @@ func serverHandleIncoming[TIn any, TOut any](it *Server, handler func(*TIn) (TOu
 			}
 			if err != nil {
 				delete(resp, "result")
-				resp["error"] = &jsonRpcError{Code: ErrorCodesInternalError, Message: fmt.Sprintf("%v", err)}
+				resp["error"] = &jsonRpcError{Code: ErrorCodesInternalError, Message: str.Fmt("%v", err)}
 			}
-			it.sendMsg(resp)
+			me.sendMsg(resp)
 		} else if err != nil {
 			println("handler for Notification '" + msgMethodName + "' failed: " + err.Error()) // goes to stderr
 		}

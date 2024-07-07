@@ -57,7 +57,7 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 	scan.Whitespace = 1<<'\n' | 1<<' '
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
-		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Message: msg, Code: NoticeCodeLexingOtherError,
+		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Message: msg, Code: NoticeCodeLexingError,
 			Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
 	}
 	scan.IsIdentRune = func(char rune, i int) bool {
@@ -93,7 +93,7 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 		case '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '|', '&', '!', '?', '%', '=':
 			tok.Kind = TokKindOp
 		default:
-			errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingUnknownLexeme,
+			errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError,
 				Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan(), Message: str.Fmt("unknown lexeme: '%s'", string(lexeme))})
 		}
 		toks_flat = append(toks_flat, tok)
