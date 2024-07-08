@@ -35,7 +35,7 @@ type Toks []*Tok
 type TokKind int
 
 const (
-	_ TokKind = iota
+	TokKindInvalid TokKind = iota
 	TokKindBrace
 	TokKindOp
 	TokKindSep
@@ -63,10 +63,14 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Message: msg, Code: NoticeCodeLexingError,
 			Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
 	}
+	var last_ident_first_char rune
 	scan.IsIdentRune = func(char rune, i int) bool {
-		return ((i == 0) && ((char == '@') || (char == '$') || (char == '.'))) ||
-			((i > 0) && (char == '/' || char == '\\' || unicode.IsDigit(char))) ||
-			unicode.IsLetter(char)
+		if i == 0 {
+			last_ident_first_char = char
+		}
+		return ((i == 0) && ((char == '%') || (char == '@') || (char == '$') || (char == '.'))) ||
+			unicode.IsLetter(char) ||
+			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
 	scan.Filename = filePath
 
@@ -111,11 +115,15 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 		}
 	}
 
-	// delineate the top-level chunks (a top-level chunk is a non-indented line plus all subsequent indented lines)
+	ret = flat_list.chunks(1)
+	return
+}
+
+func (me Toks) chunks(posCharIndentedIsGt int) (ret ToksChunks) {
 	var cur_chunk Toks
-	for i, tok := range flat_list {
-		is_on_a_new_line := (i == 0) || (tok.Pos.Line != flat_list[i-1].Pos.Line)
-		if is_on_a_new_line && (tok.Pos.Char == 1) {
+	for i, tok := range me {
+		is_on_a_new_line := (i == 0) || (tok.Pos.Line != me[i-1].Pos.Line)
+		if is_on_a_new_line && (tok.Pos.Char == posCharIndentedIsGt) {
 			if len(cur_chunk) > 0 {
 				ret = append(ret, cur_chunk)
 			}
