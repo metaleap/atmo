@@ -65,11 +65,9 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 	}
 	var last_ident_first_char rune
 	scan.IsIdentRune = func(char rune, i int) bool {
-		if i == 0 {
-			last_ident_first_char = char
-		}
-		return ((i == 0) && ((char == '%') || (char == '@') || (char == '$') || (char == '.'))) ||
-			unicode.IsLetter(char) ||
+		last_ident_first_char = util.If(i == 0, char, last_ident_first_char)
+		return (char == '_') || unicode.IsLetter(char) ||
+			((i == 0) && ((char == '%') || (char == '@') || (char == '$') || (char == '.'))) ||
 			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
 	scan.Filename = filePath
