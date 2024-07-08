@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	"atmo/util"
+	"atmo/util/sl"
 	"atmo/util/str"
 )
 
@@ -30,7 +31,7 @@ type SrcFileSpan struct {
 func (me *SrcFileSpan) IsSinglePos() bool { return me.Start == me.End }
 
 type ToksChunks []Toks
-type Toks []Tok
+type Toks []*Tok
 type TokKind int
 
 const (
@@ -69,7 +70,7 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 	}
 	scan.Filename = filePath
 
-	var toks_flat Toks
+	var flat_list Toks
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
 		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, ByteOffset: scan.Offset, Src: scan.TokenText()}
 		switch lexeme {
@@ -98,15 +99,24 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 			errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError,
 				Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan(), Message: str.Fmt("unknown lexeme: '%s'", string(lexeme))})
 		}
-		toks_flat = append(toks_flat, tok)
+		flat_list = append(flat_list, &tok)
 	}
-	for i := 1; i < len(toks_flat); i++ {
-		if (toks_flat[i-1].Kind == TokKindOp) && (toks_flat[i].Kind == TokKindOp) && ((toks_flat[i-1].Pos.Char + len(toks_flat[i-1].Src)) == toks_flat[i].Pos.Char) {
-			toks_flat[i-1].Src += toks_flat[i].Src
-			toks_flat = append(toks_flat[:i], toks_flat[i+1:]...)
+
+	// multi-char op-likes such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
+	for i := 1; i < len(flat_list); i++ {
+		if (flat_list[i-1].Kind == TokKindOp) && (flat_list[i].Kind == TokKindOp) && ((flat_list[i-1].Pos.Char + len(flat_list[i-1].Src)) == flat_list[i].Pos.Char) {
+			flat_list[i-1].Src += flat_list[i].Src
+			flat_list = append(flat_list[:i], flat_list[i+1:]...)
 			i--
 		}
 	}
-	ret = append(ret, toks_flat)
+
+	// delineate the top-level chunks. a top-level chunk is a non-indented line plus all subsequent indented lines.
+
+	ret = append(ret, flat_list)
 	return
+}
+
+func (me Toks) withoutComments() Toks {
+	return sl.Where(me, func(it *Tok) bool { return it.Kind != TokKindComment })
 }
