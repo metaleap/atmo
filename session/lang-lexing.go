@@ -48,9 +48,9 @@ const (
 )
 
 type Tok struct {
+	byteOffset int
 	Pos        SrcFilePos
 	Kind       TokKind
-	ByteOffset int
 	Src        string
 }
 
@@ -72,7 +72,7 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 
 	var flat_list Toks
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
-		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, ByteOffset: scan.Offset, Src: scan.TokenText()}
+		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset, Src: scan.TokenText()}
 		switch lexeme {
 		case scanner.Char:
 			tok.Kind = TokKindLitChar
@@ -111,7 +111,7 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 		}
 	}
 
-	// delineate the top-level chunks. a top-level chunk is a non-indented line plus all subsequent indented lines.
+	// TODO: delineate the top-level chunks. a top-level chunk is a non-indented line plus all subsequent indented lines.
 
 	ret = append(ret, flat_list)
 	return
