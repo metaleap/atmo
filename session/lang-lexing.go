@@ -111,10 +111,36 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 		}
 	}
 
-	// TODO: delineate the top-level chunks. a top-level chunk is a non-indented line plus all subsequent indented lines.
+	// delineate the top-level chunks (a top-level chunk is a non-indented line plus all subsequent indented lines)
+	var cur_chunk Toks
+	for i, tok := range flat_list {
+		is_on_a_new_line := (i == 0) || (tok.Pos.Line != flat_list[i-1].Pos.Line)
+		if is_on_a_new_line && (tok.Pos.Char == 1) {
+			if len(cur_chunk) > 0 {
+				ret = append(ret, cur_chunk)
+			}
+			cur_chunk = Toks{tok}
+		} else {
+			cur_chunk = append(cur_chunk, tok)
+		}
+	}
+	if len(cur_chunk) > 0 {
+		ret = append(ret, cur_chunk)
+	}
+	// may now have comments as top-level chunks that should belong to the next non-comment top-level chunk, let's rectify:
+	for i := 0; i < len(ret)-1; i++ {
+		if ret[i].allOfKind(TokKindComment) && (ret[i+1][0].Pos.Line == (1 + ret[i][len(ret[i])-1].Pos.Line)) {
+			ret[i+1] = append(ret[i], ret[i+1]...) // prepend cur chunk to next
+			ret = append(ret[:i], ret[i+1:]...)    // remove cur chunk
+			i--
+		}
+	}
 
-	ret = append(ret, flat_list)
 	return
+}
+
+func (me Toks) allOfKind(kind TokKind) bool {
+	return sl.All(me, func(it *Tok) bool { return it.Kind == kind })
 }
 
 func (me Toks) withoutComments() Toks {
