@@ -11,7 +11,9 @@ import (
 
 // SrcFilePos Line and Char both start at 1
 type SrcFilePos struct {
+	// Line starts at 1
 	Line int
+	// Char starts at 1
 	Char int
 }
 
@@ -25,7 +27,7 @@ type SrcFileSpan struct {
 	End   SrcFilePos
 }
 
-func (me *SrcFileSpan) IsEmpty() bool { return me.Start == me.End }
+func (me *SrcFileSpan) IsSinglePos() bool { return me.Start == me.End }
 
 type ToksChunks []Toks
 type Toks []Tok
