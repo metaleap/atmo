@@ -149,6 +149,11 @@ func (me Toks) allOfKind(kind TokKind) bool {
 	return sl.All(me, func(it *Tok) bool { return it.Kind == kind })
 }
 
+func (me Toks) src(curFullSrcFileContent string) string {
+	first, last := me[0], me[len(me)-1]
+	return curFullSrcFileContent[first.byteOffset:(last.byteOffset + len(last.Src))]
+}
+
 func (me Toks) withoutComments() Toks {
 	return sl.Where(me, func(it *Tok) bool { return it.Kind != TokKindComment })
 }

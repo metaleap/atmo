@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"atmo/util"
+	"atmo/util/sl"
 )
 
 var (
@@ -23,7 +24,7 @@ type SrcFile struct {
 	Content  struct {
 		Src                string
 		TopLevelToksChunks ToksChunks
-		TopLevelAstNodes   any
+		TopLevelAstNodes   Nodes
 	}
 	Notices struct {
 		LastReadErr *SrcFileNotice
@@ -66,7 +67,46 @@ func EnsureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 			nil, nil, nil, nil
 		if src_file.Notices.LastReadErr == nil {
 			src_file.Content.TopLevelToksChunks, src_file.Notices.LexErrs = tokenize(src_file.Content.Src, srcFilePath)
-			// src_file.Content.Ast, src_file.Notices.ParseErrs = parse(src_file.Content.Toks, src_file.Content.Src, srcFilePath)
+			top_level_nodes := src_file.Content.TopLevelAstNodes
+			var gone_nodes Nodes
+			src_file.Notices.ParseErrs = nil
+			// remove nodes whose src is no longer present
+			for i := 0; i < len(top_level_nodes); i++ {
+				if !sl.Any(src_file.Content.TopLevelToksChunks, func(topLevelChunk Toks) bool {
+					return topLevelChunk.src(src_file.Content.Src) == top_level_nodes[i].ToksSrc
+				}) {
+					gone_nodes = append(gone_nodes, top_level_nodes[i])
+					top_level_nodes = append(top_level_nodes[:i], top_level_nodes[i+1:]...)
+					i--
+				}
+			}
+			// parse only top-level chunks whose nodes do not exist
+			var new_nodes Nodes
+			for _, top_level_chunk := range src_file.Content.TopLevelToksChunks {
+				node := sl.FirstWhere(top_level_nodes, func(it *Node) bool { return it.ToksSrc == top_level_chunk.src(src_file.Content.Src) })
+				if node == nil {
+					node, err := src_file.parseNode(top_level_chunk)
+					if err != nil {
+						src_file.Notices.ParseErrs = append(src_file.Notices.ParseErrs, err)
+					} else {
+						new_nodes = append(new_nodes, node)
+					}
+				}
+			}
+			// if despite changed tokens, the parsed node has existed before, keep it (to keep annotations etc)
+			for i := 0; i < len(new_nodes); i++ {
+				new_node := new_nodes[i]
+				if old_node := sl.FirstWhere(gone_nodes, func(it *Node) bool { return it.equals(new_node) }); old_node != nil {
+					old_node.Toks, old_node.ToksSrc = new_node.Toks, new_node.ToksSrc
+					gone_nodes = sl.Without(gone_nodes, true, old_node)
+					new_nodes = append(new_nodes[:i], append(Nodes{old_node}, new_nodes[i+1:]...)...)
+					i--
+				}
+			}
+			top_level_nodes = append(top_level_nodes, new_nodes...)
+			// TODO: sort all nodes to be in source-file order of appearance
+
+			src_file.Content.TopLevelAstNodes = top_level_nodes
 		}
 	}
 	return src_file
