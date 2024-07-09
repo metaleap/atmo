@@ -7,7 +7,6 @@ import (
 
 	"atmo/util"
 	"atmo/util/sl"
-	"atmo/util/str"
 )
 
 // SrcFilePos Line and Char both start at 1
@@ -37,8 +36,8 @@ type TokKind int
 const (
 	TokKindErr TokKind = iota
 	TokKindBrace
-	TokKindOp
 	TokKindSep
+	TokKindOp
 	TokKindIdent
 	TokKindComment
 	TokKindLitRune
@@ -91,16 +90,10 @@ func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 			tok.Kind = TokKindIdent
 		case '(', ')', '{', '}', '[', ']':
 			tok.Kind = TokKindBrace
-		case ',', '.':
+		case ',':
 			tok.Kind = TokKindSep
-		case ':':
-			next_rune := scan.Peek()
-			tok.Kind = util.If((next_rune == ' ') || (next_rune == '\n'), TokKindSep, TokKindOp)
-		case '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '|', '&', '!', '?', '%', '=':
+		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
 			tok.Kind = TokKindOp
-		default:
-			errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError,
-				Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan(), Message: str.Fmt("unknown lexeme: '%s'", string(lexeme))})
 		}
 		flat_list = append(flat_list, &tok)
 	}

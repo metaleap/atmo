@@ -105,6 +105,8 @@ func (*SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 	for len(toks) > 0 {
 		tok := toks[0]
 		switch tok.Kind {
+		case TokKindComment:
+			continue
 		case TokKindErr:
 			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
 		case TokKindLitFloat:
@@ -114,8 +116,24 @@ func (*SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 				ret, _, _, err := strconv.UnquoteChar(src, '\'')
 				return ret, err
 			}))
-			// case TokKindLitStr:
-
+		case TokKindLitStr:
+			ret = append(ret, parseLit[string](toks, NodeKindLitStr, strconv.Unquote))
+		case TokKindLitInt:
+			if tok.Src[0] == '-' {
+				ret = append(ret, parseLit[int64](toks, NodeKindLitInt, func(src string) (int64, error) {
+					return str.ToI64(src, 0, 64)
+				}))
+			} else {
+				ret = append(ret, parseLit[uint64](toks, NodeKindLitInt, func(src string) (uint64, error) {
+					return str.ToU64(src, 0, 64)
+				}))
+			}
+		case TokKindIdent, TokKindOp:
+			ret = append(ret, parseLit[string](toks, NodeKindIdent, func(src string) (string, error) { return src, nil }))
+		case TokKindBrace:
+		case TokKindSep:
+		default:
+			panic(tok.Src)
 		}
 	}
 	return
