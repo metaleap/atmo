@@ -36,6 +36,15 @@ func executeCommand(params *lsp.ExecuteCommandParams) (any, error) {
 			}
 		}
 
+	case "getSrcFileAstOrig":
+		if len(params.Arguments) == 1 {
+			src_file_path, ok := params.Arguments[0].(string)
+			if ok && session.IsSrcFilePath(src_file_path) {
+				src_file := session.EnsureSrcFile(src_file_path, nil, true)
+				return src_file.Content.TopLevelAstNodes, nil
+			}
+		}
+
 	}
 	return nil, errors.New("unknown command or invalid `arguments`: '" + params.Command + "'")
 }

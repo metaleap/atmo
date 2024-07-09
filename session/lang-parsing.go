@@ -17,7 +17,7 @@ type Node struct {
 	Children    Nodes
 	Toks        Toks
 	Src         string
-	ErrsParsing []*SrcFileNotice
+	errsParsing []*SrcFileNotice
 	LitAtom     any // if NodeKindIdent or some NodeKindLitFoo, one of: float64 | int64 | uint64 | rune | string
 }
 
@@ -25,7 +25,7 @@ type NodeKind int
 
 const (
 	NodeKindErr            NodeKind = iota
-	NodeKindCall                    // foo bar baz
+	NodeKindCallForm                // foo bar baz
 	NodeKindCurlyBraces             // {}
 	NodeKindSquareBrackets          // []
 	NodeKindLitInt                  // 123, -321
@@ -73,7 +73,7 @@ func (me *SrcFile) parse() {
 		new_node := new_nodes[i]
 		if old_node := sl.FirstWhere(gone_nodes, func(it *Node) bool { return it.equals(new_node) }); old_node != nil {
 			// TODO! would have to `node.walk` this whole logic, rethink & rework this once we have Anns
-			old_node.Toks, old_node.Src, old_node.ErrsParsing = new_node.Toks, new_node.Src, new_node.ErrsParsing
+			old_node.Toks, old_node.Src, old_node.errsParsing = new_node.Toks, new_node.Src, new_node.errsParsing
 			gone_nodes = sl.Without(gone_nodes, true, old_node)
 			new_nodes = append(new_nodes[:i], append(Nodes{old_node}, new_nodes[i+1:]...)...)
 			i--
@@ -97,7 +97,7 @@ func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
 	if len(nodes) == 1 {
 		return nodes[0], nil
 	}
-	return &Node{Kind: NodeKindCall, Children: nodes, Toks: toks, Src: toks.src(me.Content.Src)}, nil
+	return &Node{Kind: NodeKindCallForm, Children: nodes, Toks: toks, Src: toks.src(me.Content.Src)}, nil
 }
 
 func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
@@ -139,7 +139,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 		case TokKindBrace:
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
-				ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), ErrsParsing: []*SrcFileNotice{err}})
+				ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), errsParsing: []*SrcFileNotice{err}})
 				toks = nil
 			} else {
 				toks = toks_tail
@@ -170,7 +170,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 				}
 			}
 		default:
-			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src, ErrsParsing: []*SrcFileNotice{{
+			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src, errsParsing: []*SrcFileNotice{{
 				Kind: NoticeKindErr, Message: "unexpected: '" + tok.Src + "'", Span: tok.span(), Code: NoticeCodeMisplaced,
 			}}})
 			toks = toks[1:]
@@ -184,7 +184,7 @@ func parseLit[T cmp.Ordered](toks Toks, kind NodeKind, parseFunc func(string) (T
 	lit, err := parseFunc(tok.Src)
 	if err != nil {
 		return &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src,
-			ErrsParsing: []*SrcFileNotice{errToNotice(err, NoticeCodeBadLitSyntax, util.Ptr(tok.span()))}}
+			errsParsing: []*SrcFileNotice{errToNotice(err, NoticeCodeBadLitSyntax, util.Ptr(tok.span()))}}
 	}
 	return &Node{Kind: kind, Toks: toks[:1], Src: tok.Src, LitAtom: lit}
 }
@@ -215,12 +215,12 @@ func (me *Node) equals(it *Node) bool {
 		return me.LitAtom.(string) == it.LitAtom.(string)
 	case NodeKindErr:
 		var idx int
-		return (len(me.ErrsParsing) == len(it.ErrsParsing)) && sl.All(me.ErrsParsing, func(err *SrcFileNotice) (isEq bool) {
-			isEq = (*err == *it.ErrsParsing[idx])
+		return (len(me.errsParsing) == len(it.errsParsing)) && sl.All(me.errsParsing, func(err *SrcFileNotice) (isEq bool) {
+			isEq = (*err == *it.errsParsing[idx])
 			idx++
 			return
 		})
-	case NodeKindCall, NodeKindCurlyBraces, NodeKindSquareBrackets:
+	case NodeKindCallForm, NodeKindCurlyBraces, NodeKindSquareBrackets:
 		var idx int
 		return sl.All(me.Children, func(node *Node) (isEq bool) {
 			isEq = node.equals(it.Children[idx])
