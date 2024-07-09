@@ -89,26 +89,15 @@ func (me *SrcFile) parse() {
 	me.Content.TopLevelAstNodes = top_level_nodes
 }
 
-func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
-
+func (me *SrcFile) parseNode(toks Toks) (ret *Node, errs []*SrcFileNotice) {
 	nodes, errs := me.parseNodes(toks)
 	if len(errs) > 0 {
-		return nil, errs
+		return
 	}
 	if len(nodes) == 1 {
 		return nodes[0], nil
 	}
-	return &Node{Kind: NodeKindCallForm, Children: nodes, Toks: toks, Src: toks.src(me.Content.Src)}, nil
-}
-
-func (me *SrcFile) parseNodeChildren(chunks []Toks) (ret Nodes, errs []*SrcFileNotice) {
-	for _, toks := range chunks {
-		node, errs_chunk := me.parseNode(toks)
-		if node != nil {
-			ret = append(ret, node)
-		}
-		errs = append(errs, errs_chunk...)
-	}
+	ret = &Node{Kind: NodeKindCallForm, Children: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
 	return
 }
 
@@ -228,7 +217,7 @@ func (me *Node) equals(it *Node) bool {
 	case NodeKindErr:
 		var idx int
 		return (len(me.errsParsing) == len(it.errsParsing)) && sl.All(me.errsParsing, func(err *SrcFileNotice) (isEq bool) {
-			isEq = (err == it.errsParsing[idx]) || ((err != nil) && (it.errsParsing[idx] != nil) && (*err == *it.errsParsing[idx]))
+			isEq = (err == it.errsParsing[idx]) || (*err == *it.errsParsing[idx])
 			idx++
 			return
 		})

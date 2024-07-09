@@ -164,10 +164,6 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
 }
 
-func (me Toks) isMultiLine() bool {
-	return me[0].Pos.Line < me[len(me)-1].Pos.Line
-}
-
 func (me Toks) span() (ret SrcFileSpan) {
 	ret.Start, ret.End = me[0].Pos, me[len(me)-1].span().End
 	return
@@ -195,32 +191,6 @@ func (me Toks) src(curFullSrcFileContent string) string {
 
 func (me Toks) str() string { // only for occasional debug prints
 	return strings.Join(sl.As(me, func(it *Tok) string { return it.Src }), " ")
-}
-
-func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
-	if !me.isMultiLine() {
-		return me, nil, nil
-	}
-	idx_start_subs := sl.IdxWhere(me, func(it *Tok) bool { return it.Pos.Line > me[0].Pos.Line })
-	if idx_start_subs <= 0 {
-		return me, nil, nil
-	}
-	indent_pos_char, cur_line := me[idx_start_subs].Pos.Char, me[idx_start_subs].Pos.Line
-	var cur_chunk Toks
-	for _, tok := range me[idx_start_subs:] {
-		is_on_a_new_line := (tok.Pos.Line > cur_line)
-		if !is_on_a_new_line {
-			cur_chunk = append(cur_chunk, tok)
-		} else if tok.Pos.Char > indent_pos_char {
-			cur_chunk = append(cur_chunk, tok)
-		} else if tok.Pos.Char == indent_pos_char {
-			tail, cur_chunk = append(tail, cur_chunk), nil
-		} else {
-			err = tok.newIndentErr()
-			break
-		}
-	}
-	return
 }
 
 func (me Toks) topChunks() (ret ToksChunks, err *SrcFileNotice) {
