@@ -10,15 +10,13 @@ import (
 type Nodes []*Node
 
 type Node struct {
-	parent   *Node
-	Kind     NodeKind
-	Children Nodes
-	Toks     Toks
-	Src      string
-	Errs     struct {
-		Parsing []*SrcFileNotice
-	}
-	LitAtom any // if NodeKindIdent or some NodeKindLitFoo, one of: float64 | uint64 | rune | string
+	parent      *Node
+	Kind        NodeKind
+	Children    Nodes
+	Toks        Toks
+	Src         string
+	ErrsParsing []*SrcFileNotice
+	LitAtom     any // if NodeKindIdent or some NodeKindLitFoo, one of: float64 | uint64 | rune | string
 }
 
 type NodeKind int
@@ -73,7 +71,7 @@ func (me *SrcFile) parse() {
 		new_node := new_nodes[i]
 		if old_node := sl.FirstWhere(gone_nodes, func(it *Node) bool { return it.equals(new_node) }); old_node != nil {
 			// TODO! would have to `node.walk` this whole logic, rethink & rework this once we have Anns
-			old_node.Toks, old_node.Src, old_node.Errs.Parsing = new_node.Toks, new_node.Src, new_node.Errs.Parsing
+			old_node.Toks, old_node.Src, old_node.ErrsParsing = new_node.Toks, new_node.Src, new_node.ErrsParsing
 			gone_nodes = sl.Without(gone_nodes, true, old_node)
 			new_nodes = append(new_nodes[:i], append(Nodes{old_node}, new_nodes[i+1:]...)...)
 			i--
@@ -103,7 +101,12 @@ func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
 
 func (*SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 	for len(toks) > 0 {
+		tok := toks[0]
+		switch tok.Kind {
+		case TokKindErr:
+			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
 
+		}
 	}
 	return
 }
@@ -125,8 +128,8 @@ func (me *Node) equals(it *Node) bool {
 		return me.LitAtom.(string) == it.LitAtom.(string)
 	case NodeKindErr:
 		var idx int
-		return (len(me.Errs.Parsing) == len(it.Errs.Parsing)) && sl.All(me.Errs.Parsing, func(err *SrcFileNotice) (isEq bool) {
-			isEq = (*err == *it.Errs.Parsing[idx])
+		return (len(me.ErrsParsing) == len(it.ErrsParsing)) && sl.All(me.ErrsParsing, func(err *SrcFileNotice) (isEq bool) {
+			isEq = (*err == *it.ErrsParsing[idx])
 			idx++
 			return
 		})

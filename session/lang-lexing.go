@@ -35,7 +35,7 @@ type Toks []*Tok
 type TokKind int
 
 const (
-	TokKindInvalid TokKind = iota
+	TokKindErr TokKind = iota
 	TokKindBrace
 	TokKindOp
 	TokKindSep
