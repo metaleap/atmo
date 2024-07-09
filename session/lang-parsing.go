@@ -97,27 +97,31 @@ func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
 	if len(nodes) == 1 {
 		return nodes[0], nil
 	}
-	return nil, []*SrcFileNotice{{Kind: NoticeKindErr, Span: toks.span(), Code: NoticeCodeMultipleNodes,
-		Message: str.Fmt("expected a single expression, not %d", len(nodes))}}
+	return &Node{Kind: NodeKindCall, Children: nodes, Toks: toks, Src: toks.src(me.Content.Src)}, nil
 }
 
-func (*SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
+func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 	for len(toks) > 0 {
 		tok := toks[0]
 		switch tok.Kind {
 		case TokKindComment:
+			toks = toks[1:]
 			continue
 		case TokKindErr:
 			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
+			toks = toks[1:]
 		case TokKindLitFloat:
 			ret = append(ret, parseLit[float64](toks, NodeKindLitFloat, func(src string) (float64, error) { return str.ToF(src, 64) }))
+			toks = toks[1:]
 		case TokKindLitRune:
 			ret = append(ret, parseLit[rune](toks, NodeKindLitRune, func(src string) (rune, error) {
 				ret, _, _, err := strconv.UnquoteChar(src, '\'')
 				return ret, err
 			}))
+			toks = toks[1:]
 		case TokKindLitStr:
 			ret = append(ret, parseLit[string](toks, NodeKindLitStr, strconv.Unquote))
+			toks = toks[1:]
 		case TokKindLitInt:
 			if tok.Src[0] == '-' {
 				ret = append(ret, parseLit[int64](toks, NodeKindLitInt, func(src string) (int64, error) {
@@ -128,12 +132,48 @@ func (*SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 					return str.ToU64(src, 0, 64)
 				}))
 			}
+			toks = toks[1:]
 		case TokKindIdent, TokKindOp:
 			ret = append(ret, parseLit[string](toks, NodeKindIdent, func(src string) (string, error) { return src, nil }))
+			toks = toks[1:]
 		case TokKindBrace:
-		case TokKindSep:
+			toks_inner, toks_tail, err := toks.braceMatch()
+			if err != nil {
+				ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), ErrsParsing: []*SrcFileNotice{err}})
+				toks = nil
+			} else {
+				toks = toks_tail
+				switch tok.Src {
+				case "(":
+					node, errs_inner := me.parseNode(toks_inner)
+					if len(errs_inner) == 0 {
+						ret = append(ret, node)
+					} else {
+						errs = append(errs, errs_inner...)
+					}
+				case "[", "{":
+					split := toks_inner.split(TokKindSep)
+					node := &Node{
+						Kind: util.If(tok.Src == "[", NodeKindSquareBrackets, NodeKindCurlyBraces),
+						Toks: toks_inner,
+						Src:  toks_inner.src(me.Content.Src),
+					}
+					for _, toks := range split {
+						sub_node, errs_sub_node := me.parseNode(toks)
+						if len(errs_sub_node) == 0 {
+							node.Children = append(node.Children, sub_node)
+						} else {
+							errs = append(errs, errs_sub_node...)
+						}
+					}
+					ret = append(ret, node)
+				}
+			}
 		default:
-			panic(tok.Src)
+			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src, ErrsParsing: []*SrcFileNotice{{
+				Kind: NoticeKindErr, Message: "unexpected: '" + tok.Src + "'", Span: tok.span(), Code: NoticeCodeMisplaced,
+			}}})
+			toks = toks[1:]
 		}
 	}
 	return

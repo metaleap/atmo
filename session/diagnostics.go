@@ -15,9 +15,9 @@ type SrcFileNoticeCode string
 const (
 	NoticeCodeFileReadError  SrcFileNoticeCode = "FileReadError"
 	NoticeCodeLexingError    SrcFileNoticeCode = "LexingError"
-	NoticeCodeMultipleNodes  SrcFileNoticeCode = "MultipleNodes"
-	NoticeCodeUnmatchedBrace SrcFileNoticeCode = "UnmatchedBrace"
+	NoticeCodeBracesMismatch SrcFileNoticeCode = "BracesMismatch"
 	NoticeCodeBadLitSyntax   SrcFileNoticeCode = "BadLitSyntax"
+	NoticeCodeMisplaced      SrcFileNoticeCode = "Misplaced"
 )
 
 type SrcFileNotice struct {

@@ -7,6 +7,7 @@ import (
 
 	"atmo/util"
 	"atmo/util/sl"
+	"atmo/util/str"
 )
 
 // SrcFilePos Line and Char both start at 1
@@ -111,6 +112,12 @@ func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 	return
 }
 
+func (me *Tok) isBraceClosing() bool { return str.Has(")]}", me.Src) }
+func (me *Tok) isBraceOpening() bool { return str.Has("([{", me.Src) }
+func (me *Tok) isBraceMatch(it *Tok) bool {
+	return (me.Src == "(" && it.Src == ")") || (me.Src == "[" && it.Src == "]") || (me.Src == "{" && it.Src == "}")
+}
+
 func (me *Tok) span() (ret SrcFileSpan) {
 	ret.Start, ret.End = me.Pos, me.Pos
 	for _, r := range me.Src {
@@ -125,6 +132,29 @@ func (me *Tok) span() (ret SrcFileSpan) {
 
 func (me Toks) allOfKind(kind TokKind) bool {
 	return sl.All(me, func(it *Tok) bool { return it.Kind == kind })
+}
+
+func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
+	var level int
+	err_msg := "opening and closing " + util.If((me[0].Src == "(") || (me[0].Src == ")"), "parens",
+		util.If((me[0].Src == "[") || (me[0].Src == "]"), "brackets",
+			"braces")) + " don't match"
+	if me[0].isBraceOpening() {
+		for i, tok := range me {
+			if tok.isBraceOpening() {
+				level++
+			} else if tok.isBraceClosing() {
+				level--
+				if level == 0 {
+					if len(me) == 1 || !me[0].isBraceMatch(tok) {
+						break
+					}
+					return me[1:i], me[i+1:], nil
+				}
+			}
+		}
+	}
+	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
 }
 
 func (me Toks) chunks(posCharIndentedIsGt int) (ret ToksChunks) {
@@ -160,9 +190,28 @@ func (me Toks) span() (ret SrcFileSpan) {
 	return
 }
 
+func (me Toks) split(by TokKind) (ret []Toks) {
+	var cur Toks
+	for _, tok := range me {
+		if tok.Kind == by {
+			ret = append(ret, cur)
+		} else {
+			cur = append(cur, tok)
+		}
+	}
+	if len(cur) > 0 {
+		ret = append(ret, cur)
+	}
+	return
+}
+
 func (me Toks) src(curFullSrcFileContent string) string {
 	first, last := me[0], me[len(me)-1]
 	return curFullSrcFileContent[first.byteOffset:(last.byteOffset + len(last.Src))]
+}
+
+func (me Toks) str() string { // only for occasional debug prints
+	return strings.Join(sl.As(me, func(it *Tok) string { return it.Src }), " ")
 }
 
 func (me Toks) withoutComments() Toks {
