@@ -193,6 +193,45 @@ func (me Toks) str() string { // only for occasional debug prints
 	return strings.Join(sl.As(me, func(it *Tok) string { return it.Src }), " ")
 }
 
+func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
+	idx_start := sl.IdxWhere(me, func(it *Tok) bool { return it.Pos.Line > me[0].Pos.Line })
+	if idx_start < 0 {
+		return me, nil, nil
+	}
+
+	indent_pos_char := me[idx_start].Pos.Char
+	if indent_pos_char <= me[0].Pos.Char {
+		return nil, nil, me[idx_start].newIndentErr()
+	}
+
+	head = me[:idx_start]
+	cur_line := me[idx_start].Pos.Line
+	var cur_chunk Toks
+	for _, tok := range me[idx_start:] {
+		is_new_line := (tok.Pos.Line > cur_line)
+		if !is_new_line {
+			cur_chunk = append(cur_chunk, tok)
+		} else {
+			cur_line++
+			if tok.Pos.Char > indent_pos_char {
+				cur_chunk = append(cur_chunk, tok)
+			} else if tok.Pos.Char == indent_pos_char {
+				tail, cur_chunk = append(tail, cur_chunk), Toks{tok}
+			} else {
+				return nil, nil, tok.newIndentErr()
+			}
+		}
+	}
+	if len(cur_chunk) > 0 {
+		tail = append(tail, cur_chunk)
+	}
+	if len(tail) == 0 {
+		util.Assert(len(me) == len(head), nil)
+	}
+
+	return
+}
+
 func (me Toks) topChunks() (ret ToksChunks, err *SrcFileNotice) {
 	var cur_chunk Toks
 	if me[0].Pos.Char != 1 {

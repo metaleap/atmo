@@ -90,6 +90,25 @@ func (me *SrcFile) parse() {
 }
 
 func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
+	var sub_nodes Nodes
+	toks_full := toks
+	{
+		head, tail, err := toks.subChunks()
+		if err != nil {
+			return nil, []*SrcFileNotice{err}
+		} else if len(tail) > 0 {
+			toks = head
+			for _, chunk_toks := range tail {
+				sub_node, errs := me.parseNode(chunk_toks)
+				if len(errs) > 0 {
+					return nil, errs
+				} else if sub_node != nil {
+					sub_nodes = append(sub_nodes, sub_node)
+				}
+			}
+		}
+	}
+
 	nodes, errs := me.parseNodes(toks)
 	if len(errs) > 0 {
 		return nil, errs
@@ -97,7 +116,7 @@ func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
 	if len(nodes) == 1 {
 		return nodes[0], nil
 	}
-	return &Node{Kind: NodeKindCallForm, Children: nodes, Toks: toks, Src: toks.src(me.Content.Src)}, nil
+	return &Node{Kind: NodeKindCallForm, Children: append(nodes, sub_nodes...), Toks: toks_full, Src: toks_full.src(me.Content.Src)}, nil
 }
 
 func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
@@ -137,6 +156,16 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 			ret = append(ret, parseLit[string](toks, NodeKindIdent, func(src string) (string, error) { return src, nil }))
 			toks = toks[1:]
 		case TokKindBrace:
+			// if chunks_head, chunks_tail, err := toks.subChunks(); len(chunks_tail) > 0 {
+			// 	node,err:=me.parseNode(toks)
+			// 	toks = nil
+			// 	continue
+			// } else if err != nil {
+			// 	errs = append(errs, err)
+			// 	toks = nil
+			// 	continue
+			// }
+
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
 				ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), errsParsing: []*SrcFileNotice{err}})
