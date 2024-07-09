@@ -108,10 +108,16 @@ func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 		}
 	}
 
-	ret = flat_list.chunks(1)
+	var err *SrcFileNotice
+	if ret, err = flat_list.topChunks(); err != nil {
+		errs = append(errs, err)
+	}
 	return
 }
 
+func (me *Tok) newIndentErr() *SrcFileNotice {
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.span(), Message: "ambiguous indentation"}
+}
 func (me *Tok) isBraceClosing() bool { return str.Has(")]}", me.Src) }
 func (me *Tok) isBraceOpening() bool { return str.Has("([{", me.Src) }
 func (me *Tok) isBraceMatch(it *Tok) bool {
@@ -158,32 +164,8 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
 }
 
-func (me Toks) chunks(posCharIndentedIsGt int) (ret ToksChunks) {
-	var cur_chunk Toks
-	for i, tok := range me {
-		is_on_a_new_line := (i == 0) || (tok.Pos.Line != me[i-1].Pos.Line)
-		if is_on_a_new_line && (tok.Pos.Char == posCharIndentedIsGt) {
-			if len(cur_chunk) > 0 {
-				ret = append(ret, cur_chunk)
-			}
-			cur_chunk = Toks{tok}
-		} else {
-			cur_chunk = append(cur_chunk, tok)
-		}
-	}
-	if len(cur_chunk) > 0 {
-		ret = append(ret, cur_chunk)
-	}
-	// may now have comments as top-level chunks that should belong to the next non-comment top-level chunk, let's rectify:
-	for i := 0; i < len(ret)-1; i++ {
-		if ret[i].allOfKind(TokKindComment) && (ret[i+1][0].Pos.Line == (1 + ret[i][len(ret[i])-1].Pos.Line)) {
-			ret[i+1] = append(ret[i], ret[i+1]...) // prepend cur chunk to next
-			ret = append(ret[:i], ret[i+1:]...)    // remove cur chunk
-			i--
-		}
-	}
-
-	return
+func (me Toks) isMultiLine() bool {
+	return me[0].Pos.Line < me[len(me)-1].Pos.Line
 }
 
 func (me Toks) span() (ret SrcFileSpan) {
@@ -213,6 +195,64 @@ func (me Toks) src(curFullSrcFileContent string) string {
 
 func (me Toks) str() string { // only for occasional debug prints
 	return strings.Join(sl.As(me, func(it *Tok) string { return it.Src }), " ")
+}
+
+func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
+	if !me.isMultiLine() {
+		return me, nil, nil
+	}
+	idx_start_subs := sl.IdxWhere(me, func(it *Tok) bool { return it.Pos.Line > me[0].Pos.Line })
+	if idx_start_subs <= 0 {
+		return me, nil, nil
+	}
+	indent_pos_char, cur_line := me[idx_start_subs].Pos.Char, me[idx_start_subs].Pos.Line
+	var cur_chunk Toks
+	for _, tok := range me[idx_start_subs:] {
+		is_on_a_new_line := (tok.Pos.Line > cur_line)
+		if !is_on_a_new_line {
+			cur_chunk = append(cur_chunk, tok)
+		} else if tok.Pos.Char > indent_pos_char {
+			cur_chunk = append(cur_chunk, tok)
+		} else if tok.Pos.Char == indent_pos_char {
+			tail, cur_chunk = append(tail, cur_chunk), nil
+		} else {
+			err = tok.newIndentErr()
+			break
+		}
+	}
+	return
+}
+
+func (me Toks) topChunks() (ret ToksChunks, err *SrcFileNotice) {
+	var cur_chunk Toks
+	if me[0].Pos.Char != 1 {
+		err = me[0].newIndentErr()
+		return
+	}
+	for i, tok := range me {
+		is_on_a_new_line := (i == 0) || (tok.Pos.Line != me[i-1].Pos.Line)
+		if is_on_a_new_line && (tok.Pos.Char == 1) {
+			if len(cur_chunk) > 0 {
+				ret = append(ret, cur_chunk)
+			}
+			cur_chunk = Toks{tok}
+		} else {
+			cur_chunk = append(cur_chunk, tok)
+		}
+	}
+	if len(cur_chunk) > 0 {
+		ret = append(ret, cur_chunk)
+	}
+	// may now have comments as top-level chunks that should belong to the next non-comment top-level chunk, let's rectify:
+	for i := 0; i < len(ret)-1; i++ {
+		if ret[i].allOfKind(TokKindComment) && (ret[i+1][0].Pos.Line == (1 + ret[i][len(ret[i])-1].Pos.Line)) {
+			ret[i+1] = append(ret[i], ret[i+1]...) // prepend cur chunk to next
+			ret = append(ret[:i], ret[i+1:]...)    // remove cur chunk
+			i--
+		}
+	}
+
+	return
 }
 
 func (me Toks) withoutComments() Toks {
