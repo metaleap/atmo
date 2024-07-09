@@ -136,9 +136,6 @@ func (me Toks) allOfKind(kind TokKind) bool {
 
 func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 	var level int
-	err_msg := "opening and closing " + util.If((me[0].Src == "(") || (me[0].Src == ")"), "parens",
-		util.If((me[0].Src == "[") || (me[0].Src == "]"), "brackets",
-			"braces")) + " don't match"
 	if me[0].isBraceOpening() {
 		for i, tok := range me {
 			if tok.isBraceOpening() {
@@ -146,7 +143,7 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 			} else if tok.isBraceClosing() {
 				level--
 				if level == 0 {
-					if len(me) == 1 || !me[0].isBraceMatch(tok) {
+					if !me[0].isBraceMatch(tok) {
 						break
 					}
 					return me[1:i], me[i+1:], nil
@@ -154,6 +151,10 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 			}
 		}
 	}
+	err_msg := "no matching opening and closing " +
+		util.If((me[0].Src == "(") || (me[0].Src == ")"), "parens",
+			util.If((me[0].Src == "[") || (me[0].Src == "]"), "brackets",
+				"braces"))
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
 }
 
@@ -194,7 +195,7 @@ func (me Toks) split(by TokKind) (ret []Toks) {
 	var cur Toks
 	for _, tok := range me {
 		if tok.Kind == by {
-			ret = append(ret, cur)
+			ret, cur = append(ret, cur), nil
 		} else {
 			cur = append(cur, tok)
 		}
