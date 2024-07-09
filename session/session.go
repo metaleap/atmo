@@ -60,7 +60,7 @@ func EnsureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 		me.Content.Src, me.Notices.LastReadErr = *curFullContent, nil
 	} else if (!canSkipFileRead) || had_last_read_err || (old_content == "") {
 		src_file_bytes, err := os.ReadFile(srcFilePath)
-		me.Content.Src, me.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError)
+		me.Content.Src, me.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, nil)
 	}
 	if (me.Content.Src != old_content) || had_last_read_err || (me.Notices.LastReadErr != nil) {
 		me.Content.TopLevelAstNodes, me.Content.TopLevelToksChunks, me.Notices.LexErrs, me.Notices.ParseErrs =

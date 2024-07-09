@@ -2,7 +2,9 @@ package session
 
 import (
 	"cmp"
+	"strconv"
 
+	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -16,7 +18,7 @@ type Node struct {
 	Toks        Toks
 	Src         string
 	ErrsParsing []*SrcFileNotice
-	LitAtom     any // if NodeKindIdent or some NodeKindLitFoo, one of: float64 | uint64 | rune | string
+	LitAtom     any // if NodeKindIdent or some NodeKindLitFoo, one of: float64 | int64 | uint64 | rune | string
 }
 
 type NodeKind int
@@ -26,7 +28,7 @@ const (
 	NodeKindCall                    // foo bar baz
 	NodeKindCurlyBraces             // {}
 	NodeKindSquareBrackets          // []
-	NodeKindLitUInt                 // 123, -321
+	NodeKindLitInt                  // 123, -321
 	NodeKindLitFloat                // 1.23, -3.21
 	NodeKindLitRune                 // '⅜'
 	NodeKindLitStr                  // "foo", `bar`
@@ -105,10 +107,28 @@ func (*SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 		switch tok.Kind {
 		case TokKindErr:
 			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
+		case TokKindLitFloat:
+			ret = append(ret, parseLit[float64](toks, NodeKindLitFloat, func(src string) (float64, error) { return str.ToF(src, 64) }))
+		case TokKindLitRune:
+			ret = append(ret, parseLit[rune](toks, NodeKindLitRune, func(src string) (rune, error) {
+				ret, _, _, err := strconv.UnquoteChar(src, '\'')
+				return ret, err
+			}))
+			// case TokKindLitStr:
 
 		}
 	}
 	return
+}
+
+func parseLit[T cmp.Ordered](toks Toks, kind NodeKind, parseFunc func(string) (T, error)) *Node {
+	tok := toks[0]
+	lit, err := parseFunc(tok.Src)
+	if err != nil {
+		return &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src,
+			ErrsParsing: []*SrcFileNotice{errToNotice(err, NoticeCodeBadLitSyntax, util.Ptr(tok.span()))}}
+	}
+	return &Node{Kind: kind, Toks: toks[:1], Src: tok.Src, LitAtom: lit}
 }
 
 func (me *Node) equals(it *Node) bool {
@@ -118,8 +138,17 @@ func (me *Node) equals(it *Node) bool {
 	switch me.Kind {
 	case NodeKindLitFloat:
 		return (me.LitAtom.(float64) == it.LitAtom.(float64))
-	case NodeKindLitUInt:
-		return (me.LitAtom.(uint64) == it.LitAtom.(uint64))
+	case NodeKindLitInt:
+		switch mine := me.LitAtom.(type) {
+		case int64:
+			other, ok := it.LitAtom.(int64)
+			return ok && (mine == other)
+		case uint64:
+			other, ok := it.LitAtom.(uint64)
+			return ok && (mine == other)
+		default:
+			panic(me.LitAtom)
+		}
 	case NodeKindLitRune:
 		return (me.LitAtom.(rune) == it.LitAtom.(rune))
 	case NodeKindLitStr:

@@ -17,6 +17,14 @@ type (
 	}
 )
 
+func Ptr[T any](it T) *T { return &it }
+func UnPtr[T any](it *T) (ret T) {
+	if it != nil {
+		ret = *it
+	}
+	return
+}
+
 func Assert(alwaysTrue bool, show any) {
 	if !alwaysTrue {
 		var err any = "unreachable"

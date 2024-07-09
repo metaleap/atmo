@@ -17,6 +17,7 @@ const (
 	NoticeCodeLexingError    SrcFileNoticeCode = "LexingError"
 	NoticeCodeMultipleNodes  SrcFileNoticeCode = "MultipleNodes"
 	NoticeCodeUnmatchedBrace SrcFileNoticeCode = "UnmatchedBrace"
+	NoticeCodeBadLitSyntax   SrcFileNoticeCode = "BadLitSyntax"
 )
 
 type SrcFileNotice struct {
@@ -29,9 +30,12 @@ type SrcFileNotice struct {
 func (me *SrcFileNotice) Error() string  { return me.Message }
 func (me *SrcFileNotice) String() string { return me.Message }
 
-func errToNotice(err error, code SrcFileNoticeCode) (ret *SrcFileNotice) {
+func errToNotice(err error, code SrcFileNoticeCode, span *SrcFileSpan) (ret *SrcFileNotice) {
 	if ret, _ = err.(*SrcFileNotice); (ret == nil) && (err != nil) {
 		ret = &SrcFileNotice{Kind: NoticeKindErr, Message: err.Error(), Code: code}
+	}
+	if span != nil {
+		ret.Span = *span
 	}
 	return
 }
