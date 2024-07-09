@@ -54,9 +54,10 @@ type Tok struct {
 	Src        string
 }
 
-func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotice) {
+// only called by `EnsureSrcFile`
+func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 	var scan scanner.Scanner
-	scan.Init(strings.NewReader(src))
+	scan.Init(strings.NewReader(me.Content.Src))
 	scan.Whitespace = 1<<'\n' | 1<<' '
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
@@ -70,7 +71,7 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 			((i == 0) && ((char == '%') || (char == '#') || (char == '@') || (char == '$') || (char == '.'))) ||
 			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
-	scan.Filename = filePath
+	scan.Filename = me.FilePath
 
 	var flat_list Toks
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
@@ -117,6 +118,22 @@ func tokenize(src string, filePath string) (ret ToksChunks, errs []*SrcFileNotic
 	return
 }
 
+func (me *Tok) span() (ret SrcFileSpan) {
+	ret.Start, ret.End = me.Pos, me.Pos
+	for _, r := range me.Src {
+		if r == '\n' {
+			ret.End.Line, ret.End.Char = ret.End.Line+1, 1
+		} else {
+			ret.End.Char += len(string(r))
+		}
+	}
+	return
+}
+
+func (me Toks) allOfKind(kind TokKind) bool {
+	return sl.All(me, func(it *Tok) bool { return it.Kind == kind })
+}
+
 func (me Toks) chunks(posCharIndentedIsGt int) (ret ToksChunks) {
 	var cur_chunk Toks
 	for i, tok := range me {
@@ -145,8 +162,9 @@ func (me Toks) chunks(posCharIndentedIsGt int) (ret ToksChunks) {
 	return
 }
 
-func (me Toks) allOfKind(kind TokKind) bool {
-	return sl.All(me, func(it *Tok) bool { return it.Kind == kind })
+func (me Toks) span() (ret SrcFileSpan) {
+	ret.Start, ret.End = me[0].Pos, me[len(me)-1].span().End
+	return
 }
 
 func (me Toks) src(curFullSrcFileContent string) string {
