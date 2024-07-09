@@ -89,16 +89,15 @@ func (me *SrcFile) parse() {
 	me.Content.TopLevelAstNodes = top_level_nodes
 }
 
-func (me *SrcFile) parseNode(toks Toks) (ret *Node, errs []*SrcFileNotice) {
+func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
 	nodes, errs := me.parseNodes(toks)
 	if len(errs) > 0 {
-		return
+		return nil, errs
 	}
 	if len(nodes) == 1 {
 		return nodes[0], nil
 	}
-	ret = &Node{Kind: NodeKindCallForm, Children: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
-	return
+	return &Node{Kind: NodeKindCallForm, Children: nodes, Toks: toks, Src: toks.src(me.Content.Src)}, nil
 }
 
 func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
