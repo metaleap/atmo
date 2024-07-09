@@ -41,7 +41,7 @@ const (
 	TokKindSep
 	TokKindIdent
 	TokKindComment
-	TokKindLitChar
+	TokKindLitRune
 	TokKindLitStr
 	TokKindLitInt
 	TokKindLitFloat
@@ -78,7 +78,7 @@ func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset, Src: scan.TokenText()}
 		switch lexeme {
 		case scanner.Char:
-			tok.Kind = TokKindLitChar
+			tok.Kind = TokKindLitRune
 		case scanner.Comment:
 			tok.Kind = TokKindComment
 		case scanner.Int:

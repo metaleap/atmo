@@ -47,10 +47,9 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 			pub[src_file_path] = append(pub[src_file_path], src_file.Notices.LexErrs...)
 			pub[src_file_path] = append(pub[src_file_path], src_file.Notices.ParseErrs...)
 			for _, top_level_node := range src_file.Content.TopLevelAstNodes {
-				top_level_node.walk(func(node *Node) bool {
+				top_level_node.walk(nil, func(node *Node) {
 					pub[src_file_path] = append(pub[src_file_path], node.Errs.Parsing...)
-					return true
-				}, nil)
+				})
 			}
 		}
 	}

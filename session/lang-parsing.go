@@ -11,21 +11,28 @@ type Nodes []*Node
 
 type Node struct {
 	parent   *Node
+	Kind     NodeKind
 	Children Nodes
 	Toks     Toks
 	Src      string
 	Errs     struct {
 		Parsing []*SrcFileNotice
 	}
+	LitAtom any // if NodeKindIdent or some NodeKindLitFoo, one of: float64 | uint64 | rune | string
 }
 
 type NodeKind int
 
 const (
-	NodeKindErr NodeKind = iota
-	NodeKindCallForm
-	NodeKindCurlyBraces
-	NodeKindSquareBrackets
+	NodeKindErr            NodeKind = iota
+	NodeKindCall                    // foo bar baz
+	NodeKindCurlyBraces             // {}
+	NodeKindSquareBrackets          // []
+	NodeKindLitUInt                 // 123, -321
+	NodeKindLitFloat                // 1.23, -3.21
+	NodeKindLitRune                 // '⅜'
+	NodeKindLitStr                  // "foo", `bar`
+	NodeKindIdent                   // foo, #bar, @baz, $foo, %bar, ()
 )
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
@@ -95,21 +102,54 @@ func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
 }
 
 func (*SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
+	for len(toks) > 0 {
+
+	}
 	return
 }
 
 func (me *Node) equals(it *Node) bool {
-	return false
+	if me.Kind != it.Kind || len(me.Children) == len(it.Children) {
+		return false
+	}
+	switch me.Kind {
+	case NodeKindLitFloat:
+		return (me.LitAtom.(float64) == it.LitAtom.(float64))
+	case NodeKindLitUInt:
+		return (me.LitAtom.(uint64) == it.LitAtom.(uint64))
+	case NodeKindLitRune:
+		return (me.LitAtom.(rune) == it.LitAtom.(rune))
+	case NodeKindLitStr:
+		return (me.LitAtom.(string) == it.LitAtom.(string))
+	case NodeKindIdent:
+		return me.LitAtom.(string) == it.LitAtom.(string)
+	case NodeKindErr:
+		var idx int
+		return (len(me.Errs.Parsing) == len(it.Errs.Parsing)) && sl.All(me.Errs.Parsing, func(err *SrcFileNotice) (isEq bool) {
+			isEq = (*err == *it.Errs.Parsing[idx])
+			idx++
+			return
+		})
+	case NodeKindCall, NodeKindCurlyBraces, NodeKindSquareBrackets:
+		var idx int
+		return sl.All(me.Children, func(node *Node) (isEq bool) {
+			isEq = node.equals(it.Children[idx])
+			idx++
+			return
+		})
+	default:
+		panic(me.Kind)
+	}
 }
 
-func (n *Node) walk(in func(n *Node) bool, out func(n *Node)) {
-	if in != nil && !in(n) {
+func (n *Node) walk(onBefore func(n *Node) bool, onAfter func(n *Node)) {
+	if onBefore != nil && !onBefore(n) {
 		return
 	}
 	for _, child_node := range n.Children {
-		child_node.walk(in, out)
+		child_node.walk(onBefore, onAfter)
 	}
-	if out != nil {
-		out(n)
+	if onAfter != nil {
+		onAfter(n)
 	}
 }
