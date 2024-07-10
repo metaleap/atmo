@@ -37,10 +37,11 @@ const (
 )
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
-func (me *SrcFile) parse() {
+// mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
+func (me *SrcFile) parse(previously Nodes) {
 	me.Notices.ParseErrs = nil
 
-	top_level_nodes := me.Content.TopLevelAstNodes
+	top_level_nodes := previously
 
 	// remove nodes whose src is no longer present in toks
 	var gone_nodes Nodes
@@ -48,6 +49,7 @@ func (me *SrcFile) parse() {
 		if !sl.Any(me.Content.TopLevelToksChunks, func(topLevelChunk Toks) bool {
 			return topLevelChunk.src(me.Content.Src) == top_level_nodes[i].Src
 		}) {
+			OnDbgMsg("GONE:" + top_level_nodes[i].Src)
 			gone_nodes = append(gone_nodes, top_level_nodes[i])                     // keep around for potential reclaim below
 			top_level_nodes = append(top_level_nodes[:i], top_level_nodes[i+1:]...) // remove
 			i--
@@ -77,6 +79,7 @@ func (me *SrcFile) parse() {
 					}
 				}
 				new_nodes = append(new_nodes, node)
+				OnDbgMsg("NEW:" + node.Src)
 			}
 		}
 	}
@@ -86,9 +89,9 @@ func (me *SrcFile) parse() {
 	for i := 0; i < len(new_nodes); i++ {
 		new_node := new_nodes[i]
 		if old_node := sl.FirstWhere(gone_nodes, func(it *AstNode) bool { return it.equals(new_node) }); old_node != nil {
-			// TODO! would have to `node.walk` this whole logic, rethink & rework this once we have Anns
+			OnDbgMsg("RECOV:" + new_node.Src + ">>AKA<<" + old_node.Src)
 			old_node.Toks, old_node.Src, old_node.errsParsing = new_node.Toks, new_node.Src, new_node.errsParsing
-			gone_nodes = sl.Without(gone_nodes, true, old_node)
+			// gone_nodes = sl.Without(gone_nodes, true, old_node)
 			new_nodes = append(new_nodes[:i], append(Nodes{old_node}, new_nodes[i+1:]...)...)
 			i--
 		}
@@ -241,7 +244,7 @@ func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 }
 
 func (me *AstNode) equals(it *AstNode) bool {
-	if me.Kind != it.Kind || len(me.Children) == len(it.Children) {
+	if me.Kind != it.Kind || len(me.Children) != len(it.Children) {
 		return false
 	}
 	util.Assert(me != it, nil)
@@ -261,10 +264,8 @@ func (me *AstNode) equals(it *AstNode) bool {
 		}
 	case NodeKindLitRune:
 		return (me.LitAtom.(rune) == it.LitAtom.(rune))
-	case NodeKindLitStr:
+	case NodeKindLitStr, NodeKindIdent:
 		return (me.LitAtom.(string) == it.LitAtom.(string))
-	case NodeKindIdent:
-		return me.LitAtom.(string) == it.LitAtom.(string)
 	case NodeKindErr:
 		var idx int
 		return (len(me.errsParsing) == len(it.errsParsing)) && sl.All(me.errsParsing, func(err *SrcFileNotice) (isEq bool) {

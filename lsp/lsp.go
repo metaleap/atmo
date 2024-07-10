@@ -17,6 +17,9 @@ func init() {
 	Server.Lang.DocumentSymbolsMultiTreeLabel = "Atmo"
 	Server.Lang.TriggerChars.Completion = []string{"."}
 	Server.Lang.TriggerChars.Signature = []string{","}
+	session.OnDbgMsg = func(msg string) {
+		Server.Notify_window_showMessage(lsp.ShowMessageParams{Type: lsp.MessageTypeInfo, Message: "DBG:" + msg})
+	}
 }
 
 func toLspPos(pos session.SrcFilePos) lsp.Position {

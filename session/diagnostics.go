@@ -1,5 +1,10 @@
 package session
 
+var (
+	OnNoticesChanged = func(map[string][]*SrcFileNotice) {}
+	OnDbgMsg         = func(string) {}
+)
+
 type SrcFileNoticeKind int
 
 const (
