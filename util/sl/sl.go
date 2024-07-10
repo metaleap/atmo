@@ -169,6 +169,15 @@ func Any[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) bool {
 	return false
 }
 
+func None[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) bool {
+	for i := range slice {
+		if pred(slice[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func WithoutDupls[TSlice ~[]TItem, TItem comparable](slice TSlice) TSlice {
 	return With(make(TSlice, 0, len(slice)), slice...)
 }

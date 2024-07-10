@@ -114,11 +114,13 @@ func (me *Server) sendMsg(jsonable any) {
 	defer me.stdioMu.Unlock()
 	if me.LogPrefixSendRecvJsons != "" {
 		println(me.LogPrefixSendRecvJsons + ".SEND>>" + string(json_bytes) + ">>")
+		_ = os.Stderr.Sync()
 	}
 	_, _ = me.stdout.Write([]byte("Content-Length: "))
 	_, _ = me.stdout.Write([]byte(strconv.Itoa(len(json_bytes))))
 	_, _ = me.stdout.Write([]byte("\r\n\r\n"))
 	_, _ = me.stdout.Write(json_bytes)
+	_ = os.Stdout.Sync()
 }
 
 type jsonRpcError struct {
@@ -346,6 +348,7 @@ func (me *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[s
 		if me.LogPrefixSendRecvJsons != "" {
 			me.stdioMu.Lock()
 			println(me.LogPrefixSendRecvJsons + ".RECV<<" + string(json_bytes) + "<<")
+			_ = os.Stderr.Sync()
 			me.stdioMu.Unlock()
 		}
 		if err := json.Unmarshal(json_bytes, &raw); err != nil {
