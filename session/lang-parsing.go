@@ -19,7 +19,7 @@ type AstNode struct {
 	Src         string
 	DocComments Toks
 	errsParsing []*SrcFileNotice
-	LitAtom     any // if NodeKindIdent or some NodeKindLitFoo, one of: float64 | int64 | uint64 | rune | string
+	LitAtom     any // if NodeKindIdent or NodeKindLit, one of: float64 | int64 | uint64 | rune | string
 }
 
 type NodeKind int
@@ -29,11 +29,8 @@ const (
 	NodeKindCallForm                // foo bar baz
 	NodeKindCurlyBraces             // {}
 	NodeKindSquareBrackets          // []
-	NodeKindLitInt                  // 123, -321
-	NodeKindLitFloat                // 1.23, -3.21
-	NodeKindLitRune                 // '⅜'
-	NodeKindLitStr                  // "foo", `bar`
 	NodeKindIdent                   // foo, #bar, @baz, $foo, %bar
+	NodeKindLit                     // 123, -321, 1.23, -3.21, "foo", `bar`, 'ö'
 )
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
@@ -142,24 +139,24 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 			ret = append(ret, &AstNode{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
 			toks = toks[1:]
 		case TokKindLitFloat:
-			ret = append(ret, parseLit[float64](toks, NodeKindLitFloat, func(src string) (float64, error) { return str.ToF(src, 64) }))
+			ret = append(ret, parseLit[float64](toks, NodeKindLit, func(src string) (float64, error) { return str.ToF(src, 64) }))
 			toks = toks[1:]
 		case TokKindLitRune:
-			ret = append(ret, parseLit[rune](toks, NodeKindLitRune, func(src string) (rune, error) {
+			ret = append(ret, parseLit[rune](toks, NodeKindLit, func(src string) (rune, error) {
 				ret, _, _, err := strconv.UnquoteChar(src, '\'')
 				return ret, err
 			}))
 			toks = toks[1:]
 		case TokKindLitStr:
-			ret = append(ret, parseLit[string](toks, NodeKindLitStr, strconv.Unquote))
+			ret = append(ret, parseLit[string](toks, NodeKindLit, strconv.Unquote))
 			toks = toks[1:]
 		case TokKindLitInt:
 			if tok.Src[0] == '-' {
-				ret = append(ret, parseLit[int64](toks, NodeKindLitInt, func(src string) (int64, error) {
+				ret = append(ret, parseLit[int64](toks, NodeKindLit, func(src string) (int64, error) {
 					return str.ToI64(src, 0, 64)
 				}))
 			} else {
-				ret = append(ret, parseLit[uint64](toks, NodeKindLitInt, func(src string) (uint64, error) {
+				ret = append(ret, parseLit[uint64](toks, NodeKindLit, func(src string) (uint64, error) {
 					return str.ToU64(src, 0, 64)
 				}))
 			}
@@ -246,22 +243,27 @@ func (me *AstNode) equals(it *AstNode) bool {
 	}
 	util.Assert(me != it, nil)
 	switch me.Kind {
-	case NodeKindLitFloat:
-		return (me.LitAtom.(float64) == it.LitAtom.(float64))
-	case NodeKindLitInt:
+	case NodeKindLit:
 		switch mine := me.LitAtom.(type) {
+		case float64:
+			other, ok := it.LitAtom.(float64)
+			return ok && (mine == other)
 		case int64:
 			other, ok := it.LitAtom.(int64)
 			return ok && (mine == other)
 		case uint64:
 			other, ok := it.LitAtom.(uint64)
 			return ok && (mine == other)
+		case rune:
+			other, ok := it.LitAtom.(rune)
+			return ok && (mine == other)
+		case string:
+			other, ok := it.LitAtom.(string)
+			return ok && (mine == other)
 		default:
 			panic(me.LitAtom)
 		}
-	case NodeKindLitRune:
-		return (me.LitAtom.(rune) == it.LitAtom.(rune))
-	case NodeKindLitStr, NodeKindIdent:
+	case NodeKindIdent:
 		return (me.LitAtom.(string) == it.LitAtom.(string))
 	case NodeKindErr:
 		var idx int
