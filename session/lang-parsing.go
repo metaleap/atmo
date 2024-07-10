@@ -180,7 +180,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 						node, errs_inner := me.parseNode(toks_inner)
 						errs = append(errs, errs_inner...)
 						if node != nil {
-							// node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
+							node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
 							node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 							ret = append(ret, node)
 						}
