@@ -158,12 +158,12 @@ func init() {
 		if len(params.Positions) > 0 && session.IsSrcFilePath(src_file_path) {
 			src_file := session.EnsureSrcFile(src_file_path, nil, true)
 			for _, pos := range params.Positions {
-				if node := src_file.NodeAt(lsp.LspPosToPos(&pos)); node == nil {
+				if node := src_file.NodeAt(lsp.LspPosToPos(&pos), true); node == nil {
 					ret = nil
 					break
 				} else {
 					all := sl.As(node.SelfAndAncestors(), func(it *session.AstNode) *lsp.SelectionRange {
-						return &lsp.SelectionRange{Range: lsp.SpanToLspRange(it.Toks.Span()), Dbg: it.Src}
+						return &lsp.SelectionRange{Range: lsp.SpanToLspRange(it.Toks.Span())}
 					})
 					for i, it := range all[:len(all)-1] {
 						it.Parent = all[i+1]
@@ -172,7 +172,7 @@ func init() {
 				}
 			}
 		}
-		return util.If[any](true, ret, nil), nil
+		return util.If[any](len(ret) > 0, ret, nil), nil
 	}
 
 	session.OnNoticesChanged = func(pub map[string][]*session.SrcFileNotice) {

@@ -133,7 +133,7 @@ func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 }
 
 func (me *Tok) newIndentErr() *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.Span(), Message: "ambiguous indentation:"}
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.span(), Message: "ambiguous indentation:"}
 }
 func (me *Tok) isBraceClosing() bool { return str.Has(")]}", me.Src) }
 func (me *Tok) isBraceOpening() bool { return str.Has("([{", me.Src) }
@@ -141,7 +141,7 @@ func (me *Tok) isBraceMatch(it *Tok) bool {
 	return (me.Src == "(" && it.Src == ")") || (me.Src == "[" && it.Src == "]") || (me.Src == "{" && it.Src == "}")
 }
 
-func (me *Tok) Span() (ret SrcFileSpan) {
+func (me *Tok) span() (ret SrcFileSpan) {
 	ret.Start, ret.End = me.Pos, me.Pos
 	for _, r := range me.Src {
 		if r == '\n' {
@@ -182,7 +182,7 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 }
 
 func (me Toks) Span() (ret SrcFileSpan) {
-	ret.Start, ret.End = me[0].Pos, me[len(me)-1].Span().End
+	ret.Start, ret.End = me[0].Pos, me[len(me)-1].span().End
 	return
 }
 

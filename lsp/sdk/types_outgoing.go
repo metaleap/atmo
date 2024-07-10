@@ -561,5 +561,4 @@ type ShowMessageRequestParams struct {
 type SelectionRange struct {
 	Range  Range           `json:"range"`
 	Parent *SelectionRange `json:"parent,omitempty"`
-	Dbg    string
 }

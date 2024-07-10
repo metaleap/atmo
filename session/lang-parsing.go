@@ -177,7 +177,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 				case "(":
 					if len(toks_inner) == 0 {
 						ret = append(ret, &AstNode{Kind: NodeKindErr, Toks: toks[:2], Src: toks[:2].src(me.Content.Src), errsParsing: []*SrcFileNotice{{
-							Kind: NoticeKindErr, Message: "expression expected", Span: toks[1].Span(), Code: NoticeCodeExprExpected,
+							Kind: NoticeKindErr, Message: "expression expected", Span: toks[1].span(), Code: NoticeCodeExprExpected,
 						}}})
 					} else {
 						node, errs_inner := me.parseNode(toks_inner)
@@ -207,7 +207,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 			}
 		default:
 			ret = append(ret, &AstNode{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src, errsParsing: []*SrcFileNotice{{
-				Kind: NoticeKindErr, Message: "unexpected: '" + tok.Src + "'", Span: tok.Span(), Code: NoticeCodeMisplaced,
+				Kind: NoticeKindErr, Message: "unexpected: '" + tok.Src + "'", Span: tok.span(), Code: NoticeCodeMisplaced,
 			}}})
 			toks = toks[1:]
 		}
@@ -220,18 +220,18 @@ func parseLit[T cmp.Ordered](toks Toks, kind NodeKind, parseFunc func(string) (T
 	lit, err := parseFunc(tok.Src)
 	if err != nil {
 		return &AstNode{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src,
-			errsParsing: []*SrcFileNotice{errToNotice(err, NoticeCodeBadLitSyntax, util.Ptr(tok.Span()))}}
+			errsParsing: []*SrcFileNotice{errToNotice(err, NoticeCodeBadLitSyntax, util.Ptr(tok.span()))}}
 	}
 	return &AstNode{Kind: kind, Toks: toks[:1], Src: tok.Src, LitAtom: lit}
 }
 
-func (me *SrcFile) NodeAt(pos SrcFilePos) (ret *AstNode) {
+func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 	for _, node := range me.Content.TopLevelAstNodes {
 		if node.Toks.Span().contains(&pos) {
 			ret = node.find(func(it *AstNode) bool {
 				return (len(it.Children) == 0) && it.Toks.Span().contains(&pos)
 			})
-			if ret == nil {
+			if ret == nil && orAncestor {
 				ret = node
 			}
 			break
@@ -286,10 +286,7 @@ func (me *AstNode) equals(it *AstNode) bool {
 
 func (me *AstNode) find(where func(*AstNode) bool) (ret *AstNode) {
 	me.walk(func(node *AstNode) bool {
-		if ret != nil {
-			return false
-		}
-		if where(node) {
+		if ret == nil && where(node) {
 			ret = node
 		}
 		return (ret == nil)
