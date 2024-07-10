@@ -115,8 +115,8 @@ func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 	return
 }
 
-func (me *Tok) newIndentErr() *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.span(), Message: "ambiguous indentation"}
+func (me *Tok) newIndentErr(dbg string) *SrcFileNotice {
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.span(), Message: "ambiguous indentation:" + dbg}
 }
 func (me *Tok) isBraceClosing() bool { return str.Has(")]}", me.Src) }
 func (me *Tok) isBraceOpening() bool { return str.Has("([{", me.Src) }
@@ -185,6 +185,9 @@ func (me Toks) split(by TokKind) (ret []Toks) {
 }
 
 func (me Toks) src(curFullSrcFileContent string) string {
+	if len(me) == 0 {
+		return ""
+	}
 	first, last := me[0], me[len(me)-1]
 	return curFullSrcFileContent[first.byteOffset:(last.byteOffset + len(last.Src))]
 }
@@ -195,13 +198,13 @@ func (me Toks) str() string { // only for occasional debug prints
 
 func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
 	idx_start := sl.IdxWhere(me, func(it *Tok) bool { return it.Pos.Line > me[0].Pos.Line })
-	if idx_start < 0 {
+	if idx_start < 0 || me[0].Kind == TokKindComment || me[idx_start].Kind == TokKindComment {
 		return me, nil, nil
 	}
 
 	indent_pos_char := me[idx_start].Pos.Char
 	if indent_pos_char <= me[0].Pos.Char {
-		return nil, nil, me[idx_start].newIndentErr()
+		return nil, nil, me[idx_start].newIndentErr(str.Fmt("(`%s`@%d) <= (`%s`@%d)", me[idx_start].Src, me[idx_start].Pos.Char, me[0].Src, me[0].Pos.Char))
 	}
 
 	head = me[:idx_start]
@@ -218,7 +221,7 @@ func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
 			} else if tok.Pos.Char == indent_pos_char {
 				tail, cur_chunk = append(tail, cur_chunk), Toks{tok}
 			} else {
-				return nil, nil, tok.newIndentErr()
+				return nil, nil, tok.newIndentErr("2")
 			}
 		}
 	}
@@ -235,7 +238,7 @@ func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
 func (me Toks) topChunks() (ret ToksChunks, err *SrcFileNotice) {
 	var cur_chunk Toks
 	if me[0].Pos.Char != 1 {
-		err = me[0].newIndentErr()
+		err = me[0].newIndentErr("3")
 		return
 	}
 	for i, tok := range me {
@@ -266,4 +269,8 @@ func (me Toks) topChunks() (ret ToksChunks, err *SrcFileNotice) {
 
 func (me Toks) withoutComments() Toks {
 	return sl.Where(me, func(it *Tok) bool { return it.Kind != TokKindComment })
+}
+
+func (me ToksChunks) str() string {
+	return str.Fmt("%#v", sl.As(me, func(it Toks) string { return it.str() }))
 }

@@ -7,7 +7,6 @@ import (
 	"atmo/session"
 	"atmo/util"
 	"atmo/util/sl"
-	"atmo/util/str"
 )
 
 func init() {
@@ -29,15 +28,8 @@ func init() {
 	}
 
 	Server.On_textDocument_didChange = func(params *lsp.DidChangeTextDocumentParams) (any, error) {
-		if src_file_path := lsp.UriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
-			println(str.Fmt(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>%#v<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<", params.ContentChanges[0]))
-
-			/*&lsp_v3_17.RangeWithRangeLengthUintegerWithTextStringOrTextString{
-			RangeWithRangeLengthUintegerWithTextString:(*struct { Range lsp_v3_17.Range "json:\"range,omitempty\""; RangeLength *lsp_v3_17.Uinteger "json:\"rangeLength,omitempty\""; Text string "json:\"text,omitempty\"" })(nil),
-			TextString:(*struct { Text string "json:\"text,omitempty\"" })(nil)}
-			*/
-			//{"params":{"textDocument":{"uri":"file:///home/_/c/at/foo.at","version":2},"contentChanges":[{"text":"foo-bar-{baz} :=\n  (\"Hello World\"[0])\n"}]}}
-
+		src_file_path := lsp.UriToFsPath(params.TextDocument.Uri)
+		if session.IsSrcFilePath(src_file_path) && len(params.ContentChanges) > 0 {
 			session.OnSrcFileEdit(src_file_path, params.ContentChanges[0].Text)
 		}
 		return nil, nil

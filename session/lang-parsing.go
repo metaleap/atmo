@@ -113,7 +113,7 @@ func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
 	if len(errs) > 0 {
 		return nil, errs
 	}
-	if len(nodes) == 1 {
+	if len(nodes) == 1 && len(sub_nodes) == 0 {
 		return nodes[0], nil
 	}
 	return &Node{Kind: NodeKindCallForm, Children: append(nodes, sub_nodes...), Toks: toks_full, Src: toks_full.src(me.Content.Src)}, nil
@@ -156,37 +156,25 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 			ret = append(ret, parseLit[string](toks, NodeKindIdent, func(src string) (string, error) { return src, nil }))
 			toks = toks[1:]
 		case TokKindBrace:
-			// if chunks_head, chunks_tail, err := toks.subChunks(); len(chunks_tail) > 0 {
-			// 	node,err:=me.parseNode(toks)
-			// 	toks = nil
-			// 	continue
-			// } else if err != nil {
-			// 	errs = append(errs, err)
-			// 	toks = nil
-			// 	continue
-			// }
-
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
 				ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), errsParsing: []*SrcFileNotice{err}})
 				toks = nil
 			} else {
-				toks = toks_tail
 				switch tok.Src {
 				case "(":
 					node, errs_inner := me.parseNode(toks_inner)
-					if len(errs_inner) == 0 {
+					errs = append(errs, errs_inner...)
+					if node != nil {
+						// node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
+						node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 						ret = append(ret, node)
-					} else {
-						errs = append(errs, errs_inner...)
 					}
 				case "[", "{":
 					split := toks_inner.split(TokKindSep)
-					node := &Node{
-						Kind: util.If(tok.Src == "[", NodeKindSquareBrackets, NodeKindCurlyBraces),
-						Toks: toks_inner,
-						Src:  toks_inner.src(me.Content.Src),
-					}
+					node := &Node{Kind: util.If(tok.Src == "[", NodeKindSquareBrackets, NodeKindCurlyBraces)}
+					node.Toks = toks[0 : len(toks_inner)+2]  // want to include the braces/brackets in the node's SrcFileSpan..
+					node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 					for _, toks := range split {
 						sub_node, errs_sub_node := me.parseNode(toks)
 						if len(errs_sub_node) == 0 {
@@ -197,6 +185,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 					}
 					ret = append(ret, node)
 				}
+				toks = toks_tail
 			}
 		default:
 			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src, errsParsing: []*SrcFileNotice{{
