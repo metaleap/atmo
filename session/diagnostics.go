@@ -19,6 +19,7 @@ const (
 	NoticeCodeBracesMismatch SrcFileNoticeCode = "BracesMismatch"
 	NoticeCodeBadLitSyntax   SrcFileNoticeCode = "BadLitSyntax"
 	NoticeCodeMisplaced      SrcFileNoticeCode = "Misplaced"
+	NoticeCodeExprExpected   SrcFileNoticeCode = "ExprExpected"
 )
 
 type SrcFileNotice struct {

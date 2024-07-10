@@ -33,7 +33,7 @@ const (
 	NodeKindLitFloat                // 1.23, -3.21
 	NodeKindLitRune                 // '⅜'
 	NodeKindLitStr                  // "foo", `bar`
-	NodeKindIdent                   // foo, #bar, @baz, $foo, %bar, ()
+	NodeKindIdent                   // foo, #bar, @baz, $foo, %bar
 )
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
@@ -172,12 +172,18 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 			} else {
 				switch tok.Src {
 				case "(":
-					node, errs_inner := me.parseNode(toks_inner)
-					errs = append(errs, errs_inner...)
-					if node != nil {
-						// node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
-						node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
-						ret = append(ret, node)
+					if len(toks_inner) == 0 {
+						ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:2], Src: toks[:2].src(me.Content.Src), errsParsing: []*SrcFileNotice{{
+							Kind: NoticeKindErr, Message: "expression expected", Span: toks[1].span(), Code: NoticeCodeExprExpected,
+						}}})
+					} else {
+						node, errs_inner := me.parseNode(toks_inner)
+						errs = append(errs, errs_inner...)
+						if node != nil {
+							// node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
+							node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
+							ret = append(ret, node)
+						}
 					}
 				case "[", "{":
 					split := toks_inner.split(TokKindSep)
