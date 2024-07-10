@@ -18,6 +18,19 @@ type SrcFilePos struct {
 	Char int
 }
 
+func (me *SrcFilePos) after(it *SrcFilePos) bool {
+	return util.If(me.Line == it.Line, me.Char > it.Char, me.Line > it.Line)
+}
+func (me *SrcFilePos) afterOrAt(it *SrcFilePos) bool {
+	return util.If(me.Line == it.Line, me.Char >= it.Char, me.Line > it.Line)
+}
+func (me *SrcFilePos) before(it *SrcFilePos) bool {
+	return util.If(me.Line == it.Line, me.Char < it.Char, me.Line < it.Line)
+}
+func (me *SrcFilePos) beforeOrAt(it *SrcFilePos) bool {
+	return util.If(me.Line == it.Line, me.Char <= it.Char, me.Line < it.Line)
+}
+
 func (me SrcFilePos) ToSpan() (ret SrcFileSpan) {
 	ret.Start, ret.End = me, me
 	return
@@ -28,7 +41,11 @@ type SrcFileSpan struct {
 	End   SrcFilePos
 }
 
-func (me *SrcFileSpan) IsSinglePos() bool { return me.Start == me.End }
+func (me SrcFileSpan) contains(it *SrcFilePos) bool {
+	return it.afterOrAt(&me.Start) && it.beforeOrAt(&me.End)
+}
+
+func (me *SrcFileSpan) isSinglePos() bool { return me.Start == me.End }
 
 type ToksChunks []Toks
 type Toks []*Tok
@@ -116,7 +133,7 @@ func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 }
 
 func (me *Tok) newIndentErr() *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.span(), Message: "ambiguous indentation:"}
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.Span(), Message: "ambiguous indentation:"}
 }
 func (me *Tok) isBraceClosing() bool { return str.Has(")]}", me.Src) }
 func (me *Tok) isBraceOpening() bool { return str.Has("([{", me.Src) }
@@ -124,7 +141,7 @@ func (me *Tok) isBraceMatch(it *Tok) bool {
 	return (me.Src == "(" && it.Src == ")") || (me.Src == "[" && it.Src == "]") || (me.Src == "{" && it.Src == "}")
 }
 
-func (me *Tok) span() (ret SrcFileSpan) {
+func (me *Tok) Span() (ret SrcFileSpan) {
 	ret.Start, ret.End = me.Pos, me.Pos
 	for _, r := range me.Src {
 		if r == '\n' {
@@ -161,11 +178,11 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 		util.If((me[0].Src == "(") || (me[0].Src == ")"), "parens",
 			util.If((me[0].Src == "[") || (me[0].Src == "]"), "brackets",
 				"braces"))
-	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
+	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
 }
 
-func (me Toks) span() (ret SrcFileSpan) {
-	ret.Start, ret.End = me[0].Pos, me[len(me)-1].span().End
+func (me Toks) Span() (ret SrcFileSpan) {
+	ret.Start, ret.End = me[0].Pos, me[len(me)-1].Span().End
 	return
 }
 

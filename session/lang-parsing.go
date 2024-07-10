@@ -9,10 +9,10 @@ import (
 	"atmo/util/str"
 )
 
-type Nodes []*Node
+type Nodes []*AstNode
 
-type Node struct {
-	parent      *Node
+type AstNode struct {
+	parent      *AstNode
 	Kind        NodeKind
 	Children    Nodes
 	Toks        Toks
@@ -48,8 +48,8 @@ func (me *SrcFile) parse() {
 		if !sl.Any(me.Content.TopLevelToksChunks, func(topLevelChunk Toks) bool {
 			return topLevelChunk.src(me.Content.Src) == top_level_nodes[i].Src
 		}) {
-			gone_nodes = append(gone_nodes, top_level_nodes[i])
-			top_level_nodes = append(top_level_nodes[:i], top_level_nodes[i+1:]...)
+			gone_nodes = append(gone_nodes, top_level_nodes[i])                     // keep around for potential reclaim below
+			top_level_nodes = append(top_level_nodes[:i], top_level_nodes[i+1:]...) // remove
 			i--
 		}
 	}
@@ -57,15 +57,17 @@ func (me *SrcFile) parse() {
 	// gather top-level chunks whose nodes do not yet exist
 	var new_nodes Nodes
 	for _, top_level_chunk := range me.Content.TopLevelToksChunks {
-		toks := sl.Where(top_level_chunk, func(it *Tok) bool { return it.Kind != TokKindComment })
-		if len(toks) == 0 {
+		toks_sans_comments := sl.Where(top_level_chunk, func(it *Tok) bool { return it.Kind != TokKindComment })
+		if len(toks_sans_comments) == 0 {
 			continue
 		}
-		node := sl.FirstWhere(top_level_nodes, func(it *Node) bool { return it.Src == toks.src(me.Content.Src) })
+		node := sl.FirstWhere(top_level_nodes, func(it *AstNode) bool { return it.Src == top_level_chunk.src(me.Content.Src) })
 		if node == nil {
-			node, errs := me.parseNode(toks)
+			node, errs := me.parseNode(toks_sans_comments)
 			me.Notices.ParseErrs = append(me.Notices.ParseErrs, errs...)
 			if node != nil {
+				node.Src = top_level_chunk.src(me.Content.Src) // parsed without comments, but need full Src for the very comparisons above
+				node.setParents()
 				// keep doc-comments in top-level node: those at the beginning of a top-level chunk
 				for _, tok := range top_level_chunk {
 					if tok.Kind != TokKindComment {
@@ -80,10 +82,10 @@ func (me *SrcFile) parse() {
 	}
 
 	// if a just-parsed node has existed before (ie had only inconsequential toks changes),
-	// recover it (to keep annotations etc) but update wrt new toks span
+	// recover it (to keep annotations etc) but update wrt new toks, span & src
 	for i := 0; i < len(new_nodes); i++ {
 		new_node := new_nodes[i]
-		if old_node := sl.FirstWhere(gone_nodes, func(it *Node) bool { return it.equals(new_node) }); old_node != nil {
+		if old_node := sl.FirstWhere(gone_nodes, func(it *AstNode) bool { return it.equals(new_node) }); old_node != nil {
 			// TODO! would have to `node.walk` this whole logic, rethink & rework this once we have Anns
 			old_node.Toks, old_node.Src, old_node.errsParsing = new_node.Toks, new_node.Src, new_node.errsParsing
 			gone_nodes = sl.Without(gone_nodes, true, old_node)
@@ -94,14 +96,14 @@ func (me *SrcFile) parse() {
 
 	top_level_nodes = append(top_level_nodes, new_nodes...)
 	// sort all nodes to be in source-file order of appearance
-	top_level_nodes = sl.SortedPer(top_level_nodes, func(node1 *Node, node2 *Node) int {
+	top_level_nodes = sl.SortedPer(top_level_nodes, func(node1 *AstNode, node2 *AstNode) int {
 		return cmp.Compare(node1.Toks[0].byteOffset, node2.Toks[0].byteOffset)
 	})
 
 	me.Content.TopLevelAstNodes = top_level_nodes
 }
 
-func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
+func (me *SrcFile) parseNode(toks Toks) (*AstNode, []*SrcFileNotice) {
 	var sub_nodes Nodes
 	toks_full := toks
 	{
@@ -128,7 +130,8 @@ func (me *SrcFile) parseNode(toks Toks) (*Node, []*SrcFileNotice) {
 	if len(nodes) == 1 && len(sub_nodes) == 0 {
 		return nodes[0], nil
 	}
-	return &Node{Kind: NodeKindCallForm, Children: append(nodes, sub_nodes...), Toks: toks_full, Src: toks_full.src(me.Content.Src)}, nil
+	ret := &AstNode{Kind: NodeKindCallForm, Children: append(nodes, sub_nodes...), Toks: toks_full, Src: toks_full.src(me.Content.Src)}
+	return ret, nil
 }
 
 func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
@@ -136,7 +139,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 		tok := toks[0]
 		switch tok.Kind {
 		case TokKindErr:
-			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
+			ret = append(ret, &AstNode{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
 			toks = toks[1:]
 		case TokKindLitFloat:
 			ret = append(ret, parseLit[float64](toks, NodeKindLitFloat, func(src string) (float64, error) { return str.ToF(src, 64) }))
@@ -167,14 +170,14 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 		case TokKindBrace:
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
-				ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), errsParsing: []*SrcFileNotice{err}})
+				ret = append(ret, &AstNode{Kind: NodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), errsParsing: []*SrcFileNotice{err}})
 				toks = nil
 			} else {
 				switch tok.Src {
 				case "(":
 					if len(toks_inner) == 0 {
-						ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:2], Src: toks[:2].src(me.Content.Src), errsParsing: []*SrcFileNotice{{
-							Kind: NoticeKindErr, Message: "expression expected", Span: toks[1].span(), Code: NoticeCodeExprExpected,
+						ret = append(ret, &AstNode{Kind: NodeKindErr, Toks: toks[:2], Src: toks[:2].src(me.Content.Src), errsParsing: []*SrcFileNotice{{
+							Kind: NoticeKindErr, Message: "expression expected", Span: toks[1].Span(), Code: NoticeCodeExprExpected,
 						}}})
 					} else {
 						node, errs_inner := me.parseNode(toks_inner)
@@ -187,7 +190,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 					}
 				case "[", "{":
 					split := toks_inner.split(TokKindSep)
-					node := &Node{Kind: util.If(tok.Src == "[", NodeKindSquareBrackets, NodeKindCurlyBraces)}
+					node := &AstNode{Kind: util.If(tok.Src == "[", NodeKindSquareBrackets, NodeKindCurlyBraces)}
 					node.Toks = toks[0 : len(toks_inner)+2]  // want to include the braces/brackets in the node's SrcFileSpan..
 					node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 					for _, toks := range split {
@@ -203,8 +206,8 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 				toks = toks_tail
 			}
 		default:
-			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src, errsParsing: []*SrcFileNotice{{
-				Kind: NoticeKindErr, Message: "unexpected: '" + tok.Src + "'", Span: tok.span(), Code: NoticeCodeMisplaced,
+			ret = append(ret, &AstNode{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src, errsParsing: []*SrcFileNotice{{
+				Kind: NoticeKindErr, Message: "unexpected: '" + tok.Src + "'", Span: tok.Span(), Code: NoticeCodeMisplaced,
 			}}})
 			toks = toks[1:]
 		}
@@ -212,20 +215,36 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 	return
 }
 
-func parseLit[T cmp.Ordered](toks Toks, kind NodeKind, parseFunc func(string) (T, error)) *Node {
+func parseLit[T cmp.Ordered](toks Toks, kind NodeKind, parseFunc func(string) (T, error)) *AstNode {
 	tok := toks[0]
 	lit, err := parseFunc(tok.Src)
 	if err != nil {
-		return &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src,
-			errsParsing: []*SrcFileNotice{errToNotice(err, NoticeCodeBadLitSyntax, util.Ptr(tok.span()))}}
+		return &AstNode{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src,
+			errsParsing: []*SrcFileNotice{errToNotice(err, NoticeCodeBadLitSyntax, util.Ptr(tok.Span()))}}
 	}
-	return &Node{Kind: kind, Toks: toks[:1], Src: tok.Src, LitAtom: lit}
+	return &AstNode{Kind: kind, Toks: toks[:1], Src: tok.Src, LitAtom: lit}
 }
 
-func (me *Node) equals(it *Node) bool {
+func (me *SrcFile) NodeAt(pos SrcFilePos) (ret *AstNode) {
+	for _, node := range me.Content.TopLevelAstNodes {
+		if node.Toks.Span().contains(&pos) {
+			ret = node.find(func(it *AstNode) bool {
+				return (len(it.Children) == 0) && it.Toks.Span().contains(&pos)
+			})
+			if ret == nil {
+				ret = node
+			}
+			break
+		}
+	}
+	return
+}
+
+func (me *AstNode) equals(it *AstNode) bool {
 	if me.Kind != it.Kind || len(me.Children) == len(it.Children) {
 		return false
 	}
+	util.Assert(me != it, nil)
 	switch me.Kind {
 	case NodeKindLitFloat:
 		return (me.LitAtom.(float64) == it.LitAtom.(float64))
@@ -255,7 +274,7 @@ func (me *Node) equals(it *Node) bool {
 		})
 	case NodeKindCallForm, NodeKindCurlyBraces, NodeKindSquareBrackets:
 		var idx int
-		return sl.All(me.Children, func(node *Node) (isEq bool) {
+		return sl.All(me.Children, func(node *AstNode) (isEq bool) {
 			isEq = node.equals(it.Children[idx])
 			idx++
 			return
@@ -265,14 +284,42 @@ func (me *Node) equals(it *Node) bool {
 	}
 }
 
-func (n *Node) walk(onBefore func(n *Node) bool, onAfter func(n *Node)) {
-	if onBefore != nil && !onBefore(n) {
+func (me *AstNode) find(where func(*AstNode) bool) (ret *AstNode) {
+	me.walk(func(node *AstNode) bool {
+		if ret != nil {
+			return false
+		}
+		if where(node) {
+			ret = node
+		}
+		return (ret == nil)
+	}, nil)
+	return
+}
+
+func (me *AstNode) SelfAndAncestors() (ret Nodes) {
+	for it := me; it != nil; it = it.parent {
+		ret = append(ret, it)
+	}
+	return
+}
+
+func (me *AstNode) setParents() {
+	me.walk(nil, func(it *AstNode) {
+		for _, node := range it.Children {
+			node.parent = it
+		}
+	})
+}
+
+func (me *AstNode) walk(onBefore func(n *AstNode) bool, onAfter func(n *AstNode)) {
+	if onBefore != nil && !onBefore(me) {
 		return
 	}
-	for _, child_node := range n.Children {
-		child_node.walk(onBefore, onAfter)
+	for _, node := range me.Children {
+		node.walk(onBefore, onAfter)
 	}
 	if onAfter != nil {
-		onAfter(n)
+		onAfter(me)
 	}
 }

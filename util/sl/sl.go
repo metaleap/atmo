@@ -173,11 +173,11 @@ func WithoutDupls[TSlice ~[]TItem, TItem comparable](slice TSlice) TSlice {
 	return With(make(TSlice, 0, len(slice)), slice...)
 }
 
-func Without[TSlice ~[]TItem, TItem comparable](slice TSlice, leanButMean bool, without ...TItem) TSlice {
+func Without[TSlice ~[]TItem, TItem comparable](slice TSlice, inPlace bool, without ...TItem) TSlice {
 	if len(without) == 0 {
 		return slice
 	}
-	if leanButMean {
+	if inPlace {
 		for i := 0; i < len(slice); i++ {
 			if Has(without, slice[i]) {
 				slice = append(slice[:i], slice[i+1:]...)

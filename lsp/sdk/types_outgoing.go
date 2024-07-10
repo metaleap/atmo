@@ -1,8 +1,17 @@
 package lsp
 
-import "atmo/util/str"
+import (
+	"atmo/session"
+	"atmo/util/str"
+)
 
-func FsPathToUri(fsPath string) string { return "file://" + fsPath }
+func FsPathToLspUri(fsPath string) string { return "file://" + fsPath }
+func PosToLspPos(pos *session.SrcFilePos) Position {
+	return Position{Line: pos.Line - 1, Character: pos.Char - 1}
+}
+func SpanToLspRange(span session.SrcFileSpan) Range {
+	return Range{Start: PosToLspPos(&span.Start), End: PosToLspPos(&span.End)}
+}
 
 type Registration struct {
 	Id              string `json:"id,omitempty"`
@@ -547,4 +556,10 @@ type ShowMessageRequestParams struct {
 	Type    MessageType         `json:"type,omitempty"`
 	Message string              `json:"message,omitempty"`
 	Actions []MessageActionItem `json:"actions,omitempty"`
+}
+
+type SelectionRange struct {
+	Range  Range           `json:"range"`
+	Parent *SelectionRange `json:"parent,omitempty"`
+	Dbg    string
 }

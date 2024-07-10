@@ -12,7 +12,7 @@ import (
 
 func init() {
 	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) ([]lsp.DocumentSymbol, error) {
-		src_file_path := lsp.UriToFsPath(params.TextDocument.Uri)
+		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		return sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
 			func(it lsp.SymbolKind) lsp.DocumentSymbol {
 				return lsp.DocumentSymbol{
@@ -31,40 +31,40 @@ func init() {
 			Kind:          lsp.SymbolKindInterface,
 			ContainerName: "Container",
 			Location: lsp.Location{
-				Uri:   lsp.FsPathToUri("/home/_/c/at/foo.at"),
+				Uri:   lsp.FsPathToLspUri("/home/_/c/at/foo.at"),
 				Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}},
 			},
 		}}, nil
 	}
 
 	Server.On_textDocument_definition = func(params *lsp.DefinitionParams) (any, error) {
-		return dummyLocs(lsp.UriToFsPath(params.TextDocument.Uri)), nil
+		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_declaration = func(params *lsp.DeclarationParams) (any, error) {
-		return dummyLocs(lsp.UriToFsPath(params.TextDocument.Uri)), nil
+		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_typeDefinition = func(params *lsp.TypeDefinitionParams) (any, error) {
-		return dummyLocs(lsp.UriToFsPath(params.TextDocument.Uri)), nil
+		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_implementation = func(params *lsp.ImplementationParams) (any, error) {
-		return dummyLocs(lsp.UriToFsPath(params.TextDocument.Uri)), nil
+		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_references = func(params *lsp.ReferenceParams) (any, error) {
-		return dummyLocs(lsp.UriToFsPath(params.TextDocument.Uri)), nil
+		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
 	}
 
 	Server.On_textDocument_documentHighlight = func(params *lsp.DocumentHighlightParams) (any, error) {
-		return sl.As(dummyLocs(lsp.UriToFsPath(params.TextDocument.Uri)), func(it lsp.Location) lsp.DocumentHighlight {
+		return sl.As(dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), func(it lsp.Location) lsp.DocumentHighlight {
 			return lsp.DocumentHighlight{Range: it.Range, Kind: lsp.DocumentHighlightKindText}
 		}), nil
 	}
 
 	Server.On_textDocument_completion = func(params *lsp.CompletionParams) (any, error) {
-		src_file_path := lsp.UriToFsPath(params.TextDocument.Uri)
+		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		return sl.As([]lsp.CompletionItemKind{
 			lsp.CompletionItemKindClass,
 			lsp.CompletionItemKindColor,
@@ -107,7 +107,7 @@ func init() {
 	}
 
 	Server.On_textDocument_hover = func(params *lsp.HoverParams) (*lsp.Hover, error) {
-		src_file_path := lsp.UriToFsPath(params.TextDocument.Uri)
+		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		str := str.Fmt("**TODO** _Hover_ for `%s` @ %d,%d", src_file_path, params.Position.Line, params.Position.Character)
 		return &lsp.Hover{
 			Contents: lsp.MarkupContent{Kind: lsp.MarkupKindMarkdown, Value: str},
@@ -120,10 +120,10 @@ func init() {
 	}
 
 	Server.On_textDocument_rename = func(params *lsp.RenameParams) (any, error) {
-		src_file_path := lsp.UriToFsPath(params.TextDocument.Uri)
+		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		return lsp.WorkspaceEdit{
 			Changes: map[string][]lsp.TextEdit{
-				lsp.FsPathToUri(src_file_path): {{
+				lsp.FsPathToLspUri(src_file_path): {{
 					NewText: params.NewName,
 					Range:   lsp.Range{Start: params.Position, End: lsp.Position{Line: params.Position.Line, Character: 4 + params.Position.Character}},
 				}},
@@ -132,7 +132,7 @@ func init() {
 	}
 
 	Server.On_textDocument_signatureHelp = func(params *lsp.SignatureHelpParams) (any, error) {
-		src_file_path := lsp.UriToFsPath(params.TextDocument.Uri)
+		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		return lsp.SignatureHelp{
 			Signatures: util.If(params.Position.Line > 0,
 				nil,
@@ -152,11 +152,34 @@ func init() {
 		return []lsp.Command{{Title: "Eval", Command: "eval", Arguments: []any{params}}}, nil
 	}
 
+	Server.On_textDocument_selectionRange = func(params *lsp.SelectionRangeParams) (any, error) {
+		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
+		var ret []*lsp.SelectionRange
+		if len(params.Positions) > 0 && session.IsSrcFilePath(src_file_path) {
+			src_file := session.EnsureSrcFile(src_file_path, nil, true)
+			for _, pos := range params.Positions {
+				if node := src_file.NodeAt(lsp.LspPosToPos(&pos)); node == nil {
+					ret = nil
+					break
+				} else {
+					all := sl.As(node.SelfAndAncestors(), func(it *session.AstNode) *lsp.SelectionRange {
+						return &lsp.SelectionRange{Range: lsp.SpanToLspRange(it.Toks.Span()), Dbg: it.Src}
+					})
+					for i, it := range all[:len(all)-1] {
+						it.Parent = all[i+1]
+					}
+					ret = append(ret, all[0])
+				}
+			}
+		}
+		return util.If[any](true, ret, nil), nil
+	}
+
 	session.OnNoticesChanged = func(pub map[string][]*session.SrcFileNotice) {
 		util.Assert(Server.Initialized.Client != nil && Server.Initialized.Server != nil, nil)
 		for file_path, diags := range pub {
 			Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
-				Uri: lsp.FsPathToUri(file_path),
+				Uri: lsp.FsPathToLspUri(file_path),
 				Diagnostics: sl.As(diags, func(it *session.SrcFileNotice) lsp.Diagnostic {
 					return lsp.Diagnostic{
 						Code:            string(it.Code),
@@ -174,8 +197,8 @@ func init() {
 
 func dummyLocs(srcFilePath string) []lsp.Location {
 	return []lsp.Location{
-		{Uri: lsp.FsPathToUri(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}}},
-		{Uri: lsp.FsPathToUri(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 4, Character: 1}, End: lsp.Position{Line: 4, Character: 8}}},
+		{Uri: lsp.FsPathToLspUri(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}}},
+		{Uri: lsp.FsPathToLspUri(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 4, Character: 1}, End: lsp.Position{Line: 4, Character: 8}}},
 	}
 }
 

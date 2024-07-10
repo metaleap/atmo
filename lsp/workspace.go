@@ -28,7 +28,7 @@ func init() {
 	}
 
 	Server.On_textDocument_didChange = func(params *lsp.DidChangeTextDocumentParams) (any, error) {
-		src_file_path := lsp.UriToFsPath(params.TextDocument.Uri)
+		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		if session.IsSrcFilePath(src_file_path) && len(params.ContentChanges) > 0 {
 			session.OnSrcFileEdit(src_file_path, params.ContentChanges[0].Text)
 		}
@@ -36,21 +36,21 @@ func init() {
 	}
 
 	Server.On_textDocument_didSave = func(params *lsp.DidSaveTextDocumentParams) (any, error) {
-		if src_file_path := lsp.UriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
+		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
 			session.OnSrcFileEvents(nil, true, src_file_path)
 		}
 		return nil, nil
 	}
 
 	Server.On_textDocument_didClose = func(params *lsp.DidCloseTextDocumentParams) (any, error) {
-		if src_file_path := lsp.UriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
+		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
 			session.OnSrcFileEvents(nil, true, src_file_path)
 		}
 		return nil, nil
 	}
 
 	Server.On_textDocument_didOpen = func(params *lsp.DidOpenTextDocumentParams) (any, error) {
-		if src_file_path := lsp.UriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
+		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
 			session.OnSrcFileEvents(nil, true, src_file_path)
 		}
 		return nil, nil
@@ -75,11 +75,11 @@ func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 	for _, it := range fileEvents {
 		switch it.Type {
 		case lsp.FileChangeTypeDeleted:
-			removed = append(removed, all_src_file_paths(lsp.UriToFsPath(it.Uri))...)
+			removed = append(removed, all_src_file_paths(lsp.LspUriToFsPath(it.Uri))...)
 		case lsp.FileChangeTypeCreated:
-			added = append(added, all_src_file_paths(lsp.UriToFsPath(it.Uri))...)
+			added = append(added, all_src_file_paths(lsp.LspUriToFsPath(it.Uri))...)
 		case lsp.FileChangeTypeChanged:
-			changed = append(changed, all_src_file_paths(lsp.UriToFsPath(it.Uri))...)
+			changed = append(changed, all_src_file_paths(lsp.LspUriToFsPath(it.Uri))...)
 		}
 	}
 	session.OnSrcFileEvents(removed, false, append(added, changed...)...)
@@ -88,9 +88,9 @@ func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 func onWorkspaceFoldersChanged(rootFoldersRemoved []lsp.WorkspaceFolder, rootFoldersAdded []lsp.WorkspaceFolder) {
 	onWorkspaceDidChangeWatchedFiles(append(
 		sl.As(rootFoldersRemoved, func(it lsp.WorkspaceFolder) lsp.FileEvent {
-			return lsp.FileEvent{Type: lsp.FileChangeTypeDeleted, Uri: lsp.UriToFsPath(it.Uri)}
+			return lsp.FileEvent{Type: lsp.FileChangeTypeDeleted, Uri: lsp.LspUriToFsPath(it.Uri)}
 		}),
 		sl.As(rootFoldersAdded, func(it lsp.WorkspaceFolder) lsp.FileEvent {
-			return lsp.FileEvent{Type: lsp.FileChangeTypeCreated, Uri: lsp.UriToFsPath(it.Uri)}
+			return lsp.FileEvent{Type: lsp.FileChangeTypeCreated, Uri: lsp.LspUriToFsPath(it.Uri)}
 		})...))
 }

@@ -24,7 +24,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (any, error) {
 	case "eval":
 		if len(params.Arguments) == 1 {
 			code_action_params, err := util.JsonAs[lsp.CodeActionParams](params.Arguments[0])
-			return str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.UriToFsPath(code_action_params.TextDocument.Uri)), err
+			return str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.LspUriToFsPath(code_action_params.TextDocument.Uri)), err
 		}
 
 	case "getSrcFileToks":
