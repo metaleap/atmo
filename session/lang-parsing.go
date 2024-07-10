@@ -61,7 +61,7 @@ func (me *SrcFile) parse() {
 		if len(toks) == 0 {
 			continue
 		}
-		node := sl.FirstWhere(top_level_nodes, func(it *Node) bool { return it.Src == top_level_chunk.src(me.Content.Src) })
+		node := sl.FirstWhere(top_level_nodes, func(it *Node) bool { return it.Src == toks.src(me.Content.Src) })
 		if node == nil {
 			node, errs := me.parseNode(toks)
 			me.Notices.ParseErrs = append(me.Notices.ParseErrs, errs...)

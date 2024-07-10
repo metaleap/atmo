@@ -115,8 +115,8 @@ func (me *SrcFile) tokenize() (ret ToksChunks, errs []*SrcFileNotice) {
 	return
 }
 
-func (me *Tok) newIndentErr(dbg string) *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.span(), Message: "ambiguous indentation:" + dbg}
+func (me *Tok) newIndentErr() *SrcFileNotice {
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeMisindentation, Span: me.span(), Message: "ambiguous indentation:"}
 }
 func (me *Tok) isBraceClosing() bool { return str.Has(")]}", me.Src) }
 func (me *Tok) isBraceOpening() bool { return str.Has("([{", me.Src) }
@@ -204,7 +204,7 @@ func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
 
 	indent_pos_char := me[idx_start].Pos.Char
 	if indent_pos_char <= me[0].Pos.Char {
-		return nil, nil, me[idx_start].newIndentErr(str.Fmt("(`%s`@%d) <= (`%s`@%d)", me[idx_start].Src, me[idx_start].Pos.Char, me[0].Src, me[0].Pos.Char))
+		return nil, nil, me[idx_start].newIndentErr()
 	}
 
 	head = me[:idx_start]
@@ -221,7 +221,7 @@ func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
 			} else if tok.Pos.Char == indent_pos_char {
 				tail, cur_chunk = append(tail, cur_chunk), Toks{tok}
 			} else {
-				return nil, nil, tok.newIndentErr("2")
+				return nil, nil, tok.newIndentErr()
 			}
 		}
 	}
@@ -238,7 +238,7 @@ func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
 func (me Toks) topChunks() (ret ToksChunks, err *SrcFileNotice) {
 	var cur_chunk Toks
 	if me[0].Pos.Char != 1 {
-		err = me[0].newIndentErr("3")
+		err = me[0].newIndentErr()
 		return
 	}
 	for i, tok := range me {
