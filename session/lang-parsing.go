@@ -17,6 +17,7 @@ type Node struct {
 	Children    Nodes
 	Toks        Toks
 	Src         string
+	DocComments Toks
 	errsParsing []*SrcFileNotice
 	LitAtom     any // if NodeKindIdent or some NodeKindLitFoo, one of: float64 | int64 | uint64 | rune | string
 }
@@ -56,12 +57,23 @@ func (me *SrcFile) parse() {
 	// gather top-level chunks whose nodes do not yet exist
 	var new_nodes Nodes
 	for _, top_level_chunk := range me.Content.TopLevelToksChunks {
+		toks := sl.Where(top_level_chunk, func(it *Tok) bool { return it.Kind != TokKindComment })
+		if len(toks) == 0 {
+			continue
+		}
 		node := sl.FirstWhere(top_level_nodes, func(it *Node) bool { return it.Src == top_level_chunk.src(me.Content.Src) })
 		if node == nil {
-			node, errs := me.parseNode(top_level_chunk)
-			if len(errs) > 0 {
-				me.Notices.ParseErrs = append(me.Notices.ParseErrs, errs...)
-			} else {
+			node, errs := me.parseNode(toks)
+			me.Notices.ParseErrs = append(me.Notices.ParseErrs, errs...)
+			if node != nil {
+				// keep doc-comments in top-level node: those at the beginning of a top-level chunk
+				for _, tok := range top_level_chunk {
+					if tok.Kind != TokKindComment {
+						break
+					} else {
+						node.DocComments = append(node.DocComments, tok)
+					}
+				}
 				new_nodes = append(new_nodes, node)
 			}
 		}
@@ -123,9 +135,6 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 	for len(toks) > 0 {
 		tok := toks[0]
 		switch tok.Kind {
-		case TokKindComment:
-			toks = toks[1:]
-			continue
 		case TokKindErr:
 			ret = append(ret, &Node{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
 			toks = toks[1:]

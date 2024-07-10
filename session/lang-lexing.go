@@ -198,7 +198,7 @@ func (me Toks) str() string { // only for occasional debug prints
 
 func (me Toks) subChunks() (head Toks, tail ToksChunks, err *SrcFileNotice) {
 	idx_start := sl.IdxWhere(me, func(it *Tok) bool { return it.Pos.Line > me[0].Pos.Line })
-	if idx_start < 0 || me[0].Kind == TokKindComment || me[idx_start].Kind == TokKindComment {
+	if idx_start < 0 {
 		return me, nil, nil
 	}
 
