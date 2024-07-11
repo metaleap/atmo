@@ -40,85 +40,15 @@ func (me *SrcFile) parse(previously Nodes) {
 
 	top_level_nodes := previously
 
-	// remove nodes whose src is no longer present in toks
-	var gone_nodes Nodes
-	for i := 0; i < len(top_level_nodes); i++ {
-		if sl.None(me.Content.TopLevelToksChunks, func(topLevelChunk Toks) bool {
-			return topLevelChunk.src(me.Content.Src) == top_level_nodes[i].Src
-		}) {
-			gone_nodes = append(gone_nodes, top_level_nodes[i])                     // keep around for potential reclaim below
-			top_level_nodes = append(top_level_nodes[:i], top_level_nodes[i+1:]...) // remove
-			i--
-		}
-	}
-
-	// gather top-level chunks whose nodes do not yet exist
-	var new_nodes Nodes
-	for _, top_level_chunk := range me.Content.TopLevelToksChunks {
-		toks_sans_comments := sl.Where(top_level_chunk, func(it *Tok) bool { return it.Kind != TokKindComment })
-		if len(toks_sans_comments) == 0 {
-			continue
-		}
-		node := sl.FirstWhere(top_level_nodes, func(it *AstNode) bool { return it.Src == top_level_chunk.src(me.Content.Src) })
-		if node == nil {
-			node, errs := me.parseNode(toks_sans_comments)
-			me.Notices.ParseErrs = append(me.Notices.ParseErrs, errs...)
-			if node != nil {
-				node.Src = top_level_chunk.src(me.Content.Src) // parsed without comments, but need full Src for the very comparisons above
-				node.setParents()
-				// keep doc-comments in top-level node: those at the beginning of a top-level chunk
-				for _, tok := range top_level_chunk {
-					if tok.Kind != TokKindComment {
-						break
-					} else {
-						node.DocComments = append(node.DocComments, tok)
-					}
-				}
-				new_nodes = append(new_nodes, node)
-			}
-		}
-	}
-
-	// if a just-parsed node has existed before (ie had only inconsequential toks changes),
-	// recover it (to keep annotations etc) but update wrt new toks, span & src
-	for i := 0; i < len(new_nodes); i++ {
-		new_node := new_nodes[i]
-		if old_node := sl.FirstWhere(gone_nodes, func(it *AstNode) bool { return it.equals(new_node) }); old_node != nil {
-			old_node.Toks, old_node.Src, old_node.errsParsing = new_node.Toks, new_node.Src, new_node.errsParsing
-			gone_nodes = sl.Without(gone_nodes, true, old_node)
-			new_nodes = append(new_nodes[:i], append(Nodes{old_node}, new_nodes[i+1:]...)...)
-			i--
-		}
-	}
-
-	top_level_nodes = append(top_level_nodes, new_nodes...)
 	// sort all nodes to be in source-file order of appearance
 	top_level_nodes = sl.SortedPer(top_level_nodes, func(node1 *AstNode, node2 *AstNode) int {
 		return cmp.Compare(node1.Toks[0].byteOffset, node2.Toks[0].byteOffset)
 	})
-
-	me.Content.TopLevelAstNodes = top_level_nodes
+	me.Content.Ast = top_level_nodes
 }
 
 func (me *SrcFile) parseNode(toks Toks) (*AstNode, []*SrcFileNotice) {
 	var sub_nodes Nodes
-	toks_full := toks
-	{
-		head, tail, err := toks.subChunks()
-		if err != nil {
-			return nil, []*SrcFileNotice{err}
-		} else if len(tail) > 0 {
-			toks = head
-			for _, chunk_toks := range tail {
-				sub_node, errs := me.parseNode(chunk_toks)
-				if len(errs) > 0 {
-					return nil, errs
-				} else if sub_node != nil {
-					sub_nodes = append(sub_nodes, sub_node)
-				}
-			}
-		}
-	}
 
 	nodes, errs := me.parseNodes(toks)
 	if len(errs) > 0 {
@@ -127,7 +57,7 @@ func (me *SrcFile) parseNode(toks Toks) (*AstNode, []*SrcFileNotice) {
 	if len(nodes) == 1 && len(sub_nodes) == 0 {
 		return nodes[0], nil
 	}
-	ret := &AstNode{Kind: NodeKindCallForm, Children: append(nodes, sub_nodes...), Toks: toks_full, Src: toks_full.src(me.Content.Src)}
+	ret := &AstNode{Kind: NodeKindCallForm, Children: append(nodes, sub_nodes...), Toks: toks, Src: toks.src(me.Content.Src)}
 	return ret, nil
 }
 
@@ -135,9 +65,8 @@ func (me *SrcFile) parseNodes(toks Toks) (ret Nodes, errs []*SrcFileNotice) {
 	for len(toks) > 0 {
 		tok := toks[0]
 		switch tok.Kind {
-		case TokKindErr:
-			ret = append(ret, &AstNode{Kind: NodeKindErr, Toks: toks[:1], Src: tok.Src})
-			toks = toks[1:]
+		case TokKindNever:
+			panic(tok)
 		case TokKindLitFloat:
 			ret = append(ret, parseLit[float64](toks, NodeKindLit, func(src string) (float64, error) { return str.ToF(src, 64) }))
 			toks = toks[1:]
@@ -223,7 +152,7 @@ func parseLit[T cmp.Ordered](toks Toks, kind NodeKind, parseFunc func(string) (T
 }
 
 func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
-	for _, node := range me.Content.TopLevelAstNodes {
+	for _, node := range me.Content.Ast {
 		if node.Toks.Span().contains(&pos) {
 			ret = node.find(func(it *AstNode) bool {
 				return (len(it.Children) == 0) && it.Toks.Span().contains(&pos)

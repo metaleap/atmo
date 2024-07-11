@@ -32,7 +32,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (any, error) {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
 				src_file := session.EnsureSrcFile(src_file_path, nil, true)
-				return src_file.Content.TopLevelToksChunks, nil
+				return src_file.Content.Toks, nil
 			}
 		}
 
@@ -41,7 +41,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (any, error) {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
 				src_file := session.EnsureSrcFile(src_file_path, nil, true)
-				return src_file.Content.TopLevelAstNodes, nil
+				return src_file.Content.Ast, nil
 			}
 		}
 

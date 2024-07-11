@@ -20,7 +20,6 @@ type SrcFileNoticeCode string
 const (
 	NoticeCodeFileReadError  SrcFileNoticeCode = "FileReadError"
 	NoticeCodeLexingError    SrcFileNoticeCode = "LexingError"
-	NoticeCodeMisindentation SrcFileNoticeCode = "Misindentation"
 	NoticeCodeBracesMismatch SrcFileNoticeCode = "BracesMismatch"
 	NoticeCodeBadLitSyntax   SrcFileNoticeCode = "BadLitSyntax"
 	NoticeCodeMisplaced      SrcFileNoticeCode = "Misplaced"
@@ -57,7 +56,7 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 			}
 			pub[src_file_path] = append(pub[src_file_path], src_file.Notices.LexErrs...)
 			pub[src_file_path] = append(pub[src_file_path], src_file.Notices.ParseErrs...)
-			for _, top_level_node := range src_file.Content.TopLevelAstNodes {
+			for _, top_level_node := range src_file.Content.Ast {
 				top_level_node.walk(nil, func(node *AstNode) {
 					pub[src_file_path] = append(pub[src_file_path], node.errsParsing...)
 				})
