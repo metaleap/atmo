@@ -141,10 +141,51 @@ func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
 	return
 }
 
-func (me *Tok) isBraceClosing() bool { return str.Has(")]}", me.Src) }
-func (me *Tok) isBraceOpening() bool { return str.Has("([{", me.Src) }
+func (me *Tok) braceMatch() rune {
+	switch me.Src[0] {
+	case '(':
+		return ')'
+	case '[':
+		return ']'
+	case '{':
+		return '}'
+	case ')':
+		return '('
+	case ']':
+		return '['
+	case '}':
+		return '{'
+	}
+	return 0
+}
+func (me *Tok) isBraceClosing(open rune) bool {
+	switch open {
+	case 0:
+		return (me.Src[0] == ')') || (me.Src[0] == ']') || (me.Src[0] == '}')
+	case '(':
+		return me.Src[0] == ')'
+	case '[':
+		return me.Src[0] == ']'
+	case '{':
+		return me.Src[0] == '}'
+	}
+	panic(open)
+}
+func (me *Tok) isBraceOpening(close rune) bool {
+	switch close {
+	case 0:
+		return (me.Src[0] == '(') || (me.Src[0] == '[') || (me.Src[0] == '{')
+	case ')':
+		return me.Src[0] == '('
+	case ']':
+		return me.Src[0] == '['
+	case '}':
+		return (me.Src[0] == '{')
+	}
+	panic(close)
+}
 func (me *Tok) isBraceMatch(it *Tok) bool {
-	return (me.Src == "(" && it.Src == ")") || (me.Src == "[" && it.Src == "]") || (me.Src == "{" && it.Src == "}")
+	return (me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}')
 }
 
 func (me *Tok) span() (ret SrcFileSpan) {
@@ -165,11 +206,13 @@ func (me Toks) allOfKind(kind TokKind) bool {
 
 func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 	var level int
-	if me[0].isBraceOpening() {
+	brace_open := rune(me[0].Src[0])
+	brace_close := me[0].braceMatch()
+	if (brace_close != 0) && me[0].isBraceOpening(brace_close) {
 		for i, tok := range me {
-			if tok.isBraceOpening() {
+			if tok.isBraceOpening(brace_close) {
 				level++
-			} else if tok.isBraceClosing() {
+			} else if tok.isBraceClosing(brace_open) {
 				level--
 				if level == 0 {
 					if !me[0].isBraceMatch(tok) {
@@ -181,8 +224,8 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 		}
 	}
 	err_msg := "no matching opening and closing " +
-		util.If((me[0].Src == "(") || (me[0].Src == ")"), "parens",
-			util.If((me[0].Src == "[") || (me[0].Src == "]"), "brackets",
+		util.If((me[0].Src[0] == '(') || (me[0].Src[0] == ')'), "parens",
+			util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
 				"braces"))
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
 }
@@ -194,8 +237,12 @@ func (me Toks) Span() (ret SrcFileSpan) {
 
 func (me Toks) split(by TokKind) (ret []Toks) {
 	var cur Toks
+	var skip int
 	for _, tok := range me {
-		if tok.Kind == by {
+		if tok.Kind == TokKindBrace {
+			skip = util.If(tok.isBraceOpening(0), skip+1, skip-1)
+		}
+		if (skip <= 0) && tok.Kind == by {
 			ret, cur = append(ret, cur), nil
 		} else {
 			cur = append(cur, tok)
