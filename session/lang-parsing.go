@@ -56,29 +56,27 @@ func (me *SrcFile) parse() {
 	// 	}
 	// })
 
-	// sort all nodes to be in source-file order of appearance
+	// sort all nodes to be in source-file order of appearance, after having twirled them around
+	parsed = sl.SortedPer(parsed, (*AstNode).cmp)
 	parsed.walk(nil, func(node *AstNode) {
-		node.ChildNodes = sl.SortedPer(node.ChildNodes, func(node1 *AstNode, node2 *AstNode) int {
-			return cmp.Compare(node1.Toks[0].byteOffset, node2.Toks[0].byteOffset)
-		})
+		node.ChildNodes = sl.SortedPer(node.ChildNodes, (*AstNode).cmp)
 	})
 	me.Content.Ast = parsed
 }
 
-func (me *SrcFile) parseNode(toks Toks, checkForThrong bool) *AstNode {
-	nodes := me.parseNodes(toks, checkForThrong)
+func (me *SrcFile) parseNode(toks Toks, checkForHuddle bool) *AstNode {
+	nodes := me.parseNodes(toks, checkForHuddle)
 	if len(nodes) == 1 {
 		return nodes[0]
 	}
 	return &AstNode{Kind: AstNodeKindCallForm, ChildNodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
 }
 
-func (me *SrcFile) parseNodes(toks Toks, checkForThrong bool) (ret AstNodes) {
-	// pos_line, pos_char := toks[0].Pos.Line, toks[0].Pos.Char
+func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 	for len(toks) > 0 {
-		if checkForThrong {
-			if thronged, rest := toks.throng(); len(thronged) > 1 && ((len(rest) > 0) || (len(ret) > 0)) {
-				ret = append(ret, me.parseNode(thronged, false))
+		if checkForHuddle {
+			if huddled, rest := toks.huddle(); len(huddled) > 1 && ((len(rest) > 0) || (len(ret) > 0)) {
+				ret = append(ret, me.parseNode(huddled, false))
 				toks = rest
 				continue
 			}
@@ -122,6 +120,9 @@ func (me *SrcFile) parseNodes(toks Toks, checkForThrong bool) (ret AstNodes) {
 			ret = append(ret, parseLit[string](toks, AstNodeKindIdent, func(src string) (string, error) { return src, nil }))
 			toks = toks[1:]
 		case TokKindBrace:
+			if tok.Src[0] == byte(tokIndent) || tok.Src[0] == byte(tokOutdent) {
+				continue
+			}
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
 				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), err: err})
@@ -184,6 +185,10 @@ func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 		}
 	}
 	return
+}
+
+func (me *AstNode) cmp(it *AstNode) int {
+	return cmp.Compare(me.Toks[0].byteOffset, it.Toks[0].byteOffset)
 }
 
 func (me *AstNode) equals(it *AstNode) bool {
