@@ -4,6 +4,7 @@ import (
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
 	"atmo/util"
+	"atmo/util/str"
 )
 
 var Server = lsp.Server{LogPrefixSendRecvJsons: "atmo"}
@@ -17,8 +18,13 @@ func init() {
 	Server.Lang.DocumentSymbolsMultiTreeLabel = "Atmo"
 	Server.Lang.TriggerChars.Completion = []string{"."}
 	Server.Lang.TriggerChars.Signature = []string{","}
-	session.OnDbgMsg = func(msg string) {
-		Server.Notify_window_showMessage(lsp.ShowMessageParams{Type: lsp.MessageTypeInfo, Message: "DBG:" + msg})
+	session.OnDbgMsg = func(should bool, msg string, args ...any) {
+		if should {
+			if len(args) > 0 {
+				msg = str.Fmt(msg, args...)
+			}
+			Server.Notify_window_showMessage(lsp.ShowMessageParams{Type: lsp.MessageTypeInfo, Message: "DBG:" + msg})
+		}
 	}
 }
 

@@ -160,8 +160,6 @@ func (me *Tok) braceMatch() rune {
 }
 func (me *Tok) isBraceClosing(open rune) bool {
 	switch open {
-	case 0:
-		return (me.Src[0] == ')') || (me.Src[0] == ']') || (me.Src[0] == '}')
 	case '(':
 		return me.Src[0] == ')'
 	case '[':
@@ -169,12 +167,10 @@ func (me *Tok) isBraceClosing(open rune) bool {
 	case '{':
 		return me.Src[0] == '}'
 	}
-	panic(open)
+	return (me.Src[0] == ')') || (me.Src[0] == ']') || (me.Src[0] == '}')
 }
 func (me *Tok) isBraceOpening(close rune) bool {
 	switch close {
-	case 0:
-		return (me.Src[0] == '(') || (me.Src[0] == '[') || (me.Src[0] == '{')
 	case ')':
 		return me.Src[0] == '('
 	case ']':
@@ -182,7 +178,7 @@ func (me *Tok) isBraceOpening(close rune) bool {
 	case '}':
 		return (me.Src[0] == '{')
 	}
-	panic(close)
+	return (me.Src[0] == '(') || (me.Src[0] == '[') || (me.Src[0] == '{')
 }
 func (me *Tok) isBraceMatch(it *Tok) bool {
 	return (me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}')
@@ -267,11 +263,11 @@ func (me Toks) str() string { // only for occasional debug prints
 }
 
 func (me Toks) throng() (thronged Toks, tail Toks) {
-	var idx_tail int
+	idx_tail := len(me)
 	if (me[0].Kind != TokKindBrace) && (me[0].Kind != TokKindSep) {
 		for i := 1; i < len(me); i++ {
 			cur, prev := me[i], me[i-1]
-			if cur.Kind == TokKindSep || cur.byteOffset > (prev.byteOffset+len(prev.Src)) {
+			if (cur.Kind == TokKindSep) || (cur.byteOffset > (prev.byteOffset + len(prev.Src))) {
 				idx_tail = i
 				break
 			}

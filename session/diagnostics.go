@@ -2,7 +2,7 @@ package session
 
 var (
 	OnNoticesChanged = func(map[string][]*SrcFileNotice) {}
-	OnDbgMsg         = func(string) {}
+	OnDbgMsg         = func(bool, string, ...any) {}
 )
 
 type SrcFileNoticeKind int

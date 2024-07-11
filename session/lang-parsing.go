@@ -59,7 +59,7 @@ func (me *SrcFile) parseNode(toks Toks) *AstNode {
 
 func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 	for len(toks) > 0 {
-		if thronged, tail := toks.throng(); len(thronged) > 0 {
+		if thronged, tail := toks.throng(); len(thronged) > 0 && len(tail) > 0 {
 			ret = append(ret, me.parseNode(thronged))
 			toks = tail
 			continue
