@@ -120,9 +120,6 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 			ret = append(ret, parseLit[string](toks, AstNodeKindIdent, func(src string) (string, error) { return src, nil }))
 			toks = toks[1:]
 		case TokKindBrace:
-			if tok.Src[0] == byte(tokIndent) || tok.Src[0] == byte(tokOutdent) {
-				continue
-			}
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
 				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), err: err})
@@ -136,10 +133,8 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 						}})
 					} else {
 						node := me.parseNode(toks_inner, true)
-						if '(' == tok.Src[0] {
-							node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
-							node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
-						}
+						node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
+						node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 						ret = append(ret, node)
 					}
 				case '[', '{':

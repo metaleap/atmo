@@ -10,11 +10,6 @@ import (
 	"atmo/util/str"
 )
 
-var (
-	tokIndent  = rune(16)
-	tokOutdent = rune(17)
-)
-
 // SrcFilePos Line and Char both start at 1
 type SrcFilePos struct {
 	// Line starts at 1
@@ -96,7 +91,6 @@ func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
 	}
 	scan.Filename = me.FilePath
 
-	last_line_pos_char := 1
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
 		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
 		tok.Src = me.Content.Src[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
@@ -119,17 +113,6 @@ func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
 			tok.Kind = TokKindSep
 		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
 			tok.Kind = TokKindOp
-		}
-		if len(ret) > 0 {
-			if prev := ret[len(ret)-1]; tok.Pos.Line > prev.Pos.Line { // on a new line
-				if tok.Pos.Char > last_line_pos_char { // indented
-					ret = append(ret, &Tok{byteOffset: tok.byteOffset, Pos: tok.Pos, Kind: TokKindBrace, Src: string(tokIndent)})
-					last_line_pos_char = tok.Pos.Char
-				} else if tok.Pos.Char < last_line_pos_char { // outdented
-					ret = append(ret, &Tok{byteOffset: tok.byteOffset, Pos: tok.Pos, Kind: TokKindBrace, Src: string(tokOutdent)})
-					last_line_pos_char = tok.Pos.Char
-				}
-			}
 		}
 		ret = append(ret, &tok)
 	}
@@ -162,16 +145,12 @@ func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
 
 func (me *Tok) braceMatch() rune {
 	switch me.Src[0] {
-	case byte(tokIndent):
-		return tokOutdent
 	case '(':
 		return ')'
 	case '[':
 		return ']'
 	case '{':
 		return '}'
-	case byte(tokOutdent):
-		return tokIndent
 	case ')':
 		return '('
 	case ']':
@@ -183,8 +162,6 @@ func (me *Tok) braceMatch() rune {
 }
 func (me *Tok) isBraceClosing(open rune) bool {
 	switch open {
-	case tokIndent:
-		return me.Src[0] == byte(tokOutdent)
 	case '(':
 		return me.Src[0] == ')'
 	case '[':
@@ -192,12 +169,10 @@ func (me *Tok) isBraceClosing(open rune) bool {
 	case '{':
 		return me.Src[0] == '}'
 	}
-	return (me.Src[0] == ')') || (me.Src[0] == ']') || (me.Src[0] == '}') || (me.Src[0] == byte(tokOutdent))
+	return (me.Src[0] == ')') || (me.Src[0] == ']') || (me.Src[0] == '}')
 }
 func (me *Tok) isBraceOpening(close rune) bool {
 	switch close {
-	case tokOutdent:
-		return me.Src[0] == byte(tokIndent)
 	case ')':
 		return me.Src[0] == '('
 	case ']':
@@ -205,10 +180,10 @@ func (me *Tok) isBraceOpening(close rune) bool {
 	case '}':
 		return (me.Src[0] == '{')
 	}
-	return (me.Src[0] == '(') || (me.Src[0] == '[') || (me.Src[0] == '{') || (me.Src[0] == byte(tokIndent))
+	return (me.Src[0] == '(') || (me.Src[0] == '[') || (me.Src[0] == '{')
 }
 func (me *Tok) isBraceMatch(it *Tok) bool {
-	return (me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}') || (me.Src[0] == byte(tokIndent) && it.Src[0] == byte(tokOutdent))
+	return (me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}')
 }
 
 func (me *Tok) newIndentErr() *SrcFileNotice {
@@ -255,7 +230,7 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 			util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
 				util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "braces", "")))
 	if err_msg == "" { // no outdent for indent
-		return me[1:], nil, nil // me[0].newIndentErr()
+		return nil, nil, me[0].newIndentErr()
 	}
 	err_msg = "no matching opening and closing " + err_msg
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
