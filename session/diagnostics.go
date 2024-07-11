@@ -24,6 +24,7 @@ const (
 	NoticeCodeBadLitSyntax   SrcFileNoticeCode = "BadLitSyntax"
 	NoticeCodeMisplaced      SrcFileNoticeCode = "Misplaced"
 	NoticeCodeExprExpected   SrcFileNoticeCode = "ExprExpected"
+	NoticeCodeIndentation    SrcFileNoticeCode = "Indentation"
 )
 
 type SrcFileNotice struct {

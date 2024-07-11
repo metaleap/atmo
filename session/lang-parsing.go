@@ -40,29 +40,48 @@ const (
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
 // mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
 func (me *SrcFile) parse() {
-	parsed := me.parseNodes(me.Content.Toks)
+	parsed := me.parseNodes(me.Content.Toks, true)
+
+	// // flip infix-operator call forms to prefix form
+	// parsed.walk(nil, func(node *AstNode) {
+	// 	if node.Kind == AstNodeKindCallForm && (len(node.ChildNodes) > 2) && node.ChildNodes.has(false, (*AstNode).isIdentOp) {
+	// 		for i, it := range node.ChildNodes {
+	// 			if must, is := ((i % 2) != 0), it.isIdentOp(); must != is {
+	// 				node.Kind = AstNodeKindErr
+	// 				node.err = &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeBadInfixExpr, Span: it.Toks.Span(),
+	// 					Message: util.If(must, "operator", "non-operator") + " expected due to infix expression"}
+	// 				break
+	// 			}
+	// 		}
+	// 	}
+	// })
 
 	// sort all nodes to be in source-file order of appearance
-	parsed = sl.SortedPer(parsed, func(node1 *AstNode, node2 *AstNode) int {
-		return cmp.Compare(node1.Toks[0].byteOffset, node2.Toks[0].byteOffset)
+	parsed.walk(nil, func(node *AstNode) {
+		node.ChildNodes = sl.SortedPer(node.ChildNodes, func(node1 *AstNode, node2 *AstNode) int {
+			return cmp.Compare(node1.Toks[0].byteOffset, node2.Toks[0].byteOffset)
+		})
 	})
 	me.Content.Ast = parsed
 }
 
-func (me *SrcFile) parseNode(toks Toks) *AstNode {
-	nodes := me.parseNodes(toks)
+func (me *SrcFile) parseNode(toks Toks, checkForThrong bool) *AstNode {
+	nodes := me.parseNodes(toks, checkForThrong)
 	if len(nodes) == 1 {
 		return nodes[0]
 	}
 	return &AstNode{Kind: AstNodeKindCallForm, ChildNodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
 }
 
-func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
+func (me *SrcFile) parseNodes(toks Toks, checkForThrong bool) (ret AstNodes) {
+	// pos_line, pos_char := toks[0].Pos.Line, toks[0].Pos.Char
 	for len(toks) > 0 {
-		if thronged, tail := toks.throng(); len(thronged) > 0 && len(tail) > 0 {
-			ret = append(ret, me.parseNode(thronged))
-			toks = tail
-			continue
+		if checkForThrong {
+			if thronged, rest := toks.throng(); len(thronged) > 1 && ((len(rest) > 0) || (len(ret) > 0)) {
+				ret = append(ret, me.parseNode(thronged, false))
+				toks = rest
+				continue
+			}
 		}
 
 		tok := toks[0]
@@ -115,7 +134,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 							Kind: NoticeKindErr, Message: "expression expected", Span: toks[1].span(), Code: NoticeCodeExprExpected,
 						}})
 					} else {
-						node := me.parseNode(toks_inner)
+						node := me.parseNode(toks_inner, true)
 						node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
 						node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 						ret = append(ret, node)
@@ -126,7 +145,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 					node.Toks = toks[0 : len(toks_inner)+2]  // want to include the braces/brackets in the node's SrcFileSpan..
 					node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 					for _, toks := range split {
-						node.ChildNodes = append(node.ChildNodes, me.parseNode(toks))
+						node.ChildNodes = append(node.ChildNodes, me.parseNode(toks, true))
 					}
 					ret = append(ret, node)
 				}
@@ -139,6 +158,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 			toks = toks[1:]
 		}
 	}
+
 	return
 }
 
@@ -219,6 +239,10 @@ func (me *AstNode) find(where func(*AstNode) bool) (ret *AstNode) {
 	return
 }
 
+func (me *AstNode) isIdentOp() bool {
+	return me.Kind == AstNodeKindIdent && me.Toks[0].Kind == TokKindOp
+}
+
 func (me *AstNode) sig(buf *strings.Builder) {
 	buf.WriteByte('<')
 	buf.WriteString(str.FromInt(int(me.Kind)))
@@ -284,11 +308,30 @@ func (me *AstNode) walk(onBefore func(*AstNode) bool, onAfter func(*AstNode)) {
 	}
 }
 
+func (me AstNodes) has(recurse bool, where func(*AstNode) bool) (ret bool) {
+	if !recurse {
+		ret = sl.HasWhere(me, where)
+	} else {
+		me.walk(func(it *AstNode) bool {
+			ret = ret || where(it)
+			return !ret
+		}, nil)
+	}
+	return
+}
+
 func (me AstNodes) hasKind(kind AstNodeKind) (ret bool) {
 	me.walk(func(it *AstNode) bool {
 		ret = ret || (it.Kind == kind)
 		return !ret
 	}, nil)
+	return
+}
+
+func (me AstNodes) toks() (ret Toks) {
+	for _, node := range me {
+		ret = append(ret, node.Toks...)
+	}
 	return
 }
 

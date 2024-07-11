@@ -52,11 +52,11 @@ type TokKind int
 
 const (
 	_ TokKind = iota
+	TokKindComment
 	TokKindBrace
 	TokKindSep
 	TokKindOp
 	TokKindIdent
-	TokKindComment
 	TokKindLitRune
 	TokKindLitStr
 	TokKindLitInt
@@ -184,6 +184,10 @@ func (me *Tok) isBraceMatch(it *Tok) bool {
 	return (me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}')
 }
 
+func (me *Tok) newIndentErr() *SrcFileNotice {
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeIndentation, Span: me.span(), Message: "ambiguous indentation"}
+}
+
 func (me *Tok) span() (ret SrcFileSpan) {
 	ret.Start, ret.End = me.Pos, me.Pos
 	for _, r := range me.Src {
@@ -262,18 +266,17 @@ func (me Toks) str() string { // only for occasional debug prints
 	return strings.Join(sl.As(me, func(it *Tok) string { return it.Src }), " ")
 }
 
-func (me Toks) throng() (thronged Toks, tail Toks) {
-	idx_tail := len(me)
-	if (me[0].Kind != TokKindBrace) && (me[0].Kind != TokKindSep) {
-		for i := 1; i < len(me); i++ {
-			cur, prev := me[i], me[i-1]
-			if (cur.Kind == TokKindSep) || (cur.byteOffset > (prev.byteOffset + len(prev.Src))) {
-				idx_tail = i
-				break
-			}
+func (me Toks) throng() (thronged Toks, rest Toks) {
+	var idx_until int
+	for i := 1; i < len(me); i++ {
+		cur, prev := me[i], me[i-1]
+		if cur.byteOffset == (prev.byteOffset+len(prev.Src)) && cur.Kind >= TokKindOp && prev.Kind >= TokKindOp {
+			idx_until = i + 1
+		} else {
+			break
 		}
 	}
-	return me[:idx_tail], me[idx_tail:]
+	return me[:idx_until], me[idx_until:]
 }
 
 func (me Toks) withoutComments() Toks {
