@@ -254,8 +254,8 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 		util.If((me[0].Src[0] == '(') || (me[0].Src[0] == ')'), "parens",
 			util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
 				util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "braces", "")))
-	if err_msg == "" {
-		return nil, nil, me[0].newIndentErr()
+	if err_msg == "" { // no outdent for indent
+		return me[1:], nil, nil // me[0].newIndentErr()
 	}
 	err_msg = "no matching opening and closing " + err_msg
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
