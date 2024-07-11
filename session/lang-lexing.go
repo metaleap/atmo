@@ -224,10 +224,10 @@ func (me Toks) str() string { // only for occasional debug prints
 
 func (me Toks) throng() (thronged Toks, tail Toks) {
 	var idx_tail int
-	if me[0].Kind != TokKindBrace {
+	if (me[0].Kind != TokKindBrace) && (me[0].Kind != TokKindSep) {
 		for i := 1; i < len(me); i++ {
 			cur, prev := me[i], me[i-1]
-			if cur.byteOffset > (prev.byteOffset + len(prev.Src)) {
+			if cur.Kind == TokKindSep || cur.byteOffset > (prev.byteOffset+len(prev.Src)) {
 				idx_tail = i
 				break
 			}
