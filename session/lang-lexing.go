@@ -118,6 +118,20 @@ func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
 		ret = append(ret, &tok)
 	}
 
+	// split dot-ending float toks like `10.` into 2 int-then-dot toks, to allow for dot-methods on int literals like `10.timesDo fn` etc.
+	for i := 0; i < len(ret); i++ {
+		if tok := ret[i]; tok.Kind == TokKindLitFloat && str.Ends(tok.Src, ".") {
+			ret = append(ret[:i+1], append(Toks{{
+				byteOffset: tok.byteOffset + (len(tok.Src) - 1),
+				Pos:        SrcFilePos{Line: tok.Pos.Line, Char: tok.Pos.Char + (len(tok.Src) - 1)},
+				Kind:       TokKindOp,
+				Src:        tok.Src[len(tok.Src)-1:]},
+			}, ret[i+1:]...)...)
+			tok.Kind = TokKindLitInt
+			tok.Src = tok.Src[:len(tok.Src)-1]
+		}
+	}
+
 	// multi-char op chars such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
 	for i := 1; i < len(ret); i++ {
 		if (ret[i-1].Kind == TokKindOp) && (ret[i].Kind == TokKindOp) && ((ret[i-1].Pos.Char + len(ret[i-1].Src)) == ret[i].Pos.Char) {
