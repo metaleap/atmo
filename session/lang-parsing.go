@@ -63,6 +63,16 @@ func (me *SrcFile) parseNode(toks Toks) (*AstNode, []*SrcFileNotice) {
 
 func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes, errs []*SrcFileNotice) {
 	for len(toks) > 0 {
+		if thronged, tail := toks.throng(); len(thronged) > 0 {
+			node, errs_node := me.parseNode(thronged)
+			errs = append(errs, errs_node...)
+			if node != nil {
+				ret = append(ret, node)
+			}
+			toks = tail
+			continue
+		}
+
 		tok := toks[0]
 		switch tok.Kind {
 		case TokKindErr:
