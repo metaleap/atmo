@@ -51,7 +51,7 @@ type Toks []*Tok
 type TokKind int
 
 const (
-	TokKindNever TokKind = iota
+	TokKindErr TokKind = iota
 	TokKindBrace
 	TokKindSep
 	TokKindOp
@@ -77,6 +77,9 @@ func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
 	scan.Whitespace = 1<<'\n' | 1<<' '
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
+		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset, Kind: TokKindErr}
+		tok.Src = me.Content.Src[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
+		ret = append(ret, &tok)
 		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Message: msg, Code: NoticeCodeLexingError,
 			Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
 	}
@@ -90,7 +93,8 @@ func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
 	scan.Filename = me.FilePath
 
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
-		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset, Src: scan.TokenText()}
+		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
+		tok.Src = me.Content.Src[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
 		switch lexeme {
 		case scanner.Char:
 			tok.Kind = TokKindLitRune

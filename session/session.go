@@ -21,7 +21,7 @@ type SrcFile struct {
 	Content  struct {
 		Src  string
 		Toks Toks
-		Ast  Nodes
+		Ast  AstNodes
 	}
 	Notices struct {
 		LastReadErr *SrcFileNotice
@@ -67,7 +67,7 @@ func EnsureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 		if me.Notices.LastReadErr == nil {
 			me.Content.Toks, me.Notices.LexErrs = me.tokenize()
 			if len(me.Notices.LexErrs) == 0 {
-				me.parse(ast_prev)
+				me.parse()
 			}
 		}
 	}
