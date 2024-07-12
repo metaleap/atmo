@@ -45,10 +45,40 @@ func (me *SrcFile) parse(toksChunked toksChunks) {
 		parsed = append(parsed, me.parseChunk(toks_chunk, true))
 	}
 
-	// sort all nodes to be in source-file order of appearance, also set all `AstNode.parent`s
+	// multi-line call forms in braces/brackets/parens: each subsequent multi-tok line becomes its own call form
+	parsed.walk(nil, func(node *AstNode) {
+		if node.Kind == AstNodeKindCallForm {
+			//TODO
+		}
+	})
+
+	// rewrite all call forms with an infix operator: `foo bar · baz mojo + times 10` => `(· (foo bar) (+ (baz mojo) (times 10)))`
+	// that is: everything to its left is its lhs expr, everything to its right is its rhs expr.
+	parsed.walk(nil, func(node *AstNode) {
+		if node.Kind == AstNodeKindCallForm {
+			idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOp)
+			if idx > 0 {
+				op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
+				println(">>>>>>>>>INFIXX>>>>>>>>>>>>>>" + op.Src + "<<<<<<<<<<<<<<<<<<INSIDE>>>>>>>" + node.Src + "<<<<<<<<<<<<<<<<<")
+				if len(lhs) > 1 {
+					lhs = AstNodes{{Kind: AstNodeKindCallForm, Src: lhs.toks().src(me.Content.Src),
+						Toks: lhs.toks(), ChildNodes: lhs}}
+				}
+				if len(rhs) > 1 {
+					rhs = AstNodes{{Kind: AstNodeKindCallForm, Src: rhs.toks().src(me.Content.Src),
+						Toks: rhs.toks(), ChildNodes: rhs}}
+				}
+				node.ChildNodes = AstNodes{op, lhs[0]}
+				if len(rhs) > 0 {
+					node.ChildNodes = append(node.ChildNodes, rhs[0])
+				}
+			}
+		}
+	})
+
+	// sort all top-level nodes to be in source-file order of appearance; also set all `AstNode.parent`s
 	parsed = sl.SortedPer(parsed, (*AstNode).cmp)
 	parsed.walk(nil, func(node *AstNode) {
-		node.ChildNodes = sl.SortedPer(node.ChildNodes, (*AstNode).cmp)
 		for _, it := range node.ChildNodes {
 			it.parent = node
 		}
@@ -158,7 +188,12 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 					node.Toks = toks[0 : len(toks_inner)+2]  // want to include the braces/brackets in the node's SrcFileSpan..
 					node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 					for _, toks := range split {
-						node.ChildNodes = append(node.ChildNodes, me.parseNode(toks, true))
+						if len(toks) > 0 {
+							node.ChildNodes = append(node.ChildNodes, me.parseNode(toks, true))
+						} else {
+							node.Kind = AstNodeKindErr
+							node.err = toks_inner.newErr(NoticeCodeExprExpected, "expression expected before a comma somewhere in this comma-separated bunch of expressions")
+						}
 					}
 					ret = append(ret, node)
 				}

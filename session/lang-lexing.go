@@ -211,8 +211,12 @@ func (me Toks) huddle() (huddled Toks, rest Toks) {
 	return me[:idx_until], me[idx_until:]
 }
 
+func (me *Tok) newErr(code SrcFileNoticeCode, msg string) *SrcFileNotice {
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: msg}
+}
+
 func (me *Tok) newIndentErr() *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeIndentation, Span: me.span(), Message: "ambiguous indentation"}
+	return me.newErr(NoticeCodeIndentation, "ambiguous indentation")
 }
 
 func (me *Tok) span() (ret SrcFileSpan) {
@@ -255,6 +259,10 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 			util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
 				"braces"))
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
+}
+
+func (me Toks) newErr(code SrcFileNoticeCode, msg string) *SrcFileNotice {
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.Span(), Message: msg}
 }
 
 func (me Toks) Span() (ret SrcFileSpan) {
