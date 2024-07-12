@@ -186,6 +186,19 @@ func (me *Tok) isBraceMatch(it *Tok) bool {
 	return (me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}')
 }
 
+func (me Toks) huddle() (huddled Toks, rest Toks) {
+	var idx_until int
+	for i := 1; i < len(me); i++ {
+		cur, prev := me[i], me[i-1]
+		if cur.byteOffset == (prev.byteOffset+len(prev.Src)) && cur.Kind >= TokKindOp && prev.Kind >= TokKindOp {
+			idx_until = i + 1
+		} else {
+			break
+		}
+	}
+	return me[:idx_until], me[idx_until:]
+}
+
 func (me *Tok) newIndentErr() *SrcFileNotice {
 	return &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeIndentation, Span: me.span(), Message: "ambiguous indentation"}
 }
@@ -268,19 +281,76 @@ func (me Toks) str() string { // only for occasional debug prints
 	return strings.Join(sl.As(me, func(it *Tok) string { return it.Src }), " ")
 }
 
-func (me Toks) huddle() (huddled Toks, rest Toks) {
-	var idx_until int
-	for i := 1; i < len(me); i++ {
-		cur, prev := me[i], me[i-1]
-		if cur.byteOffset == (prev.byteOffset+len(prev.Src)) && cur.Kind >= TokKindOp && prev.Kind >= TokKindOp {
-			idx_until = i + 1
-		} else {
-			break
-		}
-	}
-	return me[:idx_until], me[idx_until:]
-}
-
 func (me Toks) withoutComments() Toks {
 	return sl.Where(me, func(it *Tok) bool { return it.Kind != TokKindComment })
+}
+
+type toksChunks []*toksChunk
+
+type toksChunk struct {
+	self Toks
+	subs toksChunks
+}
+
+func (me *toksChunk) str(indent int) (ret string) {
+	ret = str.Repeat(" ", indent) + ">" + str.FromInt(indent) + ">" + me.self.str()
+	for _, it := range me.subs {
+		ret += "\n" + it.str(indent+2)
+	}
+	ret += "<" + str.FromInt(indent) + "<"
+	return
+}
+
+func (me toksChunks) str() string {
+	return str.Join(sl.As(me, func(it *toksChunk) string { return it.str(0) }), "\n")
+}
+
+func toksChunked(toks Toks) (ret toksChunks, err *SrcFileNotice) {
+	if len(toks) == 0 {
+		return nil, nil
+	}
+	pos_char, pos_line := toks[0].Pos.Char, toks[0].Pos.Line
+	cur := &toksChunk{}
+	var cur_indent_toks Toks
+
+	for len(toks) > 0 {
+		tok := toks[0]
+		switch {
+		case tok.isBraceOpening(0):
+			inner_toks, rest_toks, err := toks.braceMatch()
+			if err != nil {
+				return nil, err
+			}
+			full_brace_toks := toks[0 : len(inner_toks)+2]
+			if tok.Pos.Line == pos_line {
+				cur.self = append(cur.self, full_brace_toks...)
+			} else {
+				cur_indent_toks = append(cur_indent_toks, full_brace_toks...)
+			}
+			toks = rest_toks
+			continue
+		case tok.Pos.Line == pos_line:
+			cur.self = append(cur.self, tok)
+		case tok.Pos.Char < pos_char:
+			return nil, tok.newIndentErr()
+		case tok.Pos.Char > pos_char:
+			cur_indent_toks = append(cur_indent_toks, tok)
+		case tok.Pos.Char == pos_char:
+			if len(cur.self) > 0 {
+				cur.subs, err = toksChunked(cur_indent_toks)
+				if err != nil {
+					return
+				}
+				ret = append(ret, cur)
+			}
+			cur, cur_indent_toks, pos_line = &toksChunk{self: Toks{tok}}, nil, tok.Pos.Line
+		}
+		toks = toks[1:]
+	}
+
+	if len(cur.self) > 0 {
+		cur.subs, err = toksChunked(cur_indent_toks)
+		ret = append(ret, cur)
+	}
+	return
 }

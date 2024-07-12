@@ -40,6 +40,12 @@ const (
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
 // mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
 func (me *SrcFile) parse() {
+	chunked, err := toksChunked(me.Content.Toks)
+	if err != nil {
+		panic(err)
+	}
+	println(">>>>>>>>>>>>>>>>>>>>>>\n" + chunked.str() + "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+
 	parsed := me.parseNodes(me.Content.Toks, true)
 
 	// // flip infix-operator call forms to prefix form

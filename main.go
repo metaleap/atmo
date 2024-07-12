@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"atmo/lsp"
+	"atmo/session"
 )
 
 func main() {
@@ -11,10 +12,13 @@ func main() {
 		panic("expected command, one of: lsp, build")
 	}
 
-	switch cmd_name := os.Args[1]; cmd_name {
+	switch cmd_name_or_file_path := os.Args[1]; cmd_name_or_file_path {
 	case "lsp":
 		lsp.Main()
 	default:
-		panic("unknown command '" + cmd_name + "'")
+		if !session.IsSrcFilePath(cmd_name_or_file_path) {
+			panic("not an Atmo source file: " + cmd_name_or_file_path)
+		}
+		_ = session.EnsureSrcFile(cmd_name_or_file_path, nil, false)
 	}
 }
