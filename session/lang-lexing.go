@@ -261,6 +261,10 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
 }
 
+func (me Toks) isMultiLine() bool {
+	return (me[len(me)-1].Pos.Line > me[0].Pos.Line)
+}
+
 func (me Toks) newErr(code SrcFileNoticeCode, msg string) *SrcFileNotice {
 	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.Span(), Message: msg}
 }
@@ -330,15 +334,29 @@ func toksChunked(toks Toks) (ret toksChunks, err *SrcFileNotice) {
 	if len(toks) == 0 {
 		return nil, nil
 	}
-	pos_char, pos_line := toks[0].Pos.Char, toks[0].Pos.Line
+	pos_char, pos_line, last_line_start :=
+		toks[0].Pos.Char, toks[0].Pos.Line, toks[0].Pos
 	cur := &toksChunk{}
 	var cur_indent_toks Toks
+	cur_done := func(nextChunkStartTok *Tok) {
+		if len(cur.self) > 0 {
+			cur.subs, err = toksChunked(cur_indent_toks)
+			ret = append(ret, cur)
+		}
+		if nextChunkStartTok != nil {
+			cur, cur_indent_toks, pos_line =
+				&toksChunk{self: Toks{nextChunkStartTok}, full: Toks{nextChunkStartTok}}, nil, nextChunkStartTok.Pos.Line
+		}
+	}
 
 	// TODO: replace one-by-one appends with gathering idxs for sub-slicing from `toks`
 	for len(toks) > 0 {
 		tok := toks[0]
+		if tok.Pos.Line > last_line_start.Line {
+			last_line_start = tok.Pos
+		}
 		switch {
-		case tok.isBraceOpening(0):
+		case tok.isBraceOpening(0): // not indent-chunking parens (just yet), brackets or braces
 			inner_toks, rest_toks, err := toks.braceMatch()
 			if err != nil {
 				return nil, err
@@ -352,6 +370,7 @@ func toksChunked(toks Toks) (ret toksChunks, err *SrcFileNotice) {
 			cur.full = append(cur.full, full_brace_toks...)
 			toks = rest_toks
 			continue
+
 		case tok.Pos.Line == pos_line:
 			cur.self, cur.full = append(cur.self, tok), append(cur.full, tok)
 		case tok.Pos.Char < pos_char:
@@ -359,21 +378,13 @@ func toksChunked(toks Toks) (ret toksChunks, err *SrcFileNotice) {
 		case tok.Pos.Char > pos_char:
 			cur_indent_toks, cur.full = append(cur_indent_toks, tok), append(cur.full, tok)
 		case tok.Pos.Char == pos_char:
-			if len(cur.self) > 0 {
-				cur.subs, err = toksChunked(cur_indent_toks)
-				if err != nil {
-					return
-				}
-				ret = append(ret, cur)
+			if cur_done(tok); err != nil {
+				return
 			}
-			cur, cur_indent_toks, pos_line = &toksChunk{self: Toks{tok}, full: Toks{tok}}, nil, tok.Pos.Line
 		}
 		toks = toks[1:]
 	}
 
-	if len(cur.self) > 0 {
-		cur.subs, err = toksChunked(cur_indent_toks)
-		ret = append(ret, cur)
-	}
+	cur_done(nil)
 	return
 }
