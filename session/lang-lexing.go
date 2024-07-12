@@ -73,7 +73,8 @@ type Tok struct {
 }
 
 // only called by `EnsureSrcFile`
-func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
+func (me *SrcFile) tokenize() (toks Toks, toksChunks ToksChunks, errs []*SrcFileNotice) {
+	toks = make(Toks, 0, len(me.Content.Src)/3)
 	var scan scanner.Scanner
 	scan.Init(strings.NewReader(me.Content.Src))
 	scan.Whitespace = 1<<'\n' | 1<<' '
@@ -114,29 +115,40 @@ func (me *SrcFile) tokenize() (ret Toks, errs []*SrcFileNotice) {
 		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
 			tok.Kind = TokKindOp
 		}
-		ret = append(ret, &tok)
+		toks = append(toks, &tok)
 	}
 
 	// split dot-ending float toks like `10.` into 2 int-then-dot toks, to allow for dot-methods on int literals like `10.timesDo fn` etc.
-	for i := 0; i < len(ret); i++ {
-		if tok := ret[i]; tok.Kind == TokKindLitFloat && str.Ends(tok.Src, ".") {
-			ret = append(ret[:i+1], append(Toks{{
+	for i := 0; i < len(toks); i++ {
+		if tok := toks[i]; tok.Kind == TokKindLitFloat && str.Ends(tok.Src, ".") {
+			toks = append(toks[:i+1], append(Toks{{
 				byteOffset: tok.byteOffset + (len(tok.Src) - 1),
 				Pos:        SrcFilePos{Line: tok.Pos.Line, Char: tok.Pos.Char + (len(tok.Src) - 1)},
 				Kind:       TokKindOp,
 				Src:        tok.Src[len(tok.Src)-1:]},
-			}, ret[i+1:]...)...)
+			}, toks[i+1:]...)...)
 			tok.Kind = TokKindLitInt
 			tok.Src = tok.Src[:len(tok.Src)-1]
 		}
 	}
 
 	// multi-char op chars such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
-	for i := 1; i < len(ret); i++ {
-		if (ret[i-1].Kind == TokKindOp) && (ret[i].Kind == TokKindOp) && ((ret[i-1].Pos.Char + len(ret[i-1].Src)) == ret[i].Pos.Char) {
-			ret[i-1].Src += ret[i].Src
-			ret = append(ret[:i], ret[i+1:]...)
+	for i := 1; i < len(toks); i++ {
+		if (toks[i-1].Kind == TokKindOp) && (toks[i].Kind == TokKindOp) && ((toks[i-1].Pos.Char + len(toks[i-1].Src)) == toks[i].Pos.Char) {
+			toks[i-1].Src += toks[i].Src
+			toks = append(toks[:i], toks[i+1:]...)
 			i--
+		}
+	}
+
+	if len(toks) > 0 && toks[0].Pos.Char > 1 {
+		me.Notices.LexErrs = append(me.Notices.LexErrs, toks[0].newIndentErr())
+	}
+	if len(errs) == 0 {
+		var err *SrcFileNotice
+		toksChunks, err = toksChunked(toks)
+		if err != nil {
+			errs = append(errs, err)
 		}
 	}
 
@@ -285,34 +297,47 @@ func (me Toks) withoutComments() Toks {
 	return sl.Where(me, func(it *Tok) bool { return it.Kind != TokKindComment })
 }
 
-type toksChunks []*toksChunk
+type ToksChunks []*ToksChunk
 
-type toksChunk struct {
-	self Toks
-	subs toksChunks
+type ToksChunk struct {
+	Self Toks
+	Subs ToksChunks
 }
 
-func (me *toksChunk) str(indent int) (ret string) {
-	ret = str.Repeat(" ", indent) + ">" + str.FromInt(indent) + ">" + me.self.str()
-	for _, it := range me.subs {
+func (me *ToksChunk) span() (ret SrcFileSpan) {
+	ret = me.Self.Span()
+	if len(me.Subs) > 0 {
+		ret.End = me.Subs[len(me.Subs)-1].span().End
+	}
+	return
+}
+
+func (me *ToksChunk) str(indent int) (ret string) {
+	ret = str.Repeat(" ", indent) + ">" + str.FromInt(indent) + ">" + me.Self.str()
+	for _, it := range me.Subs {
 		ret += "\n" + it.str(indent+2)
 	}
 	ret += "<" + str.FromInt(indent) + "<"
 	return
 }
 
-func (me toksChunks) str() string {
-	return str.Join(sl.As(me, func(it *toksChunk) string { return it.str(0) }), "\n")
+func (me ToksChunks) span() SrcFileSpan {
+	return SrcFileSpan{Start: me[0].span().Start, End: me[len(me)-1].span().End}
 }
 
-func toksChunked(toks Toks) (ret toksChunks, err *SrcFileNotice) {
+func (me ToksChunks) str() string {
+	return str.Join(sl.As(me, func(it *ToksChunk) string { return it.str(0) }), "\n")
+}
+
+func toksChunked(toks Toks) (ret ToksChunks, err *SrcFileNotice) {
 	if len(toks) == 0 {
 		return nil, nil
 	}
 	pos_char, pos_line := toks[0].Pos.Char, toks[0].Pos.Line
-	cur := &toksChunk{}
+	cur := &ToksChunk{}
 	var cur_indent_toks Toks
 
+	// TODO: replace one-by-one appends with gathering idxs for sub-slicing from `toks`
 	for len(toks) > 0 {
 		tok := toks[0]
 		switch {
@@ -323,33 +348,33 @@ func toksChunked(toks Toks) (ret toksChunks, err *SrcFileNotice) {
 			}
 			full_brace_toks := toks[0 : len(inner_toks)+2]
 			if tok.Pos.Line == pos_line {
-				cur.self = append(cur.self, full_brace_toks...)
+				cur.Self = append(cur.Self, full_brace_toks...)
 			} else {
 				cur_indent_toks = append(cur_indent_toks, full_brace_toks...)
 			}
 			toks = rest_toks
 			continue
 		case tok.Pos.Line == pos_line:
-			cur.self = append(cur.self, tok)
+			cur.Self = append(cur.Self, tok)
 		case tok.Pos.Char < pos_char:
 			return nil, tok.newIndentErr()
 		case tok.Pos.Char > pos_char:
 			cur_indent_toks = append(cur_indent_toks, tok)
 		case tok.Pos.Char == pos_char:
-			if len(cur.self) > 0 {
-				cur.subs, err = toksChunked(cur_indent_toks)
+			if len(cur.Self) > 0 {
+				cur.Subs, err = toksChunked(cur_indent_toks)
 				if err != nil {
 					return
 				}
 				ret = append(ret, cur)
 			}
-			cur, cur_indent_toks, pos_line = &toksChunk{self: Toks{tok}}, nil, tok.Pos.Line
+			cur, cur_indent_toks, pos_line = &ToksChunk{Self: Toks{tok}}, nil, tok.Pos.Line
 		}
 		toks = toks[1:]
 	}
 
-	if len(cur.self) > 0 {
-		cur.subs, err = toksChunked(cur_indent_toks)
+	if len(cur.Self) > 0 {
+		cur.Subs, err = toksChunked(cur_indent_toks)
 		ret = append(ret, cur)
 	}
 	return

@@ -39,35 +39,45 @@ const (
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
 // mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
-func (me *SrcFile) parse() {
-	chunked, err := toksChunked(me.Content.Toks)
-	if err != nil {
-		panic(err)
+func (me *SrcFile) parse(toksChunked ToksChunks) {
+	var parsed AstNodes
+	for _, toks_chunk := range toksChunked {
+		parsed = append(parsed, me.parseChunk(toks_chunk, true))
 	}
-	println(">>>>>>>>>>>>>>>>>>>>>>\n" + chunked.str() + "\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 
-	parsed := me.parseNodes(me.Content.Toks, true)
-
-	// // flip infix-operator call forms to prefix form
-	// parsed.walk(nil, func(node *AstNode) {
-	// 	if node.Kind == AstNodeKindCallForm && (len(node.ChildNodes) > 2) && node.ChildNodes.has(false, (*AstNode).isIdentOp) {
-	// 		for i, it := range node.ChildNodes {
-	// 			if must, is := ((i % 2) != 0), it.isIdentOp(); must != is {
-	// 				node.Kind = AstNodeKindErr
-	// 				node.err = &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeBadInfixExpr, Span: it.Toks.Span(),
-	// 					Message: util.If(must, "operator", "non-operator") + " expected due to infix expression"}
-	// 				break
-	// 			}
-	// 		}
-	// 	}
-	// })
-
-	// sort all nodes to be in source-file order of appearance, after having twirled them around
+	// sort all nodes to be in source-file order of appearance, also set all `AstNode.parent`s
 	parsed = sl.SortedPer(parsed, (*AstNode).cmp)
 	parsed.walk(nil, func(node *AstNode) {
 		node.ChildNodes = sl.SortedPer(node.ChildNodes, (*AstNode).cmp)
+		for _, it := range node.ChildNodes {
+			it.parent = node
+		}
 	})
 	me.Content.Ast = parsed
+}
+
+func (me *SrcFile) parseChunk(toksChunk *ToksChunk, checkForHuddle bool) (ret *AstNode) {
+	ret = me.parseNode(toksChunk.Self, checkForHuddle)
+	var subs AstNodes
+	for _, sub := range toksChunk.Subs {
+		subs = append(subs, me.parseChunk(sub, checkForHuddle))
+	}
+	if len(subs) > 0 {
+		switch ret.Kind {
+		case AstNodeKindComment, AstNodeKindLit:
+			ret.Kind, ret.err = AstNodeKindErr, subs[0].Toks[0].newIndentErr()
+		case AstNodeKindCallForm:
+			ret.ChildNodes = append(ret.ChildNodes, subs...)
+		default:
+			ret = &AstNode{
+				Kind:       AstNodeKindCallForm,
+				Src:        "",
+				Toks:       nil,
+				ChildNodes: append(AstNodes{ret}, subs...),
+			}
+		}
+	}
+	return
 }
 
 func (me *SrcFile) parseNode(toks Toks, checkForHuddle bool) *AstNode {
@@ -294,14 +304,6 @@ func (me *AstNode) SelfAndAncestors() (ret AstNodes) {
 		ret = append(ret, it)
 	}
 	return
-}
-
-func (me *AstNode) setParents() {
-	me.walk(nil, func(it *AstNode) {
-		for _, node := range it.ChildNodes {
-			node.parent = it
-		}
-	})
 }
 
 func (me *AstNode) walk(onBefore func(*AstNode) bool, onAfter func(*AstNode)) {
