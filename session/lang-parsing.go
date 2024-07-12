@@ -39,7 +39,7 @@ const (
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
 // mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
-func (me *SrcFile) parse(toksChunked ToksChunks) {
+func (me *SrcFile) parse(toksChunked toksChunks) {
 	var parsed AstNodes
 	for _, toks_chunk := range toksChunked {
 		parsed = append(parsed, me.parseChunk(toks_chunk, true))
@@ -56,10 +56,10 @@ func (me *SrcFile) parse(toksChunked ToksChunks) {
 	me.Content.Ast = parsed
 }
 
-func (me *SrcFile) parseChunk(toksChunk *ToksChunk, checkForHuddle bool) (ret *AstNode) {
-	ret = me.parseNode(toksChunk.Self, checkForHuddle)
+func (me *SrcFile) parseChunk(toksChunk *toksChunk, checkForHuddle bool) (ret *AstNode) {
+	ret = me.parseNode(toksChunk.self, checkForHuddle)
 	var subs AstNodes
-	for _, sub := range toksChunk.Subs {
+	for _, sub := range toksChunk.subs {
 		subs = append(subs, me.parseChunk(sub, checkForHuddle))
 	}
 	if len(subs) > 0 {
@@ -71,11 +71,10 @@ func (me *SrcFile) parseChunk(toksChunk *ToksChunk, checkForHuddle bool) (ret *A
 		default:
 			ret = &AstNode{
 				Kind:       AstNodeKindCallForm,
-				Src:        "",
-				Toks:       nil,
 				ChildNodes: append(AstNodes{ret}, subs...),
 			}
 		}
+		ret.Toks, ret.Src = toksChunk.full, toksChunk.full.src(me.Content.Src)
 	}
 	return
 }

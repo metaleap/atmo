@@ -73,7 +73,7 @@ type Tok struct {
 }
 
 // only called by `EnsureSrcFile`
-func (me *SrcFile) tokenize() (toks Toks, toksChunks ToksChunks, errs []*SrcFileNotice) {
+func (me *SrcFile) tokenize() (toks Toks, toksChunks toksChunks, errs []*SrcFileNotice) {
 	toks = make(Toks, 0, len(me.Content.Src)/3)
 	var scan scanner.Scanner
 	scan.Init(strings.NewReader(me.Content.Src))
@@ -297,44 +297,33 @@ func (me Toks) withoutComments() Toks {
 	return sl.Where(me, func(it *Tok) bool { return it.Kind != TokKindComment })
 }
 
-type ToksChunks []*ToksChunk
+type toksChunks []*toksChunk
 
-type ToksChunk struct {
-	Self Toks
-	Subs ToksChunks
+type toksChunk struct {
+	self Toks
+	subs toksChunks
+	full Toks
 }
 
-func (me *ToksChunk) span() (ret SrcFileSpan) {
-	ret = me.Self.Span()
-	if len(me.Subs) > 0 {
-		ret.End = me.Subs[len(me.Subs)-1].span().End
-	}
-	return
-}
-
-func (me *ToksChunk) str(indent int) (ret string) {
-	ret = str.Repeat(" ", indent) + ">" + str.FromInt(indent) + ">" + me.Self.str()
-	for _, it := range me.Subs {
+func (me *toksChunk) str(indent int) (ret string) {
+	ret = str.Repeat(" ", indent) + ">" + str.FromInt(indent) + ">" + me.self.str()
+	for _, it := range me.subs {
 		ret += "\n" + it.str(indent+2)
 	}
 	ret += "<" + str.FromInt(indent) + "<"
 	return
 }
 
-func (me ToksChunks) span() SrcFileSpan {
-	return SrcFileSpan{Start: me[0].span().Start, End: me[len(me)-1].span().End}
+func (me toksChunks) str() string {
+	return str.Join(sl.As(me, func(it *toksChunk) string { return it.str(0) }), "\n")
 }
 
-func (me ToksChunks) str() string {
-	return str.Join(sl.As(me, func(it *ToksChunk) string { return it.str(0) }), "\n")
-}
-
-func toksChunked(toks Toks) (ret ToksChunks, err *SrcFileNotice) {
+func toksChunked(toks Toks) (ret toksChunks, err *SrcFileNotice) {
 	if len(toks) == 0 {
 		return nil, nil
 	}
 	pos_char, pos_line := toks[0].Pos.Char, toks[0].Pos.Line
-	cur := &ToksChunk{}
+	cur := &toksChunk{}
 	var cur_indent_toks Toks
 
 	// TODO: replace one-by-one appends with gathering idxs for sub-slicing from `toks`
@@ -348,33 +337,34 @@ func toksChunked(toks Toks) (ret ToksChunks, err *SrcFileNotice) {
 			}
 			full_brace_toks := toks[0 : len(inner_toks)+2]
 			if tok.Pos.Line == pos_line {
-				cur.Self = append(cur.Self, full_brace_toks...)
+				cur.self = append(cur.self, full_brace_toks...)
 			} else {
 				cur_indent_toks = append(cur_indent_toks, full_brace_toks...)
 			}
+			cur.full = append(cur.full, full_brace_toks...)
 			toks = rest_toks
 			continue
 		case tok.Pos.Line == pos_line:
-			cur.Self = append(cur.Self, tok)
+			cur.self, cur.full = append(cur.self, tok), append(cur.full, tok)
 		case tok.Pos.Char < pos_char:
 			return nil, tok.newIndentErr()
 		case tok.Pos.Char > pos_char:
-			cur_indent_toks = append(cur_indent_toks, tok)
+			cur_indent_toks, cur.full = append(cur_indent_toks, tok), append(cur.full, tok)
 		case tok.Pos.Char == pos_char:
-			if len(cur.Self) > 0 {
-				cur.Subs, err = toksChunked(cur_indent_toks)
+			if len(cur.self) > 0 {
+				cur.subs, err = toksChunked(cur_indent_toks)
 				if err != nil {
 					return
 				}
 				ret = append(ret, cur)
 			}
-			cur, cur_indent_toks, pos_line = &ToksChunk{Self: Toks{tok}}, nil, tok.Pos.Line
+			cur, cur_indent_toks, pos_line = &toksChunk{self: Toks{tok}, full: Toks{tok}}, nil, tok.Pos.Line
 		}
 		toks = toks[1:]
 	}
 
-	if len(cur.Self) > 0 {
-		cur.Subs, err = toksChunked(cur_indent_toks)
+	if len(cur.self) > 0 {
+		cur.subs, err = toksChunked(cur_indent_toks)
 		ret = append(ret, cur)
 	}
 	return
