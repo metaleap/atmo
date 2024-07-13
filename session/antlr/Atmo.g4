@@ -1,13 +1,40 @@
-lexer grammar atmoLexer;
-
-/* taken from https://github.com/antlr/grammars-v4/blob/master/golang/GoLexer.g4 and then tweaked:
- * removed keywords, operators, most of punctuation; modified rules: IDENTIFIER; added rules:
- * OPERATOR
- */
+grammar Atmo;
 
 // $antlr-format alignTrailingComments true, columnLimit 180, maxEmptyLinesToKeep 1, reflowComments false, useTab false
 // $antlr-format allowShortRulesOnASingleLine true, allowShortBlocksOnASingleLine true, minEmptyLines 0, alignSemicolons ownLine
 // $antlr-format alignColons trailing, singleLineOverrulesHangingColon true, alignLexerCommands true, alignLabels true, alignTrailers true
+
+comment : LINE_COMMENT | COMMENT;
+
+expr:
+    '(' expr ')'          # ParensExpr
+    | '[' (expr ',')* ']' # SquareBracketExpr
+    | '{' (expr ',')* '}' # CurlyBracesExpr
+    | expr expr+          # CallFormExpr
+    | ident               # IdentExpr
+    | lit                 # LitExpr
+;
+
+ident : IDENTIFIER | OPERATOR;
+
+lit:
+    RUNE_LIT
+    | RAW_STRING_LIT
+    | INTERPRETED_STRING_LIT
+    | IMAGINARY_LIT
+    | FLOAT_LIT
+    | DECIMAL_LIT
+    | BINARY_LIT
+    | OCTAL_LIT
+    | HEX_LIT
+;
+
+/* LEXER */
+
+/* taken from https://github.com/antlr/grammars-v4/blob/master/golang/GoLexer.g4 then tweaked like so:
+ * —removed — keywords, operators, much of punctuation; —modified— IDENTIFIER; —added— WS_NL, UNICODE_OPISH,
+ * OPERATOR
+ */
 
 IDENTIFIER : ( ('@' | '$' | '%' | '#')? LETTER (LETTER | UNICODE_DIGIT)*);
 
@@ -65,10 +92,11 @@ INTERPRETED_STRING_LIT : '"' (~["\\] | ESCAPED_VALUE)* '"';
 
 // Hidden tokens
 
-WS           : [ \t]+        -> channel(HIDDEN);
 COMMENT      : '/*' .*? '*/' -> channel(HIDDEN);
 LINE_COMMENT : '//' ~[\r\n]* -> channel(HIDDEN);
+WS           : [ \t]+        -> channel(HIDDEN);
 TERMINATOR   : [\r\n]+       -> channel(HIDDEN);
+WS_NL        : [ \t\r\n]+    -> channel(HIDDEN);
 
 fragment UNICODE_VALUE : ~[\r\n'] | LITTLE_U_VALUE | BIG_U_VALUE | ESCAPED_VALUE;
 
@@ -101,4 +129,4 @@ fragment UNICODE_DIGIT : [\p{Nd}];
 //[\p{L}] matches any kind of letter from any language
 fragment UNICODE_LETTER : [\p{L}];
 
-fragment UNICODE_OPISH : [\p{Sm}\p{Sc}\p{Sk}\p{Po}];
+fragment UNICODE_OPISH : [\p{S}\p{P}\p{Me}];
