@@ -11,11 +11,12 @@ expr:
     | L_PAREN expr R_PAREN               # ParensExpr
     | L_BRACKET (expr COMMA?)* R_BRACKET # SquareBracketExpr
     | L_CURLY (expr COMMA?)* R_CURLY     # CurlyBracesExpr
-    | ident                              # IdentExpr
     | lit                                # LitExpr
+    | ident                              # IdentExpr
 ;
 
 ident : IDENTIFIER | OPERATOR;
+
 lit:
     RUNE_LIT
     | RAW_STRING_LIT
@@ -45,11 +46,9 @@ L_BRACKET : '[';
 R_BRACKET : ']';
 COMMA     : ',';
 
-NO_OP : (L_PAREN | R_PAREN | L_BRACKET | R_BRACKET | L_CURLY | R_CURLY | COMMA);
-
 IDENTIFIER : ( ('@' | '$' | '%' | '#')? LETTER (LETTER | UNICODE_DIGIT)*);
 
-OPERATOR : (UNICODE_OPISH ~NO_OP)+;
+OPERATOR : UNICODE_OPISH+;
 
 // Number literals
 
@@ -130,4 +129,5 @@ fragment UNICODE_DIGIT : [\p{Nd}];
 //[\p{L}] matches any kind of letter from any language
 fragment UNICODE_LETTER : [\p{L}];
 
-fragment UNICODE_OPISH : [\p{S}\p{P}\p{Me}];
+// TODO: https://stackoverflow.com/q/78743429/1258491
+fragment UNICODE_OPISH : [\p{S}\p{Me}\p{Pi}\p{Pf}\p{Pd}\p{Pc}!¡§%&/?\\¿@*ˍ;·:.…];

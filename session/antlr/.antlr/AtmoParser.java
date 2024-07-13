@@ -17,11 +17,11 @@ public class AtmoParser extends Parser {
 		new PredictionContextCache();
 	public static final int
 		L_PAREN=1, R_PAREN=2, L_CURLY=3, R_CURLY=4, L_BRACKET=5, R_BRACKET=6, 
-		COMMA=7, NO_OP=8, IDENTIFIER=9, OPERATOR=10, DECIMAL_LIT=11, BINARY_LIT=12, 
-		OCTAL_LIT=13, HEX_LIT=14, FLOAT_LIT=15, DECIMAL_FLOAT_LIT=16, HEX_FLOAT_LIT=17, 
-		IMAGINARY_LIT=18, RUNE_LIT=19, BYTE_VALUE=20, OCTAL_BYTE_VALUE=21, HEX_BYTE_VALUE=22, 
-		LITTLE_U_VALUE=23, BIG_U_VALUE=24, RAW_STRING_LIT=25, INTERPRETED_STRING_LIT=26, 
-		COMMENT=27, LINE_COMMENT=28, WS=29, TERMINATOR=30, WS_NL=31;
+		COMMA=7, IDENTIFIER=8, OPERATOR=9, DECIMAL_LIT=10, BINARY_LIT=11, OCTAL_LIT=12, 
+		HEX_LIT=13, FLOAT_LIT=14, DECIMAL_FLOAT_LIT=15, HEX_FLOAT_LIT=16, IMAGINARY_LIT=17, 
+		RUNE_LIT=18, BYTE_VALUE=19, OCTAL_BYTE_VALUE=20, HEX_BYTE_VALUE=21, LITTLE_U_VALUE=22, 
+		BIG_U_VALUE=23, RAW_STRING_LIT=24, INTERPRETED_STRING_LIT=25, COMMENT=26, 
+		LINE_COMMENT=27, WS=28, TERMINATOR=29, WS_NL=30;
 	public static final int
 		RULE_comment = 0, RULE_expr = 1, RULE_ident = 2, RULE_lit = 3;
 	private static String[] makeRuleNames() {
@@ -40,11 +40,11 @@ public class AtmoParser extends Parser {
 	private static String[] makeSymbolicNames() {
 		return new String[] {
 			null, "L_PAREN", "R_PAREN", "L_CURLY", "R_CURLY", "L_BRACKET", "R_BRACKET", 
-			"COMMA", "NO_OP", "IDENTIFIER", "OPERATOR", "DECIMAL_LIT", "BINARY_LIT", 
-			"OCTAL_LIT", "HEX_LIT", "FLOAT_LIT", "DECIMAL_FLOAT_LIT", "HEX_FLOAT_LIT", 
-			"IMAGINARY_LIT", "RUNE_LIT", "BYTE_VALUE", "OCTAL_BYTE_VALUE", "HEX_BYTE_VALUE", 
-			"LITTLE_U_VALUE", "BIG_U_VALUE", "RAW_STRING_LIT", "INTERPRETED_STRING_LIT", 
-			"COMMENT", "LINE_COMMENT", "WS", "TERMINATOR", "WS_NL"
+			"COMMA", "IDENTIFIER", "OPERATOR", "DECIMAL_LIT", "BINARY_LIT", "OCTAL_LIT", 
+			"HEX_LIT", "FLOAT_LIT", "DECIMAL_FLOAT_LIT", "HEX_FLOAT_LIT", "IMAGINARY_LIT", 
+			"RUNE_LIT", "BYTE_VALUE", "OCTAL_BYTE_VALUE", "HEX_BYTE_VALUE", "LITTLE_U_VALUE", 
+			"BIG_U_VALUE", "RAW_STRING_LIT", "INTERPRETED_STRING_LIT", "COMMENT", 
+			"LINE_COMMENT", "WS", "TERMINATOR", "WS_NL"
 		};
 	}
 	private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -311,16 +311,6 @@ public class AtmoParser extends Parser {
 				match(R_CURLY);
 				}
 				break;
-			case IDENTIFIER:
-			case OPERATOR:
-				{
-				_localctx = new IdentExprContext(_localctx);
-				_ctx = _localctx;
-				_prevctx = _localctx;
-				setState(37);
-				ident();
-				}
-				break;
 			case DECIMAL_LIT:
 			case BINARY_LIT:
 			case OCTAL_LIT:
@@ -334,8 +324,18 @@ public class AtmoParser extends Parser {
 				_localctx = new LitExprContext(_localctx);
 				_ctx = _localctx;
 				_prevctx = _localctx;
-				setState(38);
+				setState(37);
 				lit();
+				}
+				break;
+			case IDENTIFIER:
+			case OPERATOR:
+				{
+				_localctx = new IdentExprContext(_localctx);
+				_ctx = _localctx;
+				_prevctx = _localctx;
+				setState(38);
+				ident();
 				}
 				break;
 			default:
@@ -496,19 +496,19 @@ public class AtmoParser extends Parser {
 	}
 
 	public static final String _serializedATN =
-		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3!;\4\2\t\2\4\3\t\3"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3 ;\4\2\t\2\4\3\t\3"+
 		"\4\4\t\4\4\5\t\5\3\2\3\2\3\3\3\3\3\3\3\3\3\3\3\3\3\3\3\3\5\3\25\n\3\7"+
 		"\3\27\n\3\f\3\16\3\32\13\3\3\3\3\3\3\3\3\3\5\3 \n\3\7\3\"\n\3\f\3\16\3"+
 		"%\13\3\3\3\3\3\3\3\5\3*\n\3\3\3\3\3\6\3.\n\3\r\3\16\3/\7\3\62\n\3\f\3"+
-		"\16\3\65\13\3\3\4\3\4\3\5\3\5\3\5\2\3\4\6\2\4\6\b\2\5\3\2\35\36\3\2\13"+
-		"\f\5\2\r\21\24\25\33\34\2@\2\n\3\2\2\2\4)\3\2\2\2\6\66\3\2\2\2\b8\3\2"+
+		"\16\3\65\13\3\3\4\3\4\3\5\3\5\3\5\2\3\4\6\2\4\6\b\2\5\3\2\34\35\3\2\n"+
+		"\13\5\2\f\20\23\24\32\33\2@\2\n\3\2\2\2\4)\3\2\2\2\6\66\3\2\2\2\b8\3\2"+
 		"\2\2\n\13\t\2\2\2\13\3\3\2\2\2\f\r\b\3\1\2\r\16\7\3\2\2\16\17\5\4\3\2"+
 		"\17\20\7\4\2\2\20*\3\2\2\2\21\30\7\7\2\2\22\24\5\4\3\2\23\25\7\t\2\2\24"+
 		"\23\3\2\2\2\24\25\3\2\2\2\25\27\3\2\2\2\26\22\3\2\2\2\27\32\3\2\2\2\30"+
 		"\26\3\2\2\2\30\31\3\2\2\2\31\33\3\2\2\2\32\30\3\2\2\2\33*\7\b\2\2\34#"+
 		"\7\5\2\2\35\37\5\4\3\2\36 \7\t\2\2\37\36\3\2\2\2\37 \3\2\2\2 \"\3\2\2"+
 		"\2!\35\3\2\2\2\"%\3\2\2\2#!\3\2\2\2#$\3\2\2\2$&\3\2\2\2%#\3\2\2\2&*\7"+
-		"\6\2\2\'*\5\6\4\2(*\5\b\5\2)\f\3\2\2\2)\21\3\2\2\2)\34\3\2\2\2)\'\3\2"+
+		"\6\2\2\'*\5\b\5\2(*\5\6\4\2)\f\3\2\2\2)\21\3\2\2\2)\34\3\2\2\2)\'\3\2"+
 		"\2\2)(\3\2\2\2*\63\3\2\2\2+-\f\b\2\2,.\5\4\3\2-,\3\2\2\2./\3\2\2\2/-\3"+
 		"\2\2\2/\60\3\2\2\2\60\62\3\2\2\2\61+\3\2\2\2\62\65\3\2\2\2\63\61\3\2\2"+
 		"\2\63\64\3\2\2\2\64\5\3\2\2\2\65\63\3\2\2\2\66\67\t\3\2\2\67\7\3\2\2\2"+
