@@ -7,16 +7,15 @@ grammar Atmo;
 comment : LINE_COMMENT | COMMENT;
 
 expr:
-    '(' expr ')'          # ParensExpr
-    | '[' (expr ',')* ']' # SquareBracketExpr
-    | '{' (expr ',')* '}' # CurlyBracesExpr
-    | expr expr+          # CallFormExpr
-    | ident               # IdentExpr
-    | lit                 # LitExpr
+    expr expr+                           # CallFormExpr
+    | L_PAREN expr R_PAREN               # ParensExpr
+    | L_BRACKET (expr COMMA?)* R_BRACKET # SquareBracketExpr
+    | L_CURLY (expr COMMA?)* R_CURLY     # CurlyBracesExpr
+    | ident                              # IdentExpr
+    | lit                                # LitExpr
 ;
 
 ident : IDENTIFIER | OPERATOR;
-
 lit:
     RUNE_LIT
     | RAW_STRING_LIT
@@ -36,10 +35,6 @@ lit:
  * OPERATOR
  */
 
-IDENTIFIER : ( ('@' | '$' | '%' | '#')? LETTER (LETTER | UNICODE_DIGIT)*);
-
-OPERATOR : UNICODE_OPISH+;
-
 // Punctuation
 
 L_PAREN   : '(';
@@ -49,6 +44,12 @@ R_CURLY   : '}';
 L_BRACKET : '[';
 R_BRACKET : ']';
 COMMA     : ',';
+
+NO_OP : (L_PAREN | R_PAREN | L_BRACKET | R_BRACKET | L_CURLY | R_CURLY | COMMA);
+
+IDENTIFIER : ( ('@' | '$' | '%' | '#')? LETTER (LETTER | UNICODE_DIGIT)*);
+
+OPERATOR : (UNICODE_OPISH ~NO_OP)+;
 
 // Number literals
 
