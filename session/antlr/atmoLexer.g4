@@ -101,4 +101,4 @@ fragment UNICODE_DIGIT : [\p{Nd}];
 //[\p{L}] matches any kind of letter from any language
 fragment UNICODE_LETTER : [\p{L}];
 
-fragment UNICODE_OPISH : [\p{Sm}\p{Sc}\p{Sk}];
+fragment UNICODE_OPISH : [\p{Sm}\p{Sc}\p{Sk}\p{Po}];
