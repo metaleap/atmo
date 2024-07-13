@@ -29,7 +29,7 @@ type AstNodeKind int
 
 const (
 	AstNodeKindErr            AstNodeKind = iota
-	AstNodeKindCallForm                   // foo bar baz
+	AstNodeKindMultiple                   // foo bar baz
 	AstNodeKindCurlyBraces                // {}
 	AstNodeKindSquareBrackets             // []
 	AstNodeKindIdent                      // foo, #bar, @baz, $foo, %bar
@@ -45,33 +45,37 @@ func (me *SrcFile) parse(toksChunked toksChunks) {
 		parsed = append(parsed, me.parseChunk(toks_chunk, true))
 	}
 
-	// multi-line call forms in braces/brackets/parens: each subsequent multi-tok line becomes its own call form
+	// multi-line call-forms in braces/brackets/parens: make each subsequent multi-tok line its own call-form
 	parsed.walk(nil, func(node *AstNode) {
-		// if node.Kind == AstNodeKindCallForm {
-		// 	//TODO
-		// }
+		if node.Kind == AstNodeKindMultiple && node.isParensed() && node.Toks.isMultiLine() {
+			lines := node.ChildNodes.splitByLines()
+			node.ChildNodes = lines[0]
+
+			for _, line := range lines[1:] {
+				if len(line) == 1 {
+					node.ChildNodes = append(node.ChildNodes, line[0])
+				} else {
+					call_node := &AstNode{Kind: AstNodeKindMultiple, Src: line.toks().src(me.Content.Src),
+						Toks: line.toks(), ChildNodes: line}
+					node.ChildNodes = append(node.ChildNodes, call_node)
+				}
+			}
+		}
 	})
 
-	// rewrite all call forms with an infix operator: `foo bar · baz mojo + times 10` => `(· (foo bar) (+ (baz mojo) (times 10)))`
+	// rewrite all call-forms with an infix operator: `foo bar · baz mojo + times 10` => `(· (foo bar) (+ (baz mojo) (times 10)))`
 	// that is: everything to its left is its lhs expr, everything to its right is its rhs expr.
 	parsed.walk(nil, func(node *AstNode) {
-		if node.Kind == AstNodeKindCallForm {
+		if node.Kind == AstNodeKindMultiple {
 			idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOp)
 			if idx > 0 {
 				op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
-				println(">>>>>>>>>INFIXX>>>>>>>>>>>>>>" + op.Src + "<<<<<<<<<<<<<<<<<<INSIDE>>>>>>>" + node.Src + "<<<<<<<<<<<<<<<<<")
-				if len(lhs) > 1 {
-					lhs = AstNodes{{Kind: AstNodeKindCallForm, Src: lhs.toks().src(me.Content.Src),
-						Toks: lhs.toks(), ChildNodes: lhs}}
-				}
-				if len(rhs) > 1 {
-					rhs = AstNodes{{Kind: AstNodeKindCallForm, Src: rhs.toks().src(me.Content.Src),
-						Toks: rhs.toks(), ChildNodes: rhs}}
-				}
-				node.ChildNodes = AstNodes{op, lhs[0]}
-				if len(rhs) > 0 {
-					node.ChildNodes = append(node.ChildNodes, rhs[0])
-				}
+				// println(">>>>>>>>>INFIXX>>>>>>>>>>>>>>" + op.Src + "<<<<<<<<<<<<<<<<<<INSIDE>>>>>>>" + node.Src + "<<<<<<<<<<<<<<<<<")
+				lhs = AstNodes{{Kind: AstNodeKindMultiple, Src: lhs.toks().src(me.Content.Src),
+					Toks: lhs.toks(), ChildNodes: lhs}}
+				rhs = AstNodes{{Kind: AstNodeKindMultiple, Src: rhs.toks().src(me.Content.Src),
+					Toks: rhs.toks(), ChildNodes: rhs}}
+				node.ChildNodes = AstNodes{op, lhs[0], rhs[0]}
 			}
 		}
 	})
@@ -96,11 +100,11 @@ func (me *SrcFile) parseChunk(toksChunk *toksChunk, checkForHuddle bool) (ret *A
 		switch ret.Kind {
 		case AstNodeKindComment, AstNodeKindLit:
 			ret.Kind, ret.err = AstNodeKindErr, subs[0].Toks[0].newIndentErr()
-		case AstNodeKindCallForm:
+		case AstNodeKindMultiple:
 			ret.ChildNodes = append(ret.ChildNodes, subs...)
 		default:
 			ret = &AstNode{
-				Kind:       AstNodeKindCallForm,
+				Kind:       AstNodeKindMultiple,
 				ChildNodes: append(AstNodes{ret}, subs...),
 			}
 		}
@@ -114,7 +118,7 @@ func (me *SrcFile) parseNode(toks Toks, checkForHuddle bool) *AstNode {
 	if len(nodes) == 1 {
 		return nodes[0]
 	}
-	return &AstNode{Kind: AstNodeKindCallForm, ChildNodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
+	return &AstNode{Kind: AstNodeKindMultiple, ChildNodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
 }
 
 func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
@@ -269,7 +273,7 @@ func (me *AstNode) equals(it *AstNode) bool {
 	case AstNodeKindErr:
 		return (me.err == it.err) || ((me.err != nil) && (it.err != nil) &&
 			(me.err.Code == it.err.Code) && (me.err.Kind == it.err.Kind) && (me.err.Message == it.err.Message))
-	case AstNodeKindCallForm, AstNodeKindCurlyBraces, AstNodeKindSquareBrackets:
+	case AstNodeKindMultiple, AstNodeKindCurlyBraces, AstNodeKindSquareBrackets:
 		var idx int
 		return sl.All(me.ChildNodes, func(node *AstNode) (isEq bool) {
 			isEq = node.equals(it.ChildNodes[idx])
@@ -293,6 +297,10 @@ func (me *AstNode) find(where func(*AstNode) bool) (ret *AstNode) {
 
 func (me *AstNode) isIdentOp() bool {
 	return me.Kind == AstNodeKindIdent && me.Toks[0].Kind == TokKindOp
+}
+
+func (me *AstNode) isParensed() bool {
+	return me.Src[0] == '('
 }
 
 func (me *AstNode) sig(buf *strings.Builder) {
@@ -369,6 +377,25 @@ func (me AstNodes) hasKind(kind AstNodeKind) (ret bool) {
 		ret = ret || (it.Kind == kind)
 		return !ret
 	}, nil)
+	return
+}
+
+func (me AstNodes) splitByLines() (ret []AstNodes) {
+	cur_line := me[0].Toks[0].Pos.Line
+	var cur AstNodes
+	for _, node := range me {
+		span := node.Toks.Span()
+		if span.Start.Line == cur_line {
+			cur = append(cur, node)
+		} else if len(cur) > 0 {
+			ret = append(ret, cur)
+			cur = AstNodes{node}
+		}
+		cur_line = span.End.Line
+	}
+	if len(cur) > 0 {
+		ret = append(ret, cur)
+	}
 	return
 }
 
