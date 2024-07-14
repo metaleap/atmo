@@ -120,7 +120,6 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 			tok.Kind = TokKindIdentWord
 		case '(', ')', '{', '}', '[', ']':
 			tok.Kind = TokKindBrace
-			brace_level += util.If(tok.isBraceOpening(0), 1, -1)
 		case ',':
 			tok.Kind = TokKindSep
 		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
@@ -151,6 +150,11 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 					had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
 				}
 			}
+		}
+
+		// only now can the brace_level be adjusted if needed
+		if tok.Kind == TokKindBrace {
+			brace_level += util.If(tok.isBraceOpening(0), 1, -1)
 		}
 
 		switch {
