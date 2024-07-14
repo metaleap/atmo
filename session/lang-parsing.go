@@ -168,7 +168,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 					node.Toks = toks[0 : len(toks_inner)+2]  // want to include the braces/brackets in the node's SrcFileSpan..
 					node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 					last := toks_inner[0]
-					for _, toks := range split {
+					for i, toks := range split {
 						if len(toks) > 0 {
 							node.ChildNodes = append(node.ChildNodes, me.parseNode(toks, true))
 							last = toks[len(toks)-1]
@@ -176,7 +176,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 							loc := sl.FirstWhere(toks_inner, func(it *Tok) bool { return it.byteOffset > last.byteOffset })
 							util.Assert(loc != nil, last)
 							node.Kind = AstNodeKindErr
-							node.err = loc.newErr(NoticeCodeExprExpected)
+							node.err = util.If(i == 0, last, loc).newErr(NoticeCodeExprExpected)
 						}
 					}
 					ret = append(ret, node)
