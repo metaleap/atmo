@@ -75,27 +75,16 @@ const (
 )
 
 // only called by `EnsureSrcFile`
-func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
-	if len(me.Content.Src) == 0 {
+func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs []*SrcFileNotice) {
+	if len(curFullSrcFileContent) == 0 {
 		return
-	}
-	// ensure no CRs (\r) and no leading tabs (\t)
-	for l, prev, i := 1, me.Content.Src[0], 1; i < len(me.Content.Src); i++ {
-		cur := me.Content.Src[i]
-		if cur == '\n' {
-			l++
-		} else if (cur == '\r') || ((cur == '\t') && (prev == '\n')) {
-			return nil, []*SrcFileNotice{{Kind: NoticeKindErr, Code: NoticeCodeBadWhitespace,
-				Message: errMsgs[NoticeCodeBadWhitespace], Span: (&SrcFilePos{Line: l, Char: 1}).ToSpan()}}
-		}
-		prev = cur
 	}
 
 	stack := []int{0}
 	var brace_level int
-	toks = make(Toks, 0, len(me.Content.Src)/3)
+	toks = make(Toks, 0, len(curFullSrcFileContent)/3)
 	var scan scanner.Scanner
-	scan.Init(strings.NewReader(me.Content.Src))
+	scan.Init(strings.NewReader(curFullSrcFileContent))
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
 		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError,
@@ -108,12 +97,13 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 			((i == 0) && ((char == '#') || (char == '%') || (char == '@') || (char == '$'))) ||
 			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
-	scan.Filename = me.FilePath
+	scan.Filename = srcFilePath
 
 	var prev *Tok
+	var had_cr_err bool
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
 		tok := &Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
-		tok.Src = me.Content.Src[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
+		tok.Src = curFullSrcFileContent[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
 		switch lexeme {
 		case scanner.Char:
 			tok.Kind = TokKindLitRune
@@ -136,20 +126,28 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 			tok.Kind = TokKindIdentOpish
 		}
 
-		if brace_level == 0 {
-			// indent/dedent/newline handling: taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
-			if (prev == nil) || (tok.Pos.Line > prev.Pos.Line) {
-				toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindNewLine, Pos: tok.Pos, Src: tok.Src})
-				switch stack_top := stack[len(stack)-1]; true {
-				case tok.Pos.Char > stack_top:
-					stack = append(stack, tok.Pos.Char)
-					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
-				case tok.Pos.Char < stack_top:
-					for ; stack_top > tok.Pos.Char; stack_top = stack[len(stack)-1] {
-						stack = stack[:len(stack)-1]
-						toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindDedent, Pos: tok.Pos, Src: tok.Src})
+		// indent/dedent/newline handling: taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
+		if is_new_line := (brace_level == 0) && ((prev == nil) || (tok.Pos.Line > prev.Pos.Line)); is_new_line {
+			toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindNewLine, Pos: tok.Pos, Src: tok.Src})
+			switch stack_top := stack[len(stack)-1]; true {
+			case tok.Pos.Char < stack_top:
+				for ; stack_top > tok.Pos.Char; stack_top = stack[len(stack)-1] {
+					stack = stack[:len(stack)-1]
+					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindDedent, Pos: tok.Pos, Src: tok.Src})
+				}
+			case tok.Pos.Char > stack_top:
+				if prev != nil {
+					src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
+					if (!had_cr_err) && str.Idx(src_since_prev, '\r') >= 0 {
+						had_cr_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
+					}
+					src_since_prev = src_since_prev[1+str.Idx(src_since_prev, '\n'):]
+					if str.Idx(src_since_prev, '\t') >= 0 {
+						errs = append(errs, tok.newErr(NoticeCodeWhitespace))
 					}
 				}
+				stack = append(stack, tok.Pos.Char)
+				toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
 			}
 		}
 
@@ -176,7 +174,7 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 	}
 
 	if toks[0].Pos.Char > 1 {
-		me.Notices.LexErrs = append(me.Notices.LexErrs, toks[0].newIndentErr())
+		errs = append(errs, toks[0].newIndentErr())
 	}
 	return
 }

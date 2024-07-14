@@ -61,7 +61,7 @@ func EnsureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 	if (me.Content.Src != old_content) || had_last_read_err || (me.Notices.LastReadErr != nil) {
 		me.Content.Ast, me.Content.Toks, me.Notices.LexErrs = nil, nil, nil
 		if me.Notices.LastReadErr == nil {
-			me.Content.Toks, me.Notices.LexErrs = me.tokenize()
+			me.Content.Toks, me.Notices.LexErrs = tokenize(me.FilePath, me.Content.Src)
 			// if false && len(me.Notices.LexErrs) == 0 {
 			// 	me.parse(toksChunked)
 			// }

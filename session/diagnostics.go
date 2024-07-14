@@ -23,9 +23,9 @@ type SrcFileNoticeCode string
 
 const (
 	NoticeCodeFileReadError  SrcFileNoticeCode = "FileReadError"
-	NoticeCodeBadWhitespace  SrcFileNoticeCode = "BadWhitespace"
+	NoticeCodeWhitespace     SrcFileNoticeCode = "Whitespace"
 	NoticeCodeLexingError    SrcFileNoticeCode = "LexingError"
-	NoticeCodeBadLitSyntax   SrcFileNoticeCode = "BadLitSyntax"
+	NoticeCodeLitSyntax      SrcFileNoticeCode = "LitSyntax"
 	NoticeCodeIndentation    SrcFileNoticeCode = "Indentation"
 	NoticeCodeMisplaced      SrcFileNoticeCode = "Misplaced"
 	NoticeCodeBracesMismatch SrcFileNoticeCode = "BracesMismatch"
@@ -38,9 +38,9 @@ var (
 	OnDbgMsg         = func(bool, string, ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
 		NoticeCodeFileReadError:  "%s", // actual error msg in %s
-		NoticeCodeBadWhitespace:  "unsupported white-space; ensure both: no leading tabs and only LF (no CR) line endings",
+		NoticeCodeWhitespace:     "unsupported white-space; ensure both: no leading tabs and only LF (no CR) line endings",
 		NoticeCodeLexingError:    "invalid token: %s",   // actual error msg in %s
-		NoticeCodeBadLitSyntax:   "invalid literal: %s", // actual error msg in %s
+		NoticeCodeLitSyntax:      "invalid literal: %s", // actual error msg in %s
 		NoticeCodeIndentation:    "ambiguous indentation",
 		NoticeCodeMisplaced:      "unexpected: '%s'",
 		NoticeCodeBracesMismatch: "no matching opening and closing %s",
@@ -59,12 +59,12 @@ func (me *SrcFileNotice) Error() string  { return me.Message }
 func (me *SrcFileNotice) String() string { return me.Message }
 
 func errToNotice(err error, code SrcFileNoticeCode, span *SrcFileSpan) (ret *SrcFileNotice) {
-	err_msg := errMsgs[code]
-	err_msg = util.If(err_msg == "", err.Error(), str.Fmt(err_msg, err.Error()))
 	if ret, _ = err.(*SrcFileNotice); (ret == nil) && (err != nil) {
+		err_msg := errMsgs[code]
+		err_msg = util.If(err_msg == "", err.Error(), str.Fmt(err_msg, err.Error()))
 		ret = &SrcFileNotice{Kind: NoticeKindErr, Message: err_msg, Code: code}
 	}
-	if span != nil {
+	if ret != nil && span != nil {
 		ret.Span = *span
 	}
 	return

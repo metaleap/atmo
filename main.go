@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 
 	"atmo/lsp"
 	"atmo/session"
@@ -16,9 +17,13 @@ func main() {
 	case "lsp":
 		lsp.Main()
 	default:
-		if !session.IsSrcFilePath(cmd_name_or_file_path) {
-			panic("not an Atmo source file: " + cmd_name_or_file_path)
+		src_file_path, err := filepath.Abs(cmd_name_or_file_path)
+		if err != nil {
+			panic(err)
 		}
-		_ = session.EnsureSrcFile(cmd_name_or_file_path, nil, false)
+		if !session.IsSrcFilePath(src_file_path) {
+			panic("not an Atmo source file: " + src_file_path)
+		}
+		_ = session.EnsureSrcFile(src_file_path, nil, false)
 	}
 }
