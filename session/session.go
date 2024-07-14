@@ -32,8 +32,8 @@ type SrcFile struct {
 }
 
 func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
-	allSrcFilesMutex.Lock()
-	defer allSrcFilesMutex.Unlock()
+	// allSrcFilesMutex.Lock()
+	// defer allSrcFilesMutex.Unlock()
 
 	for _, file_path := range removed {
 		delete(allSrcFiles, file_path)
@@ -45,16 +45,16 @@ func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) 
 }
 
 func OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	allSrcFilesMutex.Lock()
-	defer allSrcFilesMutex.Unlock()
+	// allSrcFilesMutex.Lock()
+	// defer allSrcFilesMutex.Unlock()
 
 	ensureSrcFile(srcFilePath, &curFullContent, true)
 	refreshAndPublishNotices(srcFilePath)
 }
 
 func WithSrcFileDo(srcFilePath string, canSkipFileRead bool, do func(srcFile *SrcFile)) {
-	allSrcFilesMutex.Lock()
-	defer allSrcFilesMutex.Unlock()
+	// allSrcFilesMutex.Lock()
+	// defer allSrcFilesMutex.Unlock()
 
 	if src_file := ensureSrcFile(srcFilePath, nil, canSkipFileRead); src_file != nil {
 		do(src_file)

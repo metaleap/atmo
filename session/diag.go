@@ -101,14 +101,14 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 		all_notices[src_file_path] = file_notices
 	}
 
-	allNoticesMutex.Lock()
+	// allNoticesMutex.Lock()
 	changed := !maps.EqualFunc(all_notices, allNotices, func(diags1 []*SrcFileNotice, diags2 []*SrcFileNotice) bool {
 		return slices.EqualFunc(diags1, diags2, func(diag1 *SrcFileNotice, diag2 *SrcFileNotice) bool {
 			return (diag1 == diag2) || (*diag1 == *diag2)
 		})
 	})
 	allNotices = all_notices
-	allNoticesMutex.Unlock()
+	// allNoticesMutex.Unlock()
 
 	if changed {
 		OnNoticesChanged()
@@ -116,7 +116,7 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 }
 
 func WithAllCurrentSrcFileNoticesDo(do func(allNotices map[string][]*SrcFileNotice)) {
-	allNoticesMutex.Lock()
-	defer allNoticesMutex.Unlock()
+	// allNoticesMutex.Lock()
+	// defer allNoticesMutex.Unlock()
 	do(allNotices)
 }
