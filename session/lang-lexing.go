@@ -79,13 +79,14 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 	if len(me.Content.Src) == 0 {
 		return
 	}
+	// ensure no CRs (\r) and no leading tabs (\t)
 	for l, prev, i := 1, me.Content.Src[0], 1; i < len(me.Content.Src); i++ {
 		cur := me.Content.Src[i]
 		if cur == '\n' {
 			l++
 		} else if (cur == '\r') || ((cur == '\t') && (prev == '\n')) {
-			return nil, []*SrcFileNotice{{Kind: NoticeKindErr, Code: NoticeCodeBadWhitespace, Message: errMsgs[NoticeCodeBadWhitespace],
-				Span: SrcFileSpan{Start: SrcFilePos{Line: l, Char: 1}, End: SrcFilePos{Line: l, Char: 1}}}}
+			return nil, []*SrcFileNotice{{Kind: NoticeKindErr, Code: NoticeCodeBadWhitespace,
+				Message: errMsgs[NoticeCodeBadWhitespace], Span: (&SrcFilePos{Line: l, Char: 1}).ToSpan()}}
 		}
 		prev = cur
 	}
@@ -97,8 +98,8 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 	scan.Init(strings.NewReader(me.Content.Src))
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
-		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError, Message: msg,
-			Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
+		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError,
+			Message: str.Fmt(errMsgs[NoticeCodeLexingError], msg), Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
 	}
 	var last_ident_first_char rune
 	scan.IsIdentRune = func(char rune, i int) bool {
@@ -152,35 +153,29 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 			}
 		}
 
-		toks = append(toks, tok)
-		prev = tok
-	}
-
-	// split dot-ending float toks like `10.` into 2 int-then-dot toks, to allow for dot-methods on int literals like `10.timesDo fn` etc.
-	// TODO: bring into loop above
-	for i := 0; i < len(toks); i++ {
-		if tok := toks[i]; tok.Kind == TokKindLitFloat && str.Ends(tok.Src, ".") {
-			toks = append(toks[:i+1], append(Toks{{
+		switch {
+		default:
+			toks = append(toks, tok)
+		case (prev != nil) && (prev.Kind == TokKindIdentOpish) && (tok.Kind == TokKindIdentOpish) && ((prev.Pos.Char + len(prev.Src)) == tok.Pos.Char):
+			// multi-char op toks such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
+			prev.Src += tok.Src
+		case ((tok.Kind == TokKindLitFloat) && str.Ends(tok.Src, ".")):
+			// split dot-ending float toks like `10.` into 2 toks (int then dot), to allow for dot-methods on int literals like `10.timesDo fn` etc.
+			dot := &Tok{
 				byteOffset: tok.byteOffset + (len(tok.Src) - 1),
 				Pos:        SrcFilePos{Line: tok.Pos.Line, Char: tok.Pos.Char + (len(tok.Src) - 1)},
 				Kind:       TokKindIdentOpish,
-				Src:        tok.Src[len(tok.Src)-1:]},
-			}, toks[i+1:]...)...)
-			tok.Kind = TokKindLitInt
-			tok.Src = tok.Src[:len(tok.Src)-1]
+				Src:        tok.Src[len(tok.Src)-1:],
+			}
+			tok.Kind, tok.Src = TokKindLitInt, tok.Src[:len(tok.Src)-1]
+			toks = append(toks, tok, dot)
+			tok = dot // so `prev` is correct
 		}
+
+		prev = tok
 	}
 
-	// multi-char op chars such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
-	for i := 1; i < len(toks); i++ {
-		if (toks[i-1].Kind == TokKindIdentOpish) && (toks[i].Kind == TokKindIdentOpish) && ((toks[i-1].Pos.Char + len(toks[i-1].Src)) == toks[i].Pos.Char) {
-			toks[i-1].Src += toks[i].Src
-			toks = append(toks[:i], toks[i+1:]...)
-			i--
-		}
-	}
-
-	if len(toks) > 0 && toks[0].Pos.Char > 1 {
+	if toks[0].Pos.Char > 1 {
 		me.Notices.LexErrs = append(me.Notices.LexErrs, toks[0].newIndentErr())
 	}
 	return
@@ -286,10 +281,10 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 		}
 	}
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch,
-		Message: errMsgs[NoticeCodeBracesMismatch] +
+		Message: str.Fmt(errMsgs[NoticeCodeBracesMismatch],
 			util.If((me[0].Src[0] == '(') || (me[0].Src[0] == ')'), "parens",
 				util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
-					"braces"))}
+					"braces")))}
 }
 
 func (me Toks) isMultiLine() bool {

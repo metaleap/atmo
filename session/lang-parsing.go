@@ -165,12 +165,16 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 					node := &AstNode{Kind: util.If(tok.Src[0] == '[', AstNodeKindSquareBrackets, AstNodeKindCurlyBraces)}
 					node.Toks = toks[0 : len(toks_inner)+2]  // want to include the braces/brackets in the node's SrcFileSpan..
 					node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
+					last := toks_inner[0]
 					for _, toks := range split {
 						if len(toks) > 0 {
 							node.ChildNodes = append(node.ChildNodes, me.parseNode(toks, true))
+							last = toks[len(toks)-1]
 						} else {
+							loc := sl.FirstWhere(toks_inner, func(it *Tok) bool { return it.byteOffset > last.byteOffset })
+							util.Assert(loc != nil, last)
 							node.Kind = AstNodeKindErr
-							node.err = toks_inner.newErr(NoticeCodeExprExpected, "expression expected before a comma somewhere in this comma-separated bunch of expressions")
+							node.err = loc.newErr(NoticeCodeExprExpected)
 						}
 					}
 					ret = append(ret, node)
@@ -179,7 +183,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 			}
 		default:
 			ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks[:1], Src: tok.Src, err: &SrcFileNotice{
-				Kind: NoticeKindErr, Message: "unexpected: '" + tok.Src + "'", Span: tok.span(), Code: NoticeCodeMisplaced,
+				Kind: NoticeKindErr, Message: str.Fmt(errMsgs[NoticeCodeMisplaced], tok.Src), Span: tok.span(), Code: NoticeCodeMisplaced,
 			}})
 			toks = toks[1:]
 		}

@@ -397,6 +397,37 @@ type Command struct {
 	Arguments []any  `json:"arguments,omitempty"`
 }
 
+type CodeAction struct {
+	Title       string         `json:"title"`
+	Kind        CodeActionKind `json:"kind,omitempty"`
+	Diagnostics []Diagnostic   `json:"diagnostics,omitempty"`
+	IsPreferred bool           `json:"isPreferred,omitempty"`
+	Edit        *WorkspaceEdit `json:"edit,omitempty"`
+	Command     *Command       `json:"command,omitempty"`
+	Data        any            `json:"data,omitempty"`
+}
+
+type CodeActionKind string
+
+const (
+	CodeActionKindEmpty                 CodeActionKind = ""
+	CodeActionKindQuickFix              CodeActionKind = "quickfix"
+	CodeActionKindRefactor              CodeActionKind = "refactor"
+	CodeActionKindRefactorExtract       CodeActionKind = "refactor.extract"
+	CodeActionKindRefactorInline        CodeActionKind = "refactor.inline"
+	CodeActionKindRefactorRewrite       CodeActionKind = "refactor.rewrite"
+	CodeActionKindSource                CodeActionKind = "source"
+	CodeActionKindSourceOrganizeImports CodeActionKind = "source.organizeImports"
+	CodeActionKindSourceFixAll          CodeActionKind = "source.fixAll"
+)
+
+func (me CodeActionKind) String() string { return string(me) }
+
+type CodeActionContext struct {
+	Diagnostics []Diagnostic     `json:"diagnostics"`
+	Only        []CodeActionKind `json:"only,omitempty"`
+}
+
 type LogMessageParams struct {
 	Type    MessageType `json:"type"`
 	Message string      `json:"message"`
