@@ -29,7 +29,6 @@ const (
 	NoticeCodeIndentation    SrcFileNoticeCode = "Indentation"
 	NoticeCodeMisplaced      SrcFileNoticeCode = "Misplaced"
 	NoticeCodeBracesMismatch SrcFileNoticeCode = "BracesMismatch"
-	NoticeCodeExprExpected   SrcFileNoticeCode = "ExprExpected"
 )
 
 var (
@@ -45,7 +44,6 @@ var (
 		NoticeCodeIndentation:    "ambiguous indentation",
 		NoticeCodeMisplaced:      "unexpected: '%s'",
 		NoticeCodeBracesMismatch: "no matching opening and closing %s",
-		NoticeCodeExprExpected:   "expression expected",
 	}
 )
 

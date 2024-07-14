@@ -94,6 +94,7 @@ func (me *SrcFile) parseNode(toks Toks, checkForHuddle bool) *AstNode {
 }
 
 func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
+	var stack []AstNodes // in case of indents/dedents in toks
 	for len(toks) > 0 {
 		if checkForHuddle {
 			if huddled, rest := toks.huddle(); len(huddled) > 1 && ((len(rest) > 0) || (len(ret) > 0)) {
@@ -105,8 +106,6 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 
 		tok := toks[0]
 		switch tok.Kind {
-		case TokKindNewLine, TokKindIndent, TokKindDedent:
-			toks = toks[1:]
 		case TokKindComment:
 			ret = append(ret, &AstNode{Kind: AstNodeKindComment, Toks: toks[:1], Src: tok.Src, Lit: tok.Src})
 			toks = toks[1:]
@@ -156,9 +155,28 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 				ret = append(ret, node)
 				toks = toks_tail
 			}
+		case TokKindDedent:
+			pop := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			ret = append(pop, &AstNode{Kind: AstNodeKindMultiple, Toks: ret.toks(),
+				Src: ret.toks().src(me.Content.Src), ChildNodes: ret})
+			toks = toks[1:]
+		case TokKindIndent:
+			stack = append(stack, ret)
+			ret = nil
+			toks = toks[1:]
+		case TokKindNewLine:
+			toks = toks[1:]
 		default:
 			panic(tok)
 		}
+	}
+
+	if len(stack) > 0 {
+		pop := stack[len(stack)-1]
+		ret_toks := util.If(len(ret) == 0, ret, pop).toks()
+		ret = append(pop, &AstNode{Kind: AstNodeKindErr, Toks: ret_toks,
+			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, err: ret_toks.newErr(NoticeCodeIndentation, "")})
 	}
 
 	return
