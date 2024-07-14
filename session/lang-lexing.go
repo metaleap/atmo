@@ -129,13 +129,15 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		// indent/dedent/newline handling: taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
 		if is_new_line := (brace_level == 0) && ((prev == nil) || (tok.Pos.Line > prev.Pos.Line)); is_new_line {
 			toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindNewLine, Pos: tok.Pos, Src: tok.Src})
-			switch stack_top := stack[len(stack)-1]; true {
-			case tok.Pos.Char < stack_top:
+			stack_top := stack[len(stack)-1]
+
+			if tok.Pos.Char < stack_top {
 				for ; stack_top > tok.Pos.Char; stack_top = stack[len(stack)-1] {
 					stack = stack[:len(stack)-1]
 					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindDedent, Pos: tok.Pos, Src: tok.Src})
 				}
-			case tok.Pos.Char > stack_top:
+			} else if tok.Pos.Char > 1 {
+				// check for preceding carriage-return or leading tabs
 				if prev != nil {
 					src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
 					if (!had_cr_err) && str.Idx(src_since_prev, '\r') >= 0 {
@@ -146,8 +148,10 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 						errs = append(errs, tok.newErr(NoticeCodeWhitespace))
 					}
 				}
-				stack = append(stack, tok.Pos.Char)
-				toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
+				if tok.Pos.Char > stack_top {
+					stack = append(stack, tok.Pos.Char)
+					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
+				}
 			}
 		}
 
