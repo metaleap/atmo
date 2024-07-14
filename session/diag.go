@@ -5,7 +5,6 @@ import (
 	"atmo/util/sl"
 	"atmo/util/str"
 	"cmp"
-	"maps"
 	"slices"
 	"sync"
 )
@@ -74,7 +73,7 @@ func errToNotice(err error, code SrcFileNoticeCode, span *SrcFileSpan) (ret *Src
 
 // callers have already `allSrcFilesMutex.Lock`ed
 func refreshAndPublishNotices(provokingFilePaths ...string) {
-	all_notices := map[string][]*SrcFileNotice{}
+	new_notices := map[string][]*SrcFileNotice{}
 
 	for _, src_file_path := range provokingFilePaths {
 		var file_notices []*SrcFileNotice
@@ -98,19 +97,34 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 			}
 			return cmp.Compare(diag1.Span.Start.Line, diag2.Span.Start.Line)
 		})
-		all_notices[src_file_path] = file_notices
+		new_notices[src_file_path] = file_notices
 	}
 
+	var have_changes bool
 	allNoticesMutex.Lock()
-	changed := !maps.EqualFunc(all_notices, allNotices, func(diags1 []*SrcFileNotice, diags2 []*SrcFileNotice) bool {
-		return slices.EqualFunc(diags1, diags2, func(diag1 *SrcFileNotice, diag2 *SrcFileNotice) bool {
+	for src_file_path := range allNotices {
+		if _, still_exists := allSrcFiles[src_file_path]; !still_exists {
+			have_changes = true
+			delete(allNotices, src_file_path)
+		}
+	}
+	for src_file_path, new_notices := range new_notices {
+		old_notices := allNotices[src_file_path]
+		if !slices.EqualFunc(old_notices, new_notices, func(diag1 *SrcFileNotice, diag2 *SrcFileNotice) bool {
 			return (diag1 == diag2) || (*diag1 == *diag2)
-		})
-	})
-	allNotices = all_notices
+		}) {
+			have_changes = true
+			break
+		}
+	}
+	if have_changes {
+		for src_file_path, new_notices := range new_notices {
+			allNotices[src_file_path] = new_notices
+		}
+	}
 	allNoticesMutex.Unlock()
 
-	if changed {
+	if have_changes {
 		OnNoticesChanged()
 	}
 }

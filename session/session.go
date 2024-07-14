@@ -58,25 +58,39 @@ func WithSrcFileDo(srcFilePath string, canSkipFileRead bool, do func(srcFile *Sr
 
 	if src_file := ensureSrcFile(srcFilePath, nil, canSkipFileRead); src_file != nil {
 		do(src_file)
+	} else { // file might be gone from diags by now
+		refreshAndPublishNotices(srcFilePath)
 	}
 }
 
 func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
 	util.Assert(IsSrcFilePath(srcFilePath), srcFilePath)
 
+	if !util.FsIsFile(srcFilePath) {
+		delete(allSrcFiles, srcFilePath)
+		return nil
+	}
+
 	me := allSrcFiles[srcFilePath]
 	if me == nil {
 		me = &SrcFile{FilePath: srcFilePath}
 		allSrcFiles[srcFilePath] = me
 	}
+
 	old_content, had_last_read_err := me.Content.Src, (me.Notices.LastReadErr != nil)
 	if curFullContent != nil {
 		me.Content.Src, me.Notices.LastReadErr = *curFullContent, nil
 	} else if (!canSkipFileRead) || had_last_read_err {
 		src_file_bytes, err := os.ReadFile(srcFilePath)
-		me.Content.Src, me.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, nil)
+		if os.IsNotExist(err) {
+			delete(allSrcFiles, srcFilePath)
+			return nil
+		} else {
+			me.Content.Src, me.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, nil)
+		}
 	}
-	if (me.Content.Src == "") || (me.Content.Src != old_content) || had_last_read_err || (me.Notices.LastReadErr != nil) {
+
+	if (me.Content.Src != old_content) || had_last_read_err || (me.Notices.LastReadErr != nil) {
 		me.Content.Ast, me.Content.Toks, me.Notices.LexErrs = nil, nil, nil
 		if me.Notices.LastReadErr == nil {
 			me.Content.Toks, me.Notices.LexErrs = tokenize(me.FilePath, me.Content.Src)
