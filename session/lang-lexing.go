@@ -51,18 +51,18 @@ type Toks []*Tok
 type TokKind int
 
 const (
-	_ TokKind = iota
-	TokKindComment
-	TokKindBrace
-	TokKindSep
-	// below: only toks that, without whitespace between them, will `huddle` together
+	_              TokKind = iota
+	TokKindComment         // both /* multi-line */ and // single-line
+	TokKindBrace           // parens, square brackets, curly braces
+	TokKindSep             // comma
+	// below: only toks that, if no sep-or-ws between them, will `huddle` together
 	// into their own single contiguous expr as if parensed (above: those that won't)
-	TokKindOp
-	TokKindIdent
-	TokKindLitRune
-	TokKindLitStr
-	TokKindLitInt
-	TokKindLitFloat
+	TokKindIdentWord  // lexemes that pass the `IsIdentRune` predicate below
+	TokKindIdentOpish // all lexemes that dont match any other TokKind
+	TokKindLitRune    // eg. 'ö' or '\''
+	TokKindLitStr     // eg. "foo:\"bar\"" or `bar:"baz"`
+	TokKindLitInt     // eg. 123 or -321
+	TokKindLitFloat   // eg. 12.3 or -3.21
 )
 
 type Tok struct {
@@ -107,13 +107,13 @@ func (me *SrcFile) tokenize() (toks Toks, toksChunks toksChunks, errs []*SrcFile
 		case scanner.String, scanner.RawString:
 			tok.Kind = TokKindLitStr
 		case scanner.Ident:
-			tok.Kind = TokKindIdent
+			tok.Kind = TokKindIdentWord
 		case '(', ')', '{', '}', '[', ']':
 			tok.Kind = TokKindBrace
 		case ',':
 			tok.Kind = TokKindSep
 		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
-			tok.Kind = TokKindOp
+			tok.Kind = TokKindIdentOpish
 		}
 		toks = append(toks, &tok)
 	}
@@ -124,7 +124,7 @@ func (me *SrcFile) tokenize() (toks Toks, toksChunks toksChunks, errs []*SrcFile
 			toks = append(toks[:i+1], append(Toks{{
 				byteOffset: tok.byteOffset + (len(tok.Src) - 1),
 				Pos:        SrcFilePos{Line: tok.Pos.Line, Char: tok.Pos.Char + (len(tok.Src) - 1)},
-				Kind:       TokKindOp,
+				Kind:       TokKindIdentOpish,
 				Src:        tok.Src[len(tok.Src)-1:]},
 			}, toks[i+1:]...)...)
 			tok.Kind = TokKindLitInt
@@ -134,7 +134,7 @@ func (me *SrcFile) tokenize() (toks Toks, toksChunks toksChunks, errs []*SrcFile
 
 	// multi-char op chars such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
 	for i := 1; i < len(toks); i++ {
-		if (toks[i-1].Kind == TokKindOp) && (toks[i].Kind == TokKindOp) && ((toks[i-1].Pos.Char + len(toks[i-1].Src)) == toks[i].Pos.Char) {
+		if (toks[i-1].Kind == TokKindIdentOpish) && (toks[i].Kind == TokKindIdentOpish) && ((toks[i-1].Pos.Char + len(toks[i-1].Src)) == toks[i].Pos.Char) {
 			toks[i-1].Src += toks[i].Src
 			toks = append(toks[:i], toks[i+1:]...)
 			i--
@@ -202,7 +202,7 @@ func (me Toks) huddle() (huddled Toks, rest Toks) {
 	var idx_until int
 	for i := 1; i < len(me); i++ {
 		cur, prev := me[i], me[i-1]
-		if cur.byteOffset == (prev.byteOffset+len(prev.Src)) && cur.Kind >= TokKindOp && prev.Kind >= TokKindOp {
+		if cur.byteOffset == (prev.byteOffset+len(prev.Src)) && cur.Kind >= TokKindIdentOpish && prev.Kind >= TokKindIdentOpish {
 			idx_until = i + 1
 		} else {
 			break

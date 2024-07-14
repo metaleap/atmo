@@ -63,7 +63,7 @@ func EnsureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 		if me.Notices.LastReadErr == nil {
 			var toksChunked toksChunks
 			me.Content.Toks, toksChunked, me.Notices.LexErrs = me.tokenize()
-			if len(me.Notices.LexErrs) == 0 {
+			if false && len(me.Notices.LexErrs) == 0 {
 				me.parse(toksChunked)
 			}
 		}

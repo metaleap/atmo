@@ -45,7 +45,7 @@ func (me *SrcFile) parse(toksChunked toksChunks) {
 		parsed = append(parsed, me.parseChunk(toks_chunk, true))
 	}
 
-	// multi-line call-forms in braces/brackets/parens: make each subsequent multi-tok line its own call-form
+	// multi-line call-forms in parens: make each subsequent multi-tok line its own call-form
 	parsed.walk(nil, func(node *AstNode) {
 		if node.Kind == AstNodeKindMultiple && node.isParensed() && node.Toks.isMultiLine() {
 			lines := node.ChildNodes.splitByLines()
@@ -97,17 +97,23 @@ func (me *SrcFile) parseChunk(toksChunk *toksChunk, checkForHuddle bool) (ret *A
 		subs = append(subs, me.parseChunk(sub, checkForHuddle))
 	}
 	if len(subs) > 0 {
-		switch ret.Kind {
-		case AstNodeKindComment, AstNodeKindLit:
-			ret.Kind, ret.err = AstNodeKindErr, subs[0].Toks[0].newIndentErr()
-		case AstNodeKindMultiple:
-			ret.ChildNodes = append(ret.ChildNodes, subs...)
-		default:
-			ret = &AstNode{
-				Kind:       AstNodeKindMultiple,
-				ChildNodes: append(AstNodes{ret}, subs...),
-			}
-		}
+		ret.ChildNodes = append(ret.ChildNodes, &AstNode{
+			Kind:       AstNodeKindMultiple,
+			Src:        subs.toks().src(me.Content.Src),
+			Toks:       subs.toks(),
+			ChildNodes: subs,
+		})
+		// switch ret.Kind {
+		// case AstNodeKindComment, AstNodeKindLit:
+		// 	ret.Kind, ret.err = AstNodeKindErr, subs[0].Toks[0].newIndentErr()
+		// case AstNodeKindMultiple:
+		// 	ret.ChildNodes = append(ret.ChildNodes, subs...)
+		// default:
+		// 	ret = &AstNode{
+		// 		Kind:       AstNodeKindMultiple,
+		// 		ChildNodes: append(AstNodes{ret}, subs...),
+		// 	}
+		// }
 		ret.Toks, ret.Src = toksChunk.full, toksChunk.full.src(me.Content.Src)
 	}
 	return
@@ -165,7 +171,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 				}))
 			}
 			toks = toks[1:]
-		case TokKindIdent, TokKindOp:
+		case TokKindIdentWord, TokKindIdentOpish:
 			ret = append(ret, parseLit[string](toks, AstNodeKindIdent, func(src string) (string, error) { return src, nil }))
 			toks = toks[1:]
 		case TokKindBrace:
@@ -296,7 +302,7 @@ func (me *AstNode) find(where func(*AstNode) bool) (ret *AstNode) {
 }
 
 func (me *AstNode) isIdentOp() bool {
-	return me.Kind == AstNodeKindIdent && me.Toks[0].Kind == TokKindOp
+	return me.Kind == AstNodeKindIdent && me.Toks[0].Kind == TokKindIdentOpish
 }
 
 func (me *AstNode) isParensed() bool {
