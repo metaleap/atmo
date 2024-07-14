@@ -44,37 +44,37 @@ func (me *SrcFile) parse() {
 
 	// multi-line call-forms in parens: make each subsequent multi-tok line its own call-form
 	parsed.walk(nil, func(node *AstNode) {
-		if node.Kind == AstNodeKindMultiple && node.isParensed() && node.Toks.isMultiLine() {
-			lines := node.ChildNodes.splitByLines()
-			node.ChildNodes = lines[0]
+		// if node.Kind == AstNodeKindMultiple && node.isParensed() && node.Toks.isMultiLine() {
+		// 	lines := node.ChildNodes.splitByLines()
+		// 	node.ChildNodes = lines[0]
 
-			for _, line := range lines[1:] {
-				if len(line) == 1 {
-					node.ChildNodes = append(node.ChildNodes, line[0])
-				} else {
-					call_node := &AstNode{Kind: AstNodeKindMultiple, Src: line.toks().src(me.Content.Src),
-						Toks: line.toks(), ChildNodes: line}
-					node.ChildNodes = append(node.ChildNodes, call_node)
-				}
-			}
-		}
+		// 	for _, line := range lines[1:] {
+		// 		if len(line) == 1 {
+		// 			node.ChildNodes = append(node.ChildNodes, line[0])
+		// 		} else {
+		// 			call_node := &AstNode{Kind: AstNodeKindMultiple, Src: line.toks().src(me.Content.Src),
+		// 				Toks: line.toks(), ChildNodes: line}
+		// 			node.ChildNodes = append(node.ChildNodes, call_node)
+		// 		}
+		// 	}
+		// }
 	})
 
 	// rewrite all call-forms with an infix operator: `foo bar · baz mojo + times 10` => `(· (foo bar) (+ (baz mojo) (times 10)))`
 	// that is: everything to its left is its lhs expr, everything to its right is its rhs expr.
 	parsed.walk(nil, func(node *AstNode) {
-		if node.Kind == AstNodeKindMultiple {
-			idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOp)
-			if idx > 0 {
-				op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
-				// println(">>>>>>>>>INFIXX>>>>>>>>>>>>>>" + op.Src + "<<<<<<<<<<<<<<<<<<INSIDE>>>>>>>" + node.Src + "<<<<<<<<<<<<<<<<<")
-				lhs = AstNodes{{Kind: AstNodeKindMultiple, Src: lhs.toks().src(me.Content.Src),
-					Toks: lhs.toks(), ChildNodes: lhs}}
-				rhs = AstNodes{{Kind: AstNodeKindMultiple, Src: rhs.toks().src(me.Content.Src),
-					Toks: rhs.toks(), ChildNodes: rhs}}
-				node.ChildNodes = AstNodes{op, lhs[0], rhs[0]}
-			}
-		}
+		// if node.Kind == AstNodeKindMultiple {
+		// 	idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOp)
+		// 	if idx > 0 {
+		// 		op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
+		// 		// println(">>>>>>>>>INFIXX>>>>>>>>>>>>>>" + op.Src + "<<<<<<<<<<<<<<<<<<INSIDE>>>>>>>" + node.Src + "<<<<<<<<<<<<<<<<<")
+		// 		lhs = AstNodes{{Kind: AstNodeKindMultiple, Src: lhs.toks().src(me.Content.Src),
+		// 			Toks: lhs.toks(), ChildNodes: lhs}}
+		// 		rhs = AstNodes{{Kind: AstNodeKindMultiple, Src: rhs.toks().src(me.Content.Src),
+		// 			Toks: rhs.toks(), ChildNodes: rhs}}
+		// 		node.ChildNodes = AstNodes{op, lhs[0], rhs[0]}
+		// 	}
+		// }
 	})
 
 	// sort all top-level nodes to be in source-file order of appearance; also set all `AstNode.parent`s
@@ -107,6 +107,8 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 
 		tok := toks[0]
 		switch tok.Kind {
+		case TokKindNewLine, TokKindIndent, TokKindDedent:
+			toks = toks[1:]
 		case TokKindComment:
 			ret = append(ret, &AstNode{Kind: AstNodeKindComment, Toks: toks[:1], Src: tok.Src, Lit: tok.Src})
 			toks = toks[1:]

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval", "getSrcFileToks"}
+	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval", "getSrcFileToks", "getSrcFileAstOrig"}
 	Server.On_workspace_executeCommand = executeCommand
 }
 

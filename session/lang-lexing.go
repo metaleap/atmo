@@ -4,6 +4,7 @@ import (
 	"strings"
 	"text/scanner"
 	"unicode"
+	"unicode/utf8"
 
 	"atmo/util"
 	"atmo/util/sl"
@@ -80,7 +81,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		return
 	}
 
-	stack := []int{0}
+	stack := []int{1}
 	var brace_level int
 	toks = make(Toks, 0, len(curFullSrcFileContent)/3)
 	var scan scanner.Scanner
@@ -100,7 +101,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 	scan.Filename = srcFilePath
 
 	var prev *Tok
-	var had_cr_err bool
+	var had_ws_err bool
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
 		tok := &Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
 		tok.Src = curFullSrcFileContent[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
@@ -129,28 +130,25 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		// indent/dedent/newline handling: taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
 		if is_new_line := (brace_level == 0) && ((prev == nil) || (tok.Pos.Line > prev.Pos.Line)); is_new_line {
 			toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindNewLine, Pos: tok.Pos, Src: tok.Src})
-			stack_top := stack[len(stack)-1]
 
+			stack_top := stack[len(stack)-1]
 			if tok.Pos.Char < stack_top {
 				for ; stack_top > tok.Pos.Char; stack_top = stack[len(stack)-1] {
 					stack = stack[:len(stack)-1]
 					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindDedent, Pos: tok.Pos, Src: tok.Src})
 				}
-			} else if tok.Pos.Char > 1 {
-				// check for preceding carriage-return or leading tabs
-				if prev != nil {
-					src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
-					if (!had_cr_err) && str.Idx(src_since_prev, '\r') >= 0 {
-						had_cr_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
-					}
-					src_since_prev = src_since_prev[1+str.Idx(src_since_prev, '\n'):]
-					if str.Idx(src_since_prev, '\t') >= 0 {
-						errs = append(errs, tok.newErr(NoticeCodeWhitespace))
-					}
+			} else if tok.Pos.Char > stack_top {
+				stack = append(stack, tok.Pos.Char)
+				toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
+			}
+			if (tok.Pos.Char > 1) && (prev != nil) { // check for preceding carriage-return or leading tabs
+				src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
+				if (!had_ws_err) && str.Idx(src_since_prev, '\r') >= 0 {
+					had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
 				}
-				if tok.Pos.Char > stack_top {
-					stack = append(stack, tok.Pos.Char)
-					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
+				src_since_prev = src_since_prev[1+str.Idx(src_since_prev, '\n'):]
+				if (!had_ws_err) && str.Idx(src_since_prev, '\t') >= 0 {
+					had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
 				}
 			}
 		}
@@ -175,6 +173,12 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		}
 
 		prev = tok
+	}
+
+	for len(stack) > 1 {
+		stack = stack[:len(stack)-1]
+		toks = append(toks, &Tok{byteOffset: prev.byteOffset + len(prev.Src), Src: "", Kind: TokKindDedent,
+			Pos: SrcFilePos{Line: prev.Pos.Line, Char: prev.Pos.Char + utf8.RuneCountInString(prev.Src)}})
 	}
 
 	if toks[0].Pos.Char > 1 {

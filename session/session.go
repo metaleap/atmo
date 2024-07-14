@@ -32,8 +32,8 @@ type SrcFile struct {
 }
 
 func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
-	// allSrcFilesMutex.Lock()
-	// defer allSrcFilesMutex.Unlock()
+	allSrcFilesMutex.Lock()
+	defer allSrcFilesMutex.Unlock()
 
 	for _, file_path := range removed {
 		delete(allSrcFiles, file_path)
@@ -45,16 +45,16 @@ func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) 
 }
 
 func OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	// allSrcFilesMutex.Lock()
-	// defer allSrcFilesMutex.Unlock()
+	allSrcFilesMutex.Lock()
+	defer allSrcFilesMutex.Unlock()
 
 	ensureSrcFile(srcFilePath, &curFullContent, true)
 	refreshAndPublishNotices(srcFilePath)
 }
 
 func WithSrcFileDo(srcFilePath string, canSkipFileRead bool, do func(srcFile *SrcFile)) {
-	// allSrcFilesMutex.Lock()
-	// defer allSrcFilesMutex.Unlock()
+	allSrcFilesMutex.Lock()
+	defer allSrcFilesMutex.Unlock()
 
 	if src_file := ensureSrcFile(srcFilePath, nil, canSkipFileRead); src_file != nil {
 		do(src_file)
@@ -72,17 +72,17 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 	old_content, had_last_read_err := me.Content.Src, (me.Notices.LastReadErr != nil)
 	if curFullContent != nil {
 		me.Content.Src, me.Notices.LastReadErr = *curFullContent, nil
-	} else if (!canSkipFileRead) || had_last_read_err || (old_content == "") {
+	} else if (!canSkipFileRead) || had_last_read_err {
 		src_file_bytes, err := os.ReadFile(srcFilePath)
 		me.Content.Src, me.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, nil)
 	}
-	if (me.Content.Src != old_content) || had_last_read_err || (me.Notices.LastReadErr != nil) {
+	if (me.Content.Src == "") || (me.Content.Src != old_content) || had_last_read_err || (me.Notices.LastReadErr != nil) {
 		me.Content.Ast, me.Content.Toks, me.Notices.LexErrs = nil, nil, nil
 		if me.Notices.LastReadErr == nil {
 			me.Content.Toks, me.Notices.LexErrs = tokenize(me.FilePath, me.Content.Src)
-			// if false && len(me.Notices.LexErrs) == 0 {
-			// 	me.parse(toksChunked)
-			// }
+			if len(me.Notices.LexErrs) == 0 {
+				me.parse()
+			}
 		}
 	}
 	return me

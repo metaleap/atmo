@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"errors"
 	"io/fs"
 
 	lsp "atmo/lsp/sdk"
@@ -29,8 +30,10 @@ func init() {
 
 	Server.On_textDocument_didChange = func(params *lsp.DidChangeTextDocumentParams) (any, error) {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
-		if session.IsSrcFilePath(src_file_path) && len(params.ContentChanges) > 0 {
+		if session.IsSrcFilePath(src_file_path) && len(params.ContentChanges) == 1 {
 			session.OnSrcFileEdit(src_file_path, params.ContentChanges[0].Text)
+		} else if len(params.ContentChanges) > 1 {
+			return nil, errors.New("'textDocument/didChange' notifications based on `TextDocumentSyncKind.Incremental` not supported")
 		}
 		return nil, nil
 	}
