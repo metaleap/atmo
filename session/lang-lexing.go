@@ -84,9 +84,8 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 		if cur == '\n' {
 			l++
 		} else if (cur == '\r') || ((cur == '\t') && (prev == '\n')) {
-			return nil, []*SrcFileNotice{{Kind: NoticeKindErr, Code: NoticeCodeBadWhitespace,
-				Message: "unsupported white-space; ensure both: no leading tabs and only LF (no CR) line endings",
-				Span:    SrcFileSpan{Start: SrcFilePos{Line: l, Char: 1}, End: SrcFilePos{Line: l, Char: 1}}}}
+			return nil, []*SrcFileNotice{{Kind: NoticeKindErr, Code: NoticeCodeBadWhitespace, Message: errMsgs[NoticeCodeBadWhitespace],
+				Span: SrcFileSpan{Start: SrcFilePos{Line: l, Char: 1}, End: SrcFilePos{Line: l, Char: 1}}}}
 		}
 		prev = cur
 	}
@@ -98,7 +97,7 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 	scan.Init(strings.NewReader(me.Content.Src))
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
-		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Message: msg, Code: NoticeCodeLexingError,
+		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError, Message: msg,
 			Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
 	}
 	var last_ident_first_char rune
@@ -136,9 +135,9 @@ func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
 			tok.Kind = TokKindIdentOpish
 		}
 
-		if prev != nil && brace_level == 0 {
+		if brace_level == 0 {
 			// indent/dedent/newline handling: taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
-			if tok.Pos.Line > prev.Pos.Line {
+			if (prev == nil) || (tok.Pos.Line > prev.Pos.Line) {
 				toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindNewLine, Pos: tok.Pos, Src: tok.Src})
 				switch stack_top := stack[len(stack)-1]; true {
 				case tok.Pos.Char > stack_top:
@@ -243,12 +242,12 @@ func (me Toks) huddle() (huddled Toks, rest Toks) {
 	return me[:idx_until], me[idx_until:]
 }
 
-func (me *Tok) newErr(code SrcFileNoticeCode, msg string) *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: msg}
+func (me *Tok) newErr(code SrcFileNoticeCode) *SrcFileNotice {
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: errMsgs[code]}
 }
 
 func (me *Tok) newIndentErr() *SrcFileNotice {
-	return me.newErr(NoticeCodeIndentation, "ambiguous indentation")
+	return me.newErr(NoticeCodeIndentation)
 }
 
 func (me *Tok) span() (ret SrcFileSpan) {
@@ -286,19 +285,22 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 			}
 		}
 	}
-	err_msg := "no matching opening and closing " +
-		util.If((me[0].Src[0] == '(') || (me[0].Src[0] == ')'), "parens",
-			util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
-				"braces"))
-	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch, Message: err_msg}
+	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch,
+		Message: errMsgs[NoticeCodeBracesMismatch] +
+			util.If((me[0].Src[0] == '(') || (me[0].Src[0] == ')'), "parens",
+				util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
+					"braces"))}
 }
 
 func (me Toks) isMultiLine() bool {
 	return (me[len(me)-1].Pos.Line > me[0].Pos.Line)
 }
 
-func (me Toks) newErr(code SrcFileNoticeCode, msg string) *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.Span(), Message: msg}
+func (me Toks) newErr(code SrcFileNoticeCode, errMsg string) *SrcFileNotice {
+	if errMsg == "" {
+		errMsg = errMsgs[code]
+	}
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.Span(), Message: errMsg}
 }
 
 func (me Toks) Span() (ret SrcFileSpan) {

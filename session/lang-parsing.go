@@ -152,7 +152,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 				case '(':
 					if len(toks_inner) == 0 {
 						ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks[:2], Src: toks[:2].src(me.Content.Src), err: &SrcFileNotice{
-							Kind: NoticeKindErr, Message: "expression expected", Span: toks[1].span(), Code: NoticeCodeExprExpected,
+							Kind: NoticeKindErr, Message: errMsgs[NoticeCodeExprExpected], Span: toks[1].span(), Code: NoticeCodeExprExpected,
 						}})
 					} else {
 						node := me.parseNode(toks_inner, true)

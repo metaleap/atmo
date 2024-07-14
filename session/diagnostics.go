@@ -1,10 +1,5 @@
 package session
 
-var (
-	OnNoticesChanged = func(map[string][]*SrcFileNotice) {}
-	OnDbgMsg         = func(bool, string, ...any) {}
-)
-
 type SrcFileNoticeKind int
 
 const (
@@ -13,6 +8,18 @@ const (
 	NoticeKindWarn
 	NoticeKindInfo
 	NoticeKindHint
+)
+
+var (
+	OnNoticesChanged = func(map[string][]*SrcFileNotice) {}
+	OnDbgMsg         = func(bool, string, ...any) {}
+
+	errMsgs = map[SrcFileNoticeCode]string{
+		NoticeCodeBadWhitespace:  "unsupported white-space; ensure both: no leading tabs and only LF (no CR) line endings",
+		NoticeCodeIndentation:    "ambiguous indentation",
+		NoticeCodeBracesMismatch: "no matching opening and closing ", // appended by caller: "brackets" or "braces" or "parens"
+		NoticeCodeExprExpected:   "expression expected",
+	}
 )
 
 type SrcFileNoticeCode string
