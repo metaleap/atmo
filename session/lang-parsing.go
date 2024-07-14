@@ -39,11 +39,8 @@ const (
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
 // mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
-func (me *SrcFile) parse(toksChunked toksChunks) {
-	var parsed AstNodes
-	for _, toks_chunk := range toksChunked {
-		parsed = append(parsed, me.parseChunk(toks_chunk, true))
-	}
+func (me *SrcFile) parse() {
+	parsed := me.parseNodes(me.Content.Toks, true)
 
 	// multi-line call-forms in parens: make each subsequent multi-tok line its own call-form
 	parsed.walk(nil, func(node *AstNode) {
@@ -88,35 +85,6 @@ func (me *SrcFile) parse(toksChunked toksChunks) {
 		}
 	})
 	me.Content.Ast = parsed
-}
-
-func (me *SrcFile) parseChunk(toksChunk *toksChunk, checkForHuddle bool) (ret *AstNode) {
-	ret = me.parseNode(toksChunk.self, checkForHuddle)
-	var subs AstNodes
-	for _, sub := range toksChunk.subs {
-		subs = append(subs, me.parseChunk(sub, checkForHuddle))
-	}
-	if len(subs) > 0 {
-		ret.ChildNodes = append(ret.ChildNodes, &AstNode{
-			Kind:       AstNodeKindMultiple,
-			Src:        subs.toks().src(me.Content.Src),
-			Toks:       subs.toks(),
-			ChildNodes: subs,
-		})
-		// switch ret.Kind {
-		// case AstNodeKindComment, AstNodeKindLit:
-		// 	ret.Kind, ret.err = AstNodeKindErr, subs[0].Toks[0].newIndentErr()
-		// case AstNodeKindMultiple:
-		// 	ret.ChildNodes = append(ret.ChildNodes, subs...)
-		// default:
-		// 	ret = &AstNode{
-		// 		Kind:       AstNodeKindMultiple,
-		// 		ChildNodes: append(AstNodes{ret}, subs...),
-		// 	}
-		// }
-		ret.Toks, ret.Src = toksChunk.full, toksChunk.full.src(me.Content.Src)
-	}
-	return
 }
 
 func (me *SrcFile) parseNode(toks Toks, checkForHuddle bool) *AstNode {

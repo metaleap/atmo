@@ -20,6 +20,7 @@ type SrcFileNoticeCode string
 const (
 	NoticeCodeFileReadError  SrcFileNoticeCode = "FileReadError"
 	NoticeCodeLexingError    SrcFileNoticeCode = "LexingError"
+	NoticeCodeBadWhitespace  SrcFileNoticeCode = "BadWhitespace"
 	NoticeCodeBracesMismatch SrcFileNoticeCode = "BracesMismatch"
 	NoticeCodeBadLitSyntax   SrcFileNoticeCode = "BadLitSyntax"
 	NoticeCodeMisplaced      SrcFileNoticeCode = "Misplaced"

@@ -48,13 +48,22 @@ func (me SrcFileSpan) contains(it *SrcFilePos) bool {
 func (me *SrcFileSpan) isSinglePos() bool { return me.Start == me.End }
 
 type Toks []*Tok
+type Tok struct {
+	byteOffset int
+	Kind       TokKind
+	Pos        SrcFilePos
+	Src        string
+}
 type TokKind int
 
 const (
-	_              TokKind = iota
-	TokKindComment         // both /* multi-line */ and // single-line
-	TokKindBrace           // parens, square brackets, curly braces
-	TokKindSep             // comma
+	_ TokKind = iota
+	TokKindNewLine
+	TokKindIndent
+	TokKindDedent
+	TokKindComment // both /* multi-line */ and // single-line
+	TokKindBrace   // parens, square brackets, curly braces
+	TokKindSep     // comma
 	// below: only toks that, if no sep-or-ws between them, will `huddle` together
 	// into their own single contiguous expr as if parensed (above: those that won't)
 	TokKindIdentWord  // lexemes that pass the `IsIdentRune` predicate below
@@ -65,19 +74,28 @@ const (
 	TokKindLitFloat   // eg. 12.3 or -3.21
 )
 
-type Tok struct {
-	byteOffset int
-	Pos        SrcFilePos
-	Kind       TokKind
-	Src        string
-}
-
 // only called by `EnsureSrcFile`
-func (me *SrcFile) tokenize() (toks Toks, toksChunks toksChunks, errs []*SrcFileNotice) {
+func (me *SrcFile) tokenize() (toks Toks, errs []*SrcFileNotice) {
+	if len(me.Content.Src) == 0 {
+		return
+	}
+	for l, prev, i := 1, me.Content.Src[0], 1; i < len(me.Content.Src); i++ {
+		cur := me.Content.Src[i]
+		if cur == '\n' {
+			l++
+		} else if (cur == '\r') || ((cur == '\t') && (prev == '\n')) {
+			return nil, []*SrcFileNotice{{Kind: NoticeKindErr, Code: NoticeCodeBadWhitespace,
+				Message: "unsupported white-space; ensure both: no leading tabs and only LF (no CR) line endings",
+				Span:    SrcFileSpan{Start: SrcFilePos{Line: l, Char: 1}, End: SrcFilePos{Line: l, Char: 1}}}}
+		}
+		prev = cur
+	}
+
+	stack := []int{0}
+	var brace_level int
 	toks = make(Toks, 0, len(me.Content.Src)/3)
 	var scan scanner.Scanner
 	scan.Init(strings.NewReader(me.Content.Src))
-	scan.Whitespace = 1<<'\n' | 1<<' '
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
 		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Message: msg, Code: NoticeCodeLexingError,
@@ -92,8 +110,9 @@ func (me *SrcFile) tokenize() (toks Toks, toksChunks toksChunks, errs []*SrcFile
 	}
 	scan.Filename = me.FilePath
 
+	var prev *Tok
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
-		tok := Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
+		tok := &Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
 		tok.Src = me.Content.Src[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
 		switch lexeme {
 		case scanner.Char:
@@ -110,15 +129,36 @@ func (me *SrcFile) tokenize() (toks Toks, toksChunks toksChunks, errs []*SrcFile
 			tok.Kind = TokKindIdentWord
 		case '(', ')', '{', '}', '[', ']':
 			tok.Kind = TokKindBrace
+			brace_level += util.If(tok.isBraceOpening(0), 1, -1)
 		case ',':
 			tok.Kind = TokKindSep
 		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
 			tok.Kind = TokKindIdentOpish
 		}
-		toks = append(toks, &tok)
+
+		if prev != nil && brace_level == 0 {
+			// indent/dedent/newline handling: taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
+			if tok.Pos.Line > prev.Pos.Line {
+				toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindNewLine, Pos: tok.Pos, Src: tok.Src})
+				switch stack_top := stack[len(stack)-1]; true {
+				case tok.Pos.Char > stack_top:
+					stack = append(stack, tok.Pos.Char)
+					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
+				case tok.Pos.Char < stack_top:
+					for ; stack_top > tok.Pos.Char; stack_top = stack[len(stack)-1] {
+						stack = stack[:len(stack)-1]
+						toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindDedent, Pos: tok.Pos, Src: tok.Src})
+					}
+				}
+			}
+		}
+
+		toks = append(toks, tok)
+		prev = tok
 	}
 
 	// split dot-ending float toks like `10.` into 2 int-then-dot toks, to allow for dot-methods on int literals like `10.timesDo fn` etc.
+	// TODO: bring into loop above
 	for i := 0; i < len(toks); i++ {
 		if tok := toks[i]; tok.Kind == TokKindLitFloat && str.Ends(tok.Src, ".") {
 			toks = append(toks[:i+1], append(Toks{{
@@ -144,14 +184,6 @@ func (me *SrcFile) tokenize() (toks Toks, toksChunks toksChunks, errs []*SrcFile
 	if len(toks) > 0 && toks[0].Pos.Char > 1 {
 		me.Notices.LexErrs = append(me.Notices.LexErrs, toks[0].newIndentErr())
 	}
-	if len(errs) == 0 {
-		var err *SrcFileNotice
-		toksChunks, err = toksChunked(toks)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
 	return
 }
 
@@ -307,84 +339,4 @@ func (me Toks) str() string { // only for occasional debug prints
 
 func (me Toks) withoutComments() Toks {
 	return sl.Where(me, func(it *Tok) bool { return it.Kind != TokKindComment })
-}
-
-type toksChunks []*toksChunk
-
-type toksChunk struct {
-	self Toks
-	subs toksChunks
-	full Toks
-}
-
-func (me *toksChunk) str(indent int) (ret string) {
-	ret = str.Repeat(" ", indent) + ">" + str.FromInt(indent) + ">" + me.self.str()
-	for _, it := range me.subs {
-		ret += "\n" + it.str(indent+2)
-	}
-	ret += "<" + str.FromInt(indent) + "<"
-	return
-}
-
-func (me toksChunks) str() string {
-	return str.Join(sl.As(me, func(it *toksChunk) string { return it.str(0) }), "\n")
-}
-
-func toksChunked(toks Toks) (ret toksChunks, err *SrcFileNotice) {
-	if len(toks) == 0 {
-		return nil, nil
-	}
-	pos_char, pos_line, last_line_start :=
-		toks[0].Pos.Char, toks[0].Pos.Line, toks[0].Pos
-	cur := &toksChunk{}
-	var cur_indent_toks Toks
-	cur_done := func(nextChunkStartTok *Tok) {
-		if len(cur.self) > 0 {
-			cur.subs, err = toksChunked(cur_indent_toks)
-			ret = append(ret, cur)
-		}
-		if nextChunkStartTok != nil {
-			cur, cur_indent_toks, pos_line =
-				&toksChunk{self: Toks{nextChunkStartTok}, full: Toks{nextChunkStartTok}}, nil, nextChunkStartTok.Pos.Line
-		}
-	}
-
-	// TODO: replace one-by-one appends with gathering idxs for sub-slicing from `toks`
-	for len(toks) > 0 {
-		tok := toks[0]
-		if tok.Pos.Line > last_line_start.Line {
-			last_line_start = tok.Pos
-		}
-		switch {
-		case tok.isBraceOpening(0): // not indent-chunking parens (just yet), brackets or braces
-			inner_toks, rest_toks, err := toks.braceMatch()
-			if err != nil {
-				return nil, err
-			}
-			full_brace_toks := toks[0 : len(inner_toks)+2]
-			if tok.Pos.Line == pos_line {
-				cur.self = append(cur.self, full_brace_toks...)
-			} else {
-				cur_indent_toks = append(cur_indent_toks, full_brace_toks...)
-			}
-			cur.full = append(cur.full, full_brace_toks...)
-			toks = rest_toks
-			continue
-
-		case tok.Pos.Line == pos_line:
-			cur.self, cur.full = append(cur.self, tok), append(cur.full, tok)
-		case tok.Pos.Char < pos_char:
-			return nil, tok.newIndentErr()
-		case tok.Pos.Char > pos_char:
-			cur_indent_toks, cur.full = append(cur_indent_toks, tok), append(cur.full, tok)
-		case tok.Pos.Char == pos_char:
-			if cur_done(tok); err != nil {
-				return
-			}
-		}
-		toks = toks[1:]
-	}
-
-	cur_done(nil)
-	return
 }
