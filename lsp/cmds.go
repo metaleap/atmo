@@ -14,25 +14,30 @@ func init() {
 	Server.On_workspace_executeCommand = executeCommand
 }
 
-func executeCommand(params *lsp.ExecuteCommandParams) (any, error) {
+func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 	switch params.Command {
+
+	default:
+		err = errors.New("unknown command or invalid `arguments`: '" + params.Command + "'")
 
 	case "announceAtmoVscExt":
 		ClientIsAtmoVscExt = true
-		return nil, nil
+		return
 
 	case "eval":
 		if len(params.Arguments) == 1 {
-			code_action_params, err := util.JsonAs[lsp.CodeActionParams](params.Arguments[0])
-			return str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.LspUriToFsPath(code_action_params.TextDocument.Uri)), err
+			code_action_params, err_json := util.JsonAs[lsp.CodeActionParams](params.Arguments[0])
+			ret, err = str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.LspUriToFsPath(code_action_params.TextDocument.Uri)), err_json
 		}
 
 	case "getSrcFileToks":
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
-				src_file := session.EnsureSrcFile(src_file_path, nil, true)
-				return src_file.Content.Toks, nil
+				session.WithSrcFileDo(src_file_path, true, func(srcFile *session.SrcFile) {
+					ret = srcFile.Content.Toks
+				})
+				return
 			}
 		}
 
@@ -40,11 +45,14 @@ func executeCommand(params *lsp.ExecuteCommandParams) (any, error) {
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
-				src_file := session.EnsureSrcFile(src_file_path, nil, true)
-				return src_file.Content.Ast, nil
+				session.WithSrcFileDo(src_file_path, true, func(srcFile *session.SrcFile) {
+					ret = srcFile.Content.Ast
+				})
+				return
 			}
 		}
 
 	}
-	return nil, errors.New("unknown command or invalid `arguments`: '" + params.Command + "'")
+
+	return
 }

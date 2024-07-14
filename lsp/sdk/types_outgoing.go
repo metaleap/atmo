@@ -392,7 +392,7 @@ func (me DiagnosticTag) String() string {
 }
 
 type Command struct {
-	Title     string `json:"title,omitempty"`
+	Title     string `json:"title"`
 	Command   string `json:"command"`
 	Arguments []any  `json:"arguments,omitempty"`
 }

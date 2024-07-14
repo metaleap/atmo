@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"maps"
 	"slices"
+	"sync"
 )
 
 type SrcFileNoticeKind int
@@ -34,7 +35,8 @@ const (
 
 var (
 	allNotices       = map[string][]*SrcFileNotice{}
-	OnNoticesChanged = func(map[string][]*SrcFileNotice) {}
+	allNoticesMutex  sync.Mutex
+	OnNoticesChanged = func() {}
 	OnDbgMsg         = func(bool, string, ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
 		NoticeCodeFileReadError:  "%s", // actual error msg in %s
@@ -70,8 +72,10 @@ func errToNotice(err error, code SrcFileNoticeCode, span *SrcFileSpan) (ret *Src
 	return
 }
 
+// callers have already `allSrcFilesMutex.Lock`ed
 func refreshAndPublishNotices(provokingFilePaths ...string) {
 	all_notices := map[string][]*SrcFileNotice{}
+
 	for _, src_file_path := range provokingFilePaths {
 		var file_notices []*SrcFileNotice
 		if src_file := allSrcFiles[src_file_path]; src_file != nil {
@@ -97,12 +101,22 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 		all_notices[src_file_path] = file_notices
 	}
 
-	if !maps.EqualFunc(all_notices, allNotices, func(diags1 []*SrcFileNotice, diags2 []*SrcFileNotice) bool {
+	allNoticesMutex.Lock()
+	changed := !maps.EqualFunc(all_notices, allNotices, func(diags1 []*SrcFileNotice, diags2 []*SrcFileNotice) bool {
 		return slices.EqualFunc(diags1, diags2, func(diag1 *SrcFileNotice, diag2 *SrcFileNotice) bool {
 			return (diag1 == diag2) || (*diag1 == *diag2)
 		})
-	}) {
-		allNotices = all_notices
-		OnNoticesChanged(allNotices)
+	})
+	allNotices = all_notices
+	allNoticesMutex.Unlock()
+
+	if changed {
+		OnNoticesChanged()
 	}
+}
+
+func WithAllCurrentSrcFileNoticesDo(do func(allNotices map[string][]*SrcFileNotice)) {
+	allNoticesMutex.Lock()
+	defer allNoticesMutex.Unlock()
+	do(allNotices)
 }

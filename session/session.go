@@ -4,12 +4,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"atmo/util"
 )
 
 var (
-	allSrcFiles map[string]*SrcFile
+	allSrcFiles      map[string]*SrcFile
+	allSrcFilesMutex sync.Mutex
 )
 
 func init() {
@@ -30,22 +32,38 @@ type SrcFile struct {
 }
 
 func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
+	allSrcFilesMutex.Lock()
+	defer allSrcFilesMutex.Unlock()
+
 	for _, file_path := range removed {
 		delete(allSrcFiles, file_path)
 	}
 	for _, file_path := range current {
-		EnsureSrcFile(file_path, nil, canSkipFileRead)
+		ensureSrcFile(file_path, nil, canSkipFileRead)
 	}
 	refreshAndPublishNotices(append(removed, current...)...)
 }
 
 func OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	EnsureSrcFile(srcFilePath, &curFullContent, true)
+	allSrcFilesMutex.Lock()
+	defer allSrcFilesMutex.Unlock()
+
+	ensureSrcFile(srcFilePath, &curFullContent, true)
 	refreshAndPublishNotices(srcFilePath)
 }
 
-func EnsureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
+func WithSrcFileDo(srcFilePath string, canSkipFileRead bool, do func(srcFile *SrcFile)) {
+	allSrcFilesMutex.Lock()
+	defer allSrcFilesMutex.Unlock()
+
+	if src_file := ensureSrcFile(srcFilePath, nil, canSkipFileRead); src_file != nil {
+		do(src_file)
+	}
+}
+
+func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
 	util.Assert(IsSrcFilePath(srcFilePath), srcFilePath)
+
 	me := allSrcFiles[srcFilePath]
 	if me == nil {
 		me = &SrcFile{FilePath: srcFilePath}
@@ -73,4 +91,17 @@ func EnsureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 func IsSrcFilePath(filePath string) bool {
 	return filepath.IsAbs(filePath) && filepath.Ext(filePath) == ".at" &&
 		(!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
+}
+
+func (me *SrcFile) Span() (ret SrcFileSpan) {
+	ret.Start, ret.End = SrcFilePos{Line: 1, Char: 1}, SrcFilePos{Line: 1, Char: 1}
+	for i := 0; i < len(me.Content.Src); i++ {
+		if me.Content.Src[i] == '\n' {
+			ret.End.Line++
+		}
+	}
+	if me.Content.Src[len(me.Content.Src)-1] != '\n' {
+		ret.End.Line++
+	}
+	return
 }

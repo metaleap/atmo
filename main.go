@@ -24,6 +24,8 @@ func main() {
 		if !session.IsSrcFilePath(src_file_path) {
 			panic("not an Atmo source file: " + src_file_path)
 		}
-		_ = session.EnsureSrcFile(src_file_path, nil, false)
+		session.WithSrcFileDo(src_file_path, false, func(it *session.SrcFile) {
+			// TODO
+		})
 	}
 }
