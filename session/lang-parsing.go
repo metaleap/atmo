@@ -28,13 +28,11 @@ type AstNode struct {
 type AstNodeKind int
 
 const (
-	AstNodeKindErr            AstNodeKind = iota
-	AstNodeKindMultiple                   // foo bar baz
-	AstNodeKindCurlyBraces                // {}
-	AstNodeKindSquareBrackets             // []
-	AstNodeKindIdent                      // foo, #bar, @baz, $foo, %bar
-	AstNodeKindLit                        // 123, -321, 1.23, -3.21, "foo", `bar`, 'ö'
-	AstNodeKindComment
+	AstNodeKindErr      AstNodeKind = iota
+	AstNodeKindComment              // both /* multi-line */ and // single-line
+	AstNodeKindIdent                // foo, #bar, @baz, $foo, %bar, ==, <==<
+	AstNodeKindLit                  // 123, -321, 1.23, -3.21, "foo", `bar`, 'ö'
+	AstNodeKindMultiple             // foo bar, (), (foo), (foo bar), [], [foo], [foo bar], {}, {foo}, {foo bar}
 )
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
@@ -44,7 +42,7 @@ func (me *SrcFile) parse() {
 
 	// multi-line call-forms in parens: make each subsequent multi-tok line its own call-form
 	parsed.walk(nil, func(node *AstNode) {
-		// if node.Kind == AstNodeKindMultiple && node.isParensed() && node.Toks.isMultiLine() {
+		// if node.Kind == AstNodeKindMultiple && node.isParens() && node.Toks.isMultiLine() {
 		// 	lines := node.ChildNodes.splitByLines()
 		// 	node.ChildNodes = lines[0]
 
@@ -64,7 +62,7 @@ func (me *SrcFile) parse() {
 	// that is: everything to its left is its lhs expr, everything to its right is its rhs expr.
 	parsed.walk(nil, func(node *AstNode) {
 		// if node.Kind == AstNodeKindMultiple {
-		// 	idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOp)
+		// 	idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOpish)
 		// 	if idx > 0 {
 		// 		op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
 		// 		// println(">>>>>>>>>INFIXX>>>>>>>>>>>>>>" + op.Src + "<<<<<<<<<<<<<<<<<<INSIDE>>>>>>>" + node.Src + "<<<<<<<<<<<<<<<<<")
@@ -150,44 +148,16 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), err: err})
 				toks = nil
 			} else {
-				switch tok.Src[0] {
-				case '(':
-					if len(toks_inner) == 0 {
-						ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks[:2], Src: toks[:2].src(me.Content.Src), err: &SrcFileNotice{
-							Kind: NoticeKindErr, Message: errMsgs[NoticeCodeExprExpected], Span: toks[1].span(), Code: NoticeCodeExprExpected,
-						}})
-					} else {
-						node := me.parseNode(toks_inner, true)
-						node.Toks = toks[0 : len(toks_inner)+2]  // want to include the parens in the node's SrcFileSpan..
-						node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
-						ret = append(ret, node)
-					}
-				case '[', '{':
-					split := toks_inner.split(TokKindSep)
-					node := &AstNode{Kind: util.If(tok.Src[0] == '[', AstNodeKindSquareBrackets, AstNodeKindCurlyBraces)}
-					node.Toks = toks[0 : len(toks_inner)+2]  // want to include the braces/brackets in the node's SrcFileSpan..
-					node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
-					last := toks_inner[0]
-					for i, toks := range split {
-						if len(toks) > 0 {
-							node.ChildNodes = append(node.ChildNodes, me.parseNode(toks, true))
-							last = toks[len(toks)-1]
-						} else {
-							loc := sl.FirstWhere(toks_inner, func(it *Tok) bool { return it.byteOffset > last.byteOffset })
-							util.Assert(loc != nil, last)
-							node.Kind = AstNodeKindErr
-							node.err = util.If(i == 0, last, loc).newErr(NoticeCodeExprExpected)
-						}
-					}
-					ret = append(ret, node)
+				node := &AstNode{
+					Kind: AstNodeKindMultiple, Toks: toks[0 : len(toks_inner)+2],
+					ChildNodes: me.parseNodes(toks_inner, checkForHuddle),
 				}
+				node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
+				ret = append(ret, node)
 				toks = toks_tail
 			}
 		default:
-			ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks[:1], Src: tok.Src, err: &SrcFileNotice{
-				Kind: NoticeKindErr, Message: str.Fmt(errMsgs[NoticeCodeMisplaced], tok.Src), Span: tok.span(), Code: NoticeCodeMisplaced,
-			}})
-			toks = toks[1:]
+			panic(tok)
 		}
 	}
 
@@ -223,11 +193,25 @@ func (me *AstNode) cmp(it *AstNode) int {
 }
 
 func (me *AstNode) equals(it *AstNode) bool {
+	util.Assert(me != it, nil)
+
 	if me.Kind != it.Kind || len(me.ChildNodes) != len(it.ChildNodes) {
 		return false
 	}
-	util.Assert(me != it, nil)
+
+	var idx int
+	if !sl.All(me.ChildNodes, func(node *AstNode) (isEq bool) {
+		isEq, idx = node.equals(it.ChildNodes[idx]), idx+1
+		return
+	}) {
+		return false
+	}
+
 	switch me.Kind {
+	case AstNodeKindComment:
+		return true
+	case AstNodeKindMultiple:
+		return (me.Src[0] == it.Src[0]) // covers parens,brackets,braces
 	case AstNodeKindLit:
 		switch mine := me.Lit.(type) {
 		case float64:
@@ -253,13 +237,6 @@ func (me *AstNode) equals(it *AstNode) bool {
 	case AstNodeKindErr:
 		return (me.err == it.err) || ((me.err != nil) && (it.err != nil) &&
 			(me.err.Code == it.err.Code) && (me.err.Kind == it.err.Kind) && (me.err.Message == it.err.Message))
-	case AstNodeKindMultiple, AstNodeKindCurlyBraces, AstNodeKindSquareBrackets:
-		var idx int
-		return sl.All(me.ChildNodes, func(node *AstNode) (isEq bool) {
-			isEq = node.equals(it.ChildNodes[idx])
-			idx++
-			return
-		})
 	default:
 		panic(me.Kind)
 	}
@@ -275,11 +252,19 @@ func (me *AstNode) find(where func(*AstNode) bool) (ret *AstNode) {
 	return
 }
 
-func (me *AstNode) isIdentOp() bool {
+func (me *AstNode) isBraces() bool {
+	return me.Src[0] == '{'
+}
+
+func (me *AstNode) isBrackets() bool {
+	return me.Src[0] == '['
+}
+
+func (me *AstNode) isIdentOpish() bool {
 	return me.Kind == AstNodeKindIdent && me.Toks[0].Kind == TokKindIdentOpish
 }
 
-func (me *AstNode) isParensed() bool {
+func (me *AstNode) isParens() bool {
 	return me.Src[0] == '('
 }
 

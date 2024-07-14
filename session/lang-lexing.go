@@ -64,7 +64,6 @@ const (
 	TokKindDedent
 	TokKindComment // both /* multi-line */ and // single-line
 	TokKindBrace   // parens, square brackets, curly braces
-	TokKindSep     // comma
 	// below: only toks that, if no sep-or-ws between them, will `huddle` together
 	// into their own single contiguous expr as if parensed (above: those that won't)
 	TokKindIdentWord  // lexemes that pass the `IsIdentRune` predicate below
@@ -120,8 +119,6 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 			tok.Kind = TokKindIdentWord
 		case '(', ')', '{', '}', '[', ']':
 			tok.Kind = TokKindBrace
-		case ',':
-			tok.Kind = TokKindSep
 		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
 			tok.Kind = TokKindIdentOpish
 		}
@@ -160,7 +157,8 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		switch {
 		default:
 			toks = append(toks, tok)
-		case (prev != nil) && (prev.Kind == TokKindIdentOpish) && (tok.Kind == TokKindIdentOpish) && ((prev.Pos.Char + len(prev.Src)) == tok.Pos.Char):
+		case (prev != nil) && (prev.Kind == TokKindIdentOpish) && (tok.Kind == TokKindIdentOpish) &&
+			(!prev.isSep()) && (!tok.isSep()) && ((prev.Pos.Char + len(prev.Src)) == tok.Pos.Char):
 			// multi-char op toks such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
 			prev.Src += tok.Src
 		case ((tok.Kind == TokKindLitFloat) && str.Ends(tok.Src, ".")):
@@ -173,7 +171,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 			}
 			tok.Kind, tok.Src = TokKindLitInt, tok.Src[:len(tok.Src)-1]
 			toks = append(toks, tok, dot)
-			tok = dot // so `prev` is correct
+			tok = dot // so `prev` will be correct
 		}
 
 		prev = tok
@@ -192,23 +190,28 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 }
 
 func (me *Tok) braceMatch() rune {
-	switch me.Src[0] {
-	case '(':
-		return ')'
-	case '[':
-		return ']'
-	case '{':
-		return '}'
-	case ')':
-		return '('
-	case ']':
-		return '['
-	case '}':
-		return '{'
+	if len(me.Src) > 0 {
+		switch me.Src[0] {
+		case '(':
+			return ')'
+		case '[':
+			return ']'
+		case '{':
+			return '}'
+		case ')':
+			return '('
+		case ']':
+			return '['
+		case '}':
+			return '{'
+		}
 	}
 	return 0
 }
 func (me *Tok) isBraceClosing(open rune) bool {
+	if len(me.Src) == 0 {
+		return false
+	}
 	switch open {
 	case '(':
 		return me.Src[0] == ')'
@@ -220,6 +223,9 @@ func (me *Tok) isBraceClosing(open rune) bool {
 	return (me.Src[0] == ')') || (me.Src[0] == ']') || (me.Src[0] == '}')
 }
 func (me *Tok) isBraceOpening(close rune) bool {
+	if len(me.Src) == 0 {
+		return false
+	}
 	switch close {
 	case ')':
 		return me.Src[0] == '('
@@ -231,7 +237,11 @@ func (me *Tok) isBraceOpening(close rune) bool {
 	return (me.Src[0] == '(') || (me.Src[0] == '[') || (me.Src[0] == '{')
 }
 func (me *Tok) isBraceMatch(it *Tok) bool {
-	return (me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}')
+	return (len(me.Src) > 0) && ((me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}'))
+}
+
+func (me *Tok) isSep() bool {
+	return (len(me.Src) == 1) && ((me.Src[0] == ',') || (me.Src[0] == ';') || (me.Src[0] == ':') || (me.Src[0] == '.'))
 }
 
 func (me Toks) huddle() (huddled Toks, rest Toks) {
