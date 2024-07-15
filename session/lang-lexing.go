@@ -59,9 +59,8 @@ type TokKind int
 
 const (
 	_ TokKind = iota
-	TokKindNewLine
-	TokKindIndent
-	TokKindDedent
+	TokKindBegin
+	TokKindEnd
 	TokKindComment // both /* multi-line */ and // single-line
 	TokKindBrace   // parens, square brackets, curly braces
 	// below: only toks that, if no sep-or-ws between them, will `huddle` together
@@ -100,7 +99,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 	var prev *Tok
 	var had_ws_err bool
 	var brace_level int
-	stack := []int{1}
+	stack := []int{0}
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
 		tok := &Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
 		tok.Src = curFullSrcFileContent[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
@@ -124,21 +123,21 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		}
 
 		if is_new_line := (brace_level <= 0) && ((prev == nil) || (tok.Pos.Line > prev.Pos.Line)); is_new_line {
-			toks = append(toks, &Tok{Kind: TokKindNewLine, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 			// on newline: indent/dedent/newline handling, taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
 
 			stack_top := stack[len(stack)-1]
 			if tok.Pos.Char < stack_top {
-				for ; stack_top > tok.Pos.Char; stack_top = stack[len(stack)-1] {
+				for ; stack_top >= tok.Pos.Char; stack_top = stack[len(stack)-1] {
 					stack = stack[:len(stack)-1]
-					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindDedent, Pos: tok.Pos, Src: tok.Src})
+					toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 				}
-				if stack_top != tok.Pos.Char {
-					errs = append(errs, tok.newIndentErr())
-				}
+				toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 			} else if tok.Pos.Char > stack_top {
 				stack = append(stack, tok.Pos.Char)
-				toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
+				toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+			} else {
+				toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+				toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 			}
 			// also on newline: check for any carriage-return or leading tabs since last tok
 			if prev != nil {
@@ -168,22 +167,22 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		case ((tok.Kind == TokKindLitFloat) && str.Ends(tok.Src, ".")):
 			// split dot-ending float toks like `10.` into 2 toks (int then dot), to allow for dot-methods on int literals like `10.timesDo fn` etc.
 			dot := &Tok{
+				Kind:       TokKindIdentOpish,
 				byteOffset: tok.byteOffset + (len(tok.Src) - 1),
 				Pos:        SrcFilePos{Line: tok.Pos.Line, Char: tok.Pos.Char + (len(tok.Src) - 1)},
-				Kind:       TokKindIdentOpish,
 				Src:        tok.Src[len(tok.Src)-1:],
 			}
 			tok.Kind, tok.Src = TokKindLitInt, tok.Src[:len(tok.Src)-1]
 			toks = append(toks, tok, dot)
-			tok = dot // so `prev` will be correct
+			tok = dot // so that `prev` will be correct
 		}
 
 		prev = tok
 	}
 
-	for len(stack) > 1 {
+	for len(stack) >= 1 {
 		stack = stack[:len(stack)-1]
-		toks = append(toks, &Tok{byteOffset: prev.byteOffset + len(prev.Src), Src: "", Kind: TokKindDedent,
+		toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: prev.byteOffset + len(prev.Src), Src: "",
 			Pos: SrcFilePos{Line: prev.Pos.Line, Char: prev.Pos.Char + utf8.RuneCountInString(prev.Src)}})
 	}
 
@@ -281,10 +280,6 @@ func (me *Tok) span() (ret SrcFileSpan) {
 	return
 }
 
-func (me Toks) allOfKind(kind TokKind) bool {
-	return sl.All(me, func(it *Tok) bool { return it.Kind == kind })
-}
-
 func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 	var level int
 	brace_open := rune(me[0].Src[0])
@@ -311,10 +306,6 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 					"braces")))}
 }
 
-func (me Toks) isMultiLine() bool {
-	return (me[len(me)-1].Pos.Line > me[0].Pos.Line)
-}
-
 func (me Toks) newErr(code SrcFileNoticeCode, errMsg string) *SrcFileNotice {
 	if errMsg == "" {
 		errMsg = errMsgs[code]
@@ -324,25 +315,6 @@ func (me Toks) newErr(code SrcFileNoticeCode, errMsg string) *SrcFileNotice {
 
 func (me Toks) Span() (ret SrcFileSpan) {
 	ret.Start, ret.End = me[0].Pos, me[len(me)-1].span().End
-	return
-}
-
-func (me Toks) split(by TokKind) (ret []Toks) {
-	var cur Toks
-	var skip int
-	for _, tok := range me {
-		if tok.Kind == TokKindBrace {
-			skip = util.If(tok.isBraceOpening(0), skip+1, skip-1)
-		}
-		if (skip <= 0) && tok.Kind == by {
-			ret, cur = append(ret, cur), nil
-		} else {
-			cur = append(cur, tok)
-		}
-	}
-	if len(cur) > 0 {
-		ret = append(ret, cur)
-	}
 	return
 }
 
@@ -356,8 +328,4 @@ func (me Toks) src(curFullSrcFileContent string) string {
 
 func (me Toks) str() string { // only for occasional debug prints
 	return strings.Join(sl.As(me, func(it *Tok) string { return it.Src }), " ")
-}
-
-func (me Toks) withoutComments() Toks {
-	return sl.Where(me, func(it *Tok) bool { return it.Kind != TokKindComment })
 }

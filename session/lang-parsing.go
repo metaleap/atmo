@@ -157,17 +157,15 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 				ret = append(ret, node)
 				toks = toks_tail
 			}
-		case TokKindDedent:
+		case TokKindEnd:
 			pop := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			ret = append(pop, &AstNode{Kind: AstNodeKindMultiple, Toks: ret.toks(),
 				Src: ret.toks().src(me.Content.Src), ChildNodes: ret})
 			toks = toks[1:]
-		case TokKindIndent:
+		case TokKindBegin:
 			stack = append(stack, ret)
 			ret = nil
-			toks = toks[1:]
-		case TokKindNewLine:
 			toks = toks[1:]
 		default:
 			panic(tok)
