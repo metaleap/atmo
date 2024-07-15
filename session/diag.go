@@ -38,12 +38,12 @@ var (
 	OnDbgMsg         = func(bool, string, ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
 		NoticeCodeFileReadError:  "%s", // actual error msg in %s
-		NoticeCodeWhitespace:     "unsupported white-space; ensure both: no leading tabs and only LF (no CR) line endings",
+		NoticeCodeWhitespace:     "unsupported white-space; ensure both: no line-leading tabs, and LF-only line endings (no CR or CRLF)",
 		NoticeCodeLexingError:    "invalid token: %s",   // actual error msg in %s
 		NoticeCodeLitSyntax:      "invalid literal: %s", // actual error msg in %s
 		NoticeCodeIndentation:    "ambiguous indentation",
 		NoticeCodeMisplaced:      "unexpected: '%s'",
-		NoticeCodeBracesMismatch: "no matching opening and closing %s",
+		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
 	}
 )
 

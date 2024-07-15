@@ -95,6 +95,7 @@ func (me *SrcFile) parseNode(toks Toks, checkForHuddle bool) *AstNode {
 
 func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 	var stack []AstNodes // in case of indents/dedents in toks
+	var had_brace_err bool
 	for len(toks) > 0 {
 		if checkForHuddle {
 			if huddled, rest := toks.huddle(); len(huddled) > 1 && ((len(rest) > 0) || (len(ret) > 0)) {
@@ -144,6 +145,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 		case TokKindBrace:
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
+				had_brace_err = true
 				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), err: err})
 				toks = nil
 			} else {
@@ -172,11 +174,11 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 		}
 	}
 
-	if len(stack) > 0 {
+	if (len(stack) > 0) && !had_brace_err {
 		pop := stack[len(stack)-1]
 		ret_toks := util.If(len(ret) == 0, ret, pop).toks()
 		ret = append(pop, &AstNode{Kind: AstNodeKindErr, Toks: ret_toks,
-			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, err: ret_toks.newErr(NoticeCodeIndentation, "")})
+			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, err: ret_toks[0].newIndentErr()})
 	}
 
 	return

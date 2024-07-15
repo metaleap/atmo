@@ -80,9 +80,6 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		return
 	}
 
-	stack := []int{1}
-	var brace_level int
-	toks = make(Toks, 0, len(curFullSrcFileContent)/3)
 	var scan scanner.Scanner
 	scan.Init(strings.NewReader(curFullSrcFileContent))
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
@@ -99,8 +96,11 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 	}
 	scan.Filename = srcFilePath
 
+	toks = make(Toks, 0, len(curFullSrcFileContent)/3)
 	var prev *Tok
 	var had_ws_err bool
+	var brace_level int
+	stack := []int{1}
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
 		tok := &Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
 		tok.Src = curFullSrcFileContent[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
@@ -123,9 +123,9 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 			tok.Kind = TokKindIdentOpish
 		}
 
-		// indent/dedent/newline handling: taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
-		if is_new_line := (brace_level == 0) && ((prev == nil) || (tok.Pos.Line > prev.Pos.Line)); is_new_line {
-			toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindNewLine, Pos: tok.Pos, Src: tok.Src})
+		if is_new_line := (brace_level <= 0) && ((prev == nil) || (tok.Pos.Line > prev.Pos.Line)); is_new_line {
+			toks = append(toks, &Tok{Kind: TokKindNewLine, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+			// on newline: indent/dedent/newline handling, taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
 
 			stack_top := stack[len(stack)-1]
 			if tok.Pos.Char < stack_top {
@@ -133,11 +133,15 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 					stack = stack[:len(stack)-1]
 					toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindDedent, Pos: tok.Pos, Src: tok.Src})
 				}
+				if stack_top != tok.Pos.Char {
+					errs = append(errs, tok.newIndentErr())
+				}
 			} else if tok.Pos.Char > stack_top {
 				stack = append(stack, tok.Pos.Char)
 				toks = append(toks, &Tok{byteOffset: tok.byteOffset, Kind: TokKindIndent, Pos: tok.Pos, Src: tok.Src})
 			}
-			if (tok.Pos.Char > 1) && (prev != nil) { // check for preceding carriage-return or leading tabs
+			// also on newline: check for any carriage-return or leading tabs since last tok
+			if prev != nil {
 				src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
 				if (!had_ws_err) && str.Idx(src_since_prev, '\r') >= 0 {
 					had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
