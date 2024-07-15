@@ -80,12 +80,9 @@ func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 					}
 				})
 			} else if pkg := sess.GetSrcPkg(fsPath); pkg != nil {
-				session.OnDbgMsg(true, "YAY:"+fsPath)
 				for _, src_file := range pkg.Files {
 					ret = append(ret, src_file.FilePath)
 				}
-			} else {
-				session.OnDbgMsg(true, "NAY:"+fsPath)
 			}
 			return
 		}

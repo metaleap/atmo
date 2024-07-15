@@ -10,7 +10,8 @@ import (
 )
 
 func init() {
-	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval", "getSrcFileToks", "getSrcFileAst"}
+	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval", "pkgsFsRefresh", "getSrcPkgs",
+		"getSrcFileToks", "getSrcFileAst"}
 	Server.On_workspace_executeCommand = executeCommand
 }
 
@@ -29,6 +30,10 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			code_action_params, err_json := util.JsonAs[lsp.CodeActionParams](params.Arguments[0])
 			ret, err = str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.LspUriToFsPath(code_action_params.TextDocument.Uri)), err_json
 		}
+
+	case "pkgsFsRefresh":
+		session.LockedDo(session.StateAccess.PkgsFsRefresh)
+		return
 
 	case "getSrcPkgs":
 		session.LockedDo(func(sess session.StateAccess) {

@@ -22,6 +22,7 @@ type StateAccess interface {
 
 	AllCurrentSrcFileNotices() map[string][]*SrcFileNotice
 	AllCurrentSrcPkgs() []*SrcPkg
+	PkgsFsRefresh()
 	GetSrcPkg(dirPath string) *SrcPkg
 	SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile
 }
@@ -44,6 +45,7 @@ func (*stateAccess) OnSrcFileEdit(srcFilePath string, curFullContent string) {
 }
 
 func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
+	pkgsFsRefresh()
 	removeSrcFiles(removed...)
 	for _, file_path := range current {
 		ensureSrcFile(file_path, nil, canSkipFileRead)
@@ -59,6 +61,10 @@ func (*stateAccess) AllCurrentSrcPkgs() []*SrcPkg {
 	return sl.SortedPer(kv.Values(state.srcPkgs), func(pkg1 *SrcPkg, pkg2 *SrcPkg) int {
 		return cmp.Compare(pkg1.DirPath, pkg2.DirPath)
 	})
+}
+
+func (*stateAccess) PkgsFsRefresh() {
+	pkgsFsRefresh()
 }
 
 func (*stateAccess) GetSrcPkg(dirPath string) *SrcPkg {

@@ -34,6 +34,26 @@ func IsSrcFilePath(filePath string) bool {
 		(!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
 }
 
+func pkgsFsRefresh() {
+	var gone_files []*SrcFile
+	var gone_pkgs []string
+	for src_file_path, src_file := range state.srcFiles {
+		if !util.FsIsFile(src_file_path) {
+			gone_files = append(gone_files, src_file)
+		}
+	}
+	for pkg_dir_path, src_pkg := range state.srcPkgs {
+		if !util.FsIsDir(pkg_dir_path) {
+			gone_files = append(gone_files, src_pkg.Files...)
+			gone_pkgs = append(gone_pkgs, pkg_dir_path)
+		}
+	}
+	removeSrcFiles(sl.As(gone_files, func(it *SrcFile) string { return it.FilePath })...)
+	for _, pkg_dir_path := range gone_pkgs {
+		delete(state.srcPkgs, pkg_dir_path)
+	}
+}
+
 func removeSrcFiles(srcFilePaths ...string) {
 	src_files := sl.As(srcFilePaths, func(it string) *SrcFile { return state.srcFiles[it] })
 	del_pkgs := map[string]*SrcPkg{}
