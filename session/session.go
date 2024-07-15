@@ -2,39 +2,35 @@ package session
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 
 	"atmo/util"
 )
 
 var (
-	allSrcFiles      map[string]*SrcFile
-	allSrcFilesMutex sync.Mutex
+	allSrcFiles = map[string]*SrcFile{}
+	allPackages = map[string]*SrcPkg{}
+	sharedState sync.Mutex
+	stateAccess = StateAccess{
+		AllCurrentSrcFileNotices: func() map[string][]*SrcFileNotice { return allNotices },
+		SrcFile: func(srcFilePath string, canSkipFileRead bool) *SrcFile {
+			src_file := ensureSrcFile(srcFilePath, nil, canSkipFileRead)
+			if src_file == nil { // file might be gone from diags by now
+				defer refreshAndPublishNotices(srcFilePath)
+			}
+			return src_file
+		},
+	}
 )
 
-func init() {
-	allSrcFiles = map[string]*SrcFile{}
-}
-
-type SrcFile struct {
-	FilePath string
-	Content  struct {
-		Src  string
-		Toks Toks
-		Ast  AstNodes
-		Est  EstNodes
-	}
-	Notices struct {
-		LastReadErr *SrcFileNotice
-		LexErrs     []*SrcFileNotice
-	}
+type StateAccess struct {
+	AllCurrentSrcFileNotices func() map[string][]*SrcFileNotice
+	SrcFile                  func(srcFilePath string, canSkipFileRead bool) *SrcFile
 }
 
 func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
-	allSrcFilesMutex.Lock()
-	defer allSrcFilesMutex.Unlock()
+	sharedState.Lock()
+	defer sharedState.Unlock()
 
 	for _, file_path := range removed {
 		delete(allSrcFiles, file_path)
@@ -46,22 +42,17 @@ func OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) 
 }
 
 func OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	allSrcFilesMutex.Lock()
-	defer allSrcFilesMutex.Unlock()
+	sharedState.Lock()
+	defer sharedState.Unlock()
 
 	ensureSrcFile(srcFilePath, &curFullContent, true)
 	refreshAndPublishNotices(srcFilePath)
 }
 
-func WithSrcFileDo(srcFilePath string, canSkipFileRead bool, do func(srcFile *SrcFile)) {
-	allSrcFilesMutex.Lock()
-	defer allSrcFilesMutex.Unlock()
-
-	if src_file := ensureSrcFile(srcFilePath, nil, canSkipFileRead); src_file != nil {
-		do(src_file)
-	} else { // file might be gone from diags by now
-		refreshAndPublishNotices(srcFilePath)
-	}
+func WithState(do func(sess *StateAccess)) {
+	sharedState.Lock()
+	defer sharedState.Unlock()
+	do(&stateAccess)
 }
 
 func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
@@ -102,22 +93,4 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 		}
 	}
 	return me
-}
-
-func IsSrcFilePath(filePath string) bool {
-	return filepath.IsAbs(filePath) && filepath.Ext(filePath) == ".at" &&
-		(!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
-}
-
-func (me *SrcFile) Span() (ret SrcFileSpan) {
-	ret.Start, ret.End = SrcFilePos{Line: 1, Char: 1}, SrcFilePos{Line: 1, Char: 1}
-	for i := 0; i < len(me.Content.Src); i++ {
-		if me.Content.Src[i] == '\n' {
-			ret.End.Line++
-		}
-	}
-	if me.Content.Src[len(me.Content.Src)-1] != '\n' {
-		ret.End.Line++
-	}
-	return
 }

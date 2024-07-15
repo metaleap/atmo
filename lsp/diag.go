@@ -11,7 +11,8 @@ import (
 func init() {
 	session.OnNoticesChanged = func() {
 		util.Assert(Server.Initialized.Client != nil && Server.Initialized.Server != nil, nil)
-		session.WithAllCurrentSrcFileNoticesDo(func(all_notices map[string][]*session.SrcFileNotice) {
+		session.WithState(func(sess *session.StateAccess) {
+			all_notices := sess.AllCurrentSrcFileNotices()
 			for file_path, diags := range all_notices {
 				Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
 					Uri:         lsp.FsPathToLspUri(file_path),
@@ -35,48 +36,51 @@ func init() {
 			}
 
 			// gather any actions deriving from current `SrcFileNotice`s on the file, if any
-			session.WithAllCurrentSrcFileNoticesDo(func(all_notices map[string][]*session.SrcFileNotice) {
-				notices := all_notices[src_file_path]
-				if len(notices) > 0 {
-					session.WithSrcFileDo(src_file_path, true, func(srcFile *session.SrcFile) {
-						for _, it := range notices {
-							switch it.Code {
-							case session.NoticeCodeIndentation:
-								if srcFile.Content.Toks[0].Pos.Char > 1 {
-									diags := []lsp.Diagnostic{srcFileNoticeToLspDiag(it)}
-									cmd_title := "Fix first-line mis-indentation"
-									ret = append(ret, lsp.CodeAction{
-										Title:       cmd_title,
-										Kind:        lsp.CodeActionKindQuickFix,
-										Diagnostics: diags,
-										Edit: &lsp.WorkspaceEdit{Changes: map[string][]lsp.TextEdit{
-											src_file_path: {{NewText: str.Trim(srcFile.Content.Src), Range: lsp.SpanToLspRange(srcFile.Span())}},
-										}},
-									})
-								}
-							case session.NoticeCodeWhitespace:
-								if ClientIsAtmoVscExt {
-									diags := []lsp.Diagnostic{srcFileNoticeToLspDiag(it)}
-									if cmd_title := "Convert all line-leading tabs to spaces"; str.Idx(srcFile.Content.Src, '\t') >= 0 {
-										ret = append(ret, lsp.CodeAction{
-											Title:       cmd_title,
-											Kind:        lsp.CodeActionKindQuickFix,
-											Diagnostics: diags,
-											Command:     &lsp.Command{Title: cmd_title, Command: "editor.action.indentationToSpaces"},
-										})
-									}
-									if cmd_title := "Fix end-of-line sequences"; str.Idx(srcFile.Content.Src, '\r') >= 0 {
-										ret = append(ret, lsp.CodeAction{
-											Title:       cmd_title,
-											Kind:        lsp.CodeActionKindQuickFix,
-											Diagnostics: diags,
-											Command:     &lsp.Command{Title: cmd_title, Command: "workbench.action.editor.changeEOL"},
-										})
-									}
-								}
+			session.WithState(func(sess *session.StateAccess) {
+				notices := sess.AllCurrentSrcFileNotices()[src_file_path]
+				if len(notices) == 0 {
+					return
+				}
+				src_file := sess.SrcFile(src_file_path, true)
+				if src_file == nil {
+					return
+				}
+				for _, it := range notices {
+					switch it.Code {
+					case session.NoticeCodeIndentation:
+						if src_file.Content.Toks[0].Pos.Char > 1 {
+							diags := []lsp.Diagnostic{srcFileNoticeToLspDiag(it)}
+							cmd_title := "Fix first-line mis-indentation"
+							ret = append(ret, lsp.CodeAction{
+								Title:       cmd_title,
+								Kind:        lsp.CodeActionKindQuickFix,
+								Diagnostics: diags,
+								Edit: &lsp.WorkspaceEdit{Changes: map[string][]lsp.TextEdit{
+									src_file_path: {{NewText: str.Trim(src_file.Content.Src), Range: lsp.SpanToLspRange(src_file.Span())}},
+								}},
+							})
+						}
+					case session.NoticeCodeWhitespace:
+						if ClientIsAtmoVscExt {
+							diags := []lsp.Diagnostic{srcFileNoticeToLspDiag(it)}
+							if cmd_title := "Convert all line-leading tabs to spaces"; str.Idx(src_file.Content.Src, '\t') >= 0 {
+								ret = append(ret, lsp.CodeAction{
+									Title:       cmd_title,
+									Kind:        lsp.CodeActionKindQuickFix,
+									Diagnostics: diags,
+									Command:     &lsp.Command{Title: cmd_title, Command: "editor.action.indentationToSpaces"},
+								})
+							}
+							if cmd_title := "Fix end-of-line sequences"; str.Idx(src_file.Content.Src, '\r') >= 0 {
+								ret = append(ret, lsp.CodeAction{
+									Title:       cmd_title,
+									Kind:        lsp.CodeActionKindQuickFix,
+									Diagnostics: diags,
+									Command:     &lsp.Command{Title: cmd_title, Command: "workbench.action.editor.changeEOL"},
+								})
 							}
 						}
-					})
+					}
 				}
 			})
 		}

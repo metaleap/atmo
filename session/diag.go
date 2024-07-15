@@ -6,7 +6,6 @@ import (
 	"atmo/util/str"
 	"cmp"
 	"slices"
-	"sync"
 )
 
 type SrcFileNoticeKind int
@@ -33,7 +32,6 @@ const (
 
 var (
 	allNotices       = map[string][]*SrcFileNotice{}
-	allNoticesMutex  sync.Mutex
 	OnNoticesChanged = func() {}
 	OnDbgMsg         = func(bool, string, ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
@@ -65,7 +63,7 @@ func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNo
 	return &SrcFileNotice{Kind: NoticeKindErr, Message: err_msg, Code: code, Span: span}
 }
 
-// callers have already `allSrcFilesMutex.Lock`ed
+// callers have already `sharedState.Lock`ed
 func refreshAndPublishNotices(provokingFilePaths ...string) {
 	new_notices := map[string][]*SrcFileNotice{}
 
@@ -96,7 +94,6 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 	}
 
 	var have_changes bool
-	allNoticesMutex.Lock()
 	for src_file_path := range allNotices {
 		if _, still_exists := allSrcFiles[src_file_path]; !still_exists {
 			have_changes = true
@@ -117,15 +114,8 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 			allNotices[src_file_path] = new_notices
 		}
 	}
-	allNoticesMutex.Unlock()
 
 	if have_changes {
-		OnNoticesChanged()
+		go OnNoticesChanged()
 	}
-}
-
-func WithAllCurrentSrcFileNoticesDo(do func(allNotices map[string][]*SrcFileNotice)) {
-	allNoticesMutex.Lock()
-	defer allNoticesMutex.Unlock()
-	do(allNotices)
 }

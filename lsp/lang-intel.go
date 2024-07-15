@@ -149,19 +149,21 @@ func init() {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		var ret []*lsp.SelectionRange
 		if len(params.Positions) > 0 && session.IsSrcFilePath(src_file_path) {
-			session.WithSrcFileDo(src_file_path, true, func(srcFile *session.SrcFile) {
-				for _, pos := range params.Positions {
-					if node := srcFile.NodeAt(lsp.LspPosToPos(&pos), true); node == nil {
-						ret = nil
-						break
-					} else {
-						all := sl.As(node.SelfAndAncestors(), func(it *session.AstNode) *lsp.SelectionRange {
-							return &lsp.SelectionRange{Range: lsp.SpanToLspRange(it.Toks.Span())}
-						})
-						for i, it := range all[:len(all)-1] {
-							it.Parent = all[i+1]
+			session.WithState(func(sess *session.StateAccess) {
+				if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+					for _, pos := range params.Positions {
+						if node := src_file.NodeAt(lsp.LspPosToPos(&pos), true); node == nil {
+							ret = nil
+							break
+						} else {
+							all := sl.As(node.SelfAndAncestors(), func(it *session.AstNode) *lsp.SelectionRange {
+								return &lsp.SelectionRange{Range: lsp.SpanToLspRange(it.Toks.Span())}
+							})
+							for i, it := range all[:len(all)-1] {
+								it.Parent = all[i+1]
+							}
+							ret = append(ret, all[0])
 						}
-						ret = append(ret, all[0])
 					}
 				}
 			})

@@ -34,8 +34,10 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
-				session.WithSrcFileDo(src_file_path, true, func(srcFile *session.SrcFile) {
-					ret = srcFile.Content.Toks
+				session.WithState(func(sess *session.StateAccess) {
+					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+						ret = src_file.Content.Toks
+					}
 				})
 				return
 			}
@@ -45,8 +47,10 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
-				session.WithSrcFileDo(src_file_path, true, func(srcFile *session.SrcFile) {
-					ret = srcFile.Content.Ast
+				session.WithState(func(sess *session.StateAccess) {
+					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+						ret = src_file.Content.Ast
+					}
 				})
 				return
 			}
