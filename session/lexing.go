@@ -90,7 +90,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 	scan.IsIdentRune = func(char rune, i int) bool {
 		last_ident_first_char = util.If(i == 0, char, last_ident_first_char)
 		return (char == '_') || unicode.IsLetter(char) ||
-			((i == 0) && ((char == '#') || (char == '%') || (char == '@') || (char == '$'))) ||
+			((i == 0) && ((char == '%') || (char == '@') || (char == '$'))) ||
 			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
 	scan.Filename = srcFilePath

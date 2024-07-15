@@ -24,6 +24,7 @@ type SrcFile struct {
 		Src  string
 		Toks Toks
 		Ast  AstNodes
+		Est  EstNodes
 	}
 	Notices struct {
 		LastReadErr *SrcFileNotice
@@ -86,16 +87,17 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 			delete(allSrcFiles, srcFilePath)
 			return nil
 		} else {
-			me.Content.Src, me.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, nil)
+			me.Content.Src, me.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, me.Span())
 		}
 	}
 
 	if (me.Content.Src != old_content) || had_last_read_err || (me.Notices.LastReadErr != nil) {
-		me.Content.Ast, me.Content.Toks, me.Notices.LexErrs = nil, nil, nil
+		me.Content.Ast, me.Content.Est, me.Content.Toks, me.Notices.LexErrs = nil, nil, nil, nil
 		if me.Notices.LastReadErr == nil {
 			me.Content.Toks, me.Notices.LexErrs = tokenize(me.FilePath, me.Content.Src)
 			if len(me.Notices.LexErrs) == 0 {
 				me.parse()
+				me.expand()
 			}
 		}
 	}

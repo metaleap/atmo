@@ -54,19 +54,15 @@ type SrcFileNotice struct {
 	Code    SrcFileNoticeCode
 }
 
-func (me *SrcFileNotice) Error() string  { return me.Message }
 func (me *SrcFileNotice) String() string { return me.Message }
 
-func errToNotice(err error, code SrcFileNoticeCode, span *SrcFileSpan) (ret *SrcFileNotice) {
-	if ret, _ = err.(*SrcFileNotice); (ret == nil) && (err != nil) {
-		err_msg := errMsgs[code]
-		err_msg = util.If(err_msg == "", err.Error(), str.Fmt(err_msg, err.Error()))
-		ret = &SrcFileNotice{Kind: NoticeKindErr, Message: err_msg, Code: code}
+func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNotice {
+	if err == nil {
+		return nil
 	}
-	if ret != nil && span != nil {
-		ret.Span = *span
-	}
-	return
+	err_msg, err_msg_fmt := err.Error(), errMsgs[code]
+	err_msg = util.If(err_msg_fmt == "", err_msg, str.Fmt(err_msg_fmt, err_msg))
+	return &SrcFileNotice{Kind: NoticeKindErr, Message: err_msg, Code: code, Span: span}
 }
 
 // callers have already `allSrcFilesMutex.Lock`ed
@@ -80,13 +76,14 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 				file_notices = append(file_notices, src_file.Notices.LastReadErr)
 			}
 			file_notices = append(file_notices, src_file.Notices.LexErrs...)
-			for _, top_level_node := range src_file.Content.Ast {
-				top_level_node.walk(nil, func(node *AstNode) {
-					if node.err != nil {
-						file_notices = append(file_notices, node.err)
-					}
-				})
-			}
+			src_file.Content.Ast.walk(nil, func(node *AstNode) {
+				if node.err != nil {
+					file_notices = append(file_notices, node.err)
+				}
+			})
+			src_file.Content.Est.walk(nil, func(node *EstNode) {
+				file_notices = append(file_notices, node.diags...)
+			})
 		}
 		// sorting is mainly for the later equality-comparison further down below
 		file_notices = sl.SortedPer(file_notices, func(diag1 *SrcFileNotice, diag2 *SrcFileNotice) int {
