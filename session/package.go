@@ -40,11 +40,14 @@ func removeSrcFiles(srcFilePaths ...string) {
 	for _, src_file := range src_files {
 		if (src_file != nil) && (src_file.pkg != nil) {
 			src_file.pkg.Files = sl.Where(src_file.pkg.Files,
-				func(it *SrcFile) bool { return it.FilePath != src_file.FilePath })
+				func(it *SrcFile) bool { return (it != src_file) && (it.FilePath != src_file.FilePath) })
 			if len(src_file.pkg.Files) == 0 {
 				del_pkgs[src_file.pkg.DirPath] = src_file.pkg
 			}
 		}
+	}
+	for dir_path := range del_pkgs {
+		delete(state.srcPkgs, dir_path)
 	}
 }
 

@@ -1,10 +1,11 @@
 package session
 
 import (
-	"atmo/util/kv"
-	"atmo/util/sl"
 	"cmp"
 	"sync"
+
+	"atmo/util/kv"
+	"atmo/util/sl"
 )
 
 var (
