@@ -99,7 +99,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 	var prev *Tok
 	var had_ws_err bool
 	var brace_level int
-	stack := []int{0}
+	var stack []int
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
 		tok := &Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
 		tok.Src = curFullSrcFileContent[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
@@ -122,15 +122,24 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 			tok.Kind = TokKindIdentOpish
 		}
 
-		if is_new_line := (brace_level <= 0) && ((prev == nil) || (tok.Pos.Line > prev.Pos.Line)); is_new_line {
+		if prev == nil { // we're at first token in source
+			if tok.Pos.Char > 1 {
+				errs = append(errs, toks[0].newIndentErr("BAR"))
+			}
+			stack = append(stack, tok.Pos.Char)
+			toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+		} else if is_new_line := (brace_level <= 0) && (tok.Pos.Line > prev.Pos.Line); is_new_line {
 			// on newline: indent/dedent/newline handling, taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
-
 			stack_top := stack[len(stack)-1]
 			if tok.Pos.Char < stack_top {
-				for ; stack_top >= tok.Pos.Char; stack_top = stack[len(stack)-1] {
+				for ; stack_top > tok.Pos.Char; stack_top = stack[len(stack)-1] {
 					stack = stack[:len(stack)-1]
 					toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 				}
+				if stack_top != tok.Pos.Char {
+					errs = append(errs, tok.newIndentErr("FOO"))
+				}
+				toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 				toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 			} else if tok.Pos.Char > stack_top {
 				stack = append(stack, tok.Pos.Char)
@@ -140,15 +149,13 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 				toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 			}
 			// also on newline: check for any carriage-return or leading tabs since last tok
-			if prev != nil {
-				src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
-				if (!had_ws_err) && str.Idx(src_since_prev, '\r') >= 0 {
-					had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
-				}
-				src_since_prev = src_since_prev[1+str.Idx(src_since_prev, '\n'):]
-				if (!had_ws_err) && str.Idx(src_since_prev, '\t') >= 0 {
-					had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
-				}
+			src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
+			if (!had_ws_err) && str.Idx(src_since_prev, '\r') >= 0 {
+				had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
+			}
+			src_since_prev = src_since_prev[1+str.Idx(src_since_prev, '\n'):]
+			if (!had_ws_err) && str.Idx(src_since_prev, '\t') >= 0 {
+				had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
 			}
 		}
 
@@ -180,15 +187,12 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		prev = tok
 	}
 
-	for len(stack) >= 1 {
+	for len(stack) > 0 {
 		stack = stack[:len(stack)-1]
 		toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: prev.byteOffset + len(prev.Src), Src: "",
 			Pos: SrcFilePos{Line: prev.Pos.Line, Char: prev.Pos.Char + utf8.RuneCountInString(prev.Src)}})
 	}
 
-	if toks[0].Pos.Char > 1 {
-		errs = append(errs, toks[0].newIndentErr())
-	}
 	return
 }
 
@@ -264,8 +268,10 @@ func (me *Tok) newErr(code SrcFileNoticeCode) *SrcFileNotice {
 	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: errMsgs[code]}
 }
 
-func (me *Tok) newIndentErr() *SrcFileNotice {
-	return me.newErr(NoticeCodeIndentation)
+func (me *Tok) newIndentErr(bla string) *SrcFileNotice {
+	ret := me.newErr(NoticeCodeIndentation)
+	ret.Message = bla
+	return ret
 }
 
 func (me *Tok) span() (ret SrcFileSpan) {

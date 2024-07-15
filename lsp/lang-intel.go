@@ -58,7 +58,7 @@ func init() {
 	}
 
 	Server.On_textDocument_documentHighlight = func(params *lsp.DocumentHighlightParams) (any, error) {
-		return util.If(params.Position.Line > 1, nil, sl.As(dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), func(it lsp.Location) lsp.DocumentHighlight {
+		return util.If(params.Position.Line > 0, nil, sl.As(dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), func(it lsp.Location) lsp.DocumentHighlight {
 			return lsp.DocumentHighlight{Range: it.Range, Kind: lsp.DocumentHighlightKindText}
 		})), nil
 	}

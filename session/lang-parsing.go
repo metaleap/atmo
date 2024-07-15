@@ -28,11 +28,11 @@ type AstNode struct {
 type AstNodeKind int
 
 const (
-	AstNodeKindErr      AstNodeKind = iota
-	AstNodeKindComment              // both /* multi-line */ and // single-line
-	AstNodeKindIdent                // foo, #bar, @baz, $foo, %bar, ==, <==<
-	AstNodeKindLit                  // 123, -321, 1.23, -3.21, "foo", `bar`, 'ö'
-	AstNodeKindMultiple             // foo bar, (), (foo), (foo bar), [], [foo], [foo bar], {}, {foo}, {foo bar}
+	AstNodeKindErr     AstNodeKind = iota
+	AstNodeKindComment             // both /* multi-line */ and // single-line
+	AstNodeKindIdent               // foo, #bar, @baz, $foo, %bar, ==, <==<
+	AstNodeKindLit                 // 123, -321, 1.23, -3.21, "foo", `bar`, 'ö'
+	AstNodeKindGroup               // foo bar, (), (foo), (foo bar), [], [foo], [foo bar], {}, {foo}, {foo bar}
 )
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
@@ -40,35 +40,25 @@ const (
 func (me *SrcFile) parse() {
 	parsed := me.parseNodes(me.Content.Toks, true)
 
-	// multi-line call-forms in parens: make each subsequent multi-tok line its own call-form
+	// only now, treat parens non-listish, unlike braces/brackets: hoist any 1-element parens-groups so that `(x)` becomes `x` and `(((foo bar)))` becomes `foo bar`
 	parsed.walk(nil, func(node *AstNode) {
-		// if node.Kind == AstNodeKindMultiple && node.isParens() && node.Toks.isMultiLine() {
-		// 	lines := node.ChildNodes.splitByLines()
-		// 	node.ChildNodes = lines[0]
-
-		// 	for _, line := range lines[1:] {
-		// 		if len(line) == 1 {
-		// 			node.ChildNodes = append(node.ChildNodes, line[0])
-		// 		} else {
-		// 			call_node := &AstNode{Kind: AstNodeKindMultiple, Src: line.toks().src(me.Content.Src),
-		// 				Toks: line.toks(), ChildNodes: line}
-		// 			node.ChildNodes = append(node.ChildNodes, call_node)
-		// 		}
-		// 	}
-		// }
+		for i, it := range node.ChildNodes {
+			if it.isParens() && len(it.ChildNodes) == 1 {
+				node.ChildNodes[i] = it.ChildNodes[0]
+			}
+		}
 	})
 
-	// rewrite all call-forms with an infix operator: `foo bar · baz mojo + times 10` => `(· (foo bar) (+ (baz mojo) (times 10)))`
+	// rewrite all call-forms with an infix operator: `foo bar · baz mojo + times 10` becomes `(· (foo bar) (+ (baz mojo) (times 10)))`
 	// that is: everything to its left is its lhs expr, everything to its right is its rhs expr.
 	parsed.walk(nil, func(node *AstNode) {
-		// if node.Kind == AstNodeKindMultiple {
+		// if node.Kind == AstNodeKindGroup {
 		// 	idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOpish)
 		// 	if idx > 0 {
 		// 		op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
-		// 		// println(">>>>>>>>>INFIXX>>>>>>>>>>>>>>" + op.Src + "<<<<<<<<<<<<<<<<<<INSIDE>>>>>>>" + node.Src + "<<<<<<<<<<<<<<<<<")
-		// 		lhs = AstNodes{{Kind: AstNodeKindMultiple, Src: lhs.toks().src(me.Content.Src),
+		// 		lhs = AstNodes{{Kind: AstNodeKindGroup, Src: lhs.toks().src(me.Content.Src),
 		// 			Toks: lhs.toks(), ChildNodes: lhs}}
-		// 		rhs = AstNodes{{Kind: AstNodeKindMultiple, Src: rhs.toks().src(me.Content.Src),
+		// 		rhs = AstNodes{{Kind: AstNodeKindGroup, Src: rhs.toks().src(me.Content.Src),
 		// 			Toks: rhs.toks(), ChildNodes: rhs}}
 		// 		node.ChildNodes = AstNodes{op, lhs[0], rhs[0]}
 		// 	}
@@ -90,7 +80,7 @@ func (me *SrcFile) parseNode(toks Toks, checkForHuddle bool) *AstNode {
 	if len(nodes) == 1 {
 		return nodes[0]
 	}
-	return &AstNode{Kind: AstNodeKindMultiple, ChildNodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
+	return &AstNode{Kind: AstNodeKindGroup, ChildNodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
 }
 
 func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
@@ -150,7 +140,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 				toks = nil
 			} else {
 				node := &AstNode{
-					Kind: AstNodeKindMultiple, Toks: toks[0 : len(toks_inner)+2],
+					Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2],
 					ChildNodes: me.parseNodes(toks_inner, checkForHuddle),
 				}
 				node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
@@ -160,7 +150,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 		case TokKindEnd:
 			pop := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			ret = append(pop, &AstNode{Kind: AstNodeKindMultiple, Toks: ret.toks(),
+			ret = append(pop, &AstNode{Kind: AstNodeKindGroup, Toks: ret.toks(),
 				Src: ret.toks().src(me.Content.Src), ChildNodes: ret})
 			toks = toks[1:]
 		case TokKindBegin:
@@ -176,7 +166,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 		pop := stack[len(stack)-1]
 		ret_toks := util.If(len(ret) == 0, ret, pop).toks()
 		ret = append(pop, &AstNode{Kind: AstNodeKindErr, Toks: ret_toks,
-			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, err: ret_toks[0].newIndentErr()})
+			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, err: ret_toks[0].newIndentErr("BAZ")})
 	}
 
 	return
@@ -228,7 +218,7 @@ func (me *AstNode) equals(it *AstNode) bool {
 	switch me.Kind {
 	case AstNodeKindComment:
 		return true
-	case AstNodeKindMultiple:
+	case AstNodeKindGroup:
 		return (me.Src[0] == it.Src[0]) // covers parens,brackets,braces
 	case AstNodeKindLit:
 		switch mine := me.Lit.(type) {
@@ -389,7 +379,7 @@ func (me AstNodes) toks() (ret Toks) {
 	return
 }
 
-func (me AstNodes) walk(onBefore func(*AstNode) bool, onAfter func(*AstNode)) {
+func (me AstNodes) walk(onBefore func(node *AstNode) bool, onAfter func(node *AstNode)) {
 	for _, node := range me {
 		node.walk(onBefore, onAfter)
 	}
