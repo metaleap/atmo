@@ -1,6 +1,9 @@
 package session
 
 import (
+	"atmo/util/kv"
+	"atmo/util/sl"
+	"cmp"
 	"sync"
 )
 
@@ -17,6 +20,7 @@ type StateAccess interface {
 	OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string)
 
 	AllCurrentSrcFileNotices() map[string][]*SrcFileNotice
+	AllCurrentSrcPkgs() []*SrcPkg
 	SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile
 }
 
@@ -47,6 +51,12 @@ func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, curr
 
 func (*stateAccess) AllCurrentSrcFileNotices() map[string][]*SrcFileNotice {
 	return allNotices
+}
+
+func (*stateAccess) AllCurrentSrcPkgs() []*SrcPkg {
+	return sl.SortedPer(kv.Values(state.srcPkgs), func(pkg1 *SrcPkg, pkg2 *SrcPkg) int {
+		return cmp.Compare(pkg1.DirPath, pkg2.DirPath)
+	})
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {

@@ -70,10 +70,10 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 	for _, src_file_path := range provokingFilePaths {
 		var file_notices []*SrcFileNotice
 		if src_file := state.srcFiles[src_file_path]; src_file != nil {
-			if src_file.Notices.LastReadErr != nil {
-				file_notices = append(file_notices, src_file.Notices.LastReadErr)
+			if src_file.notices.LastReadErr != nil {
+				file_notices = append(file_notices, src_file.notices.LastReadErr)
 			}
-			file_notices = append(file_notices, src_file.Notices.LexErrs...)
+			file_notices = append(file_notices, src_file.notices.LexErrs...)
 			src_file.Content.Ast.walk(nil, func(node *AstNode) {
 				if node.err != nil {
 					file_notices = append(file_notices, node.err)

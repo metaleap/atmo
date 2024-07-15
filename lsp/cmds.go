@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval", "getSrcFileToks", "getSrcFileAstOrig"}
+	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval", "getSrcFileToks", "getSrcFileAst"}
 	Server.On_workspace_executeCommand = executeCommand
 }
 
@@ -30,6 +30,12 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			ret, err = str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.LspUriToFsPath(code_action_params.TextDocument.Uri)), err_json
 		}
 
+	case "getSrcPkgs":
+		session.LockedDo(func(sess session.StateAccess) {
+			ret = sess.AllCurrentSrcPkgs()
+		})
+		return
+
 	case "getSrcFileToks":
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
@@ -43,13 +49,26 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			}
 		}
 
-	case "getSrcFileAstOrig":
+	case "getSrcFileAst":
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.LockedDo(func(sess session.StateAccess) {
 					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 						ret = src_file.Content.Ast
+					}
+				})
+				return
+			}
+		}
+
+	case "getSrcFileEst":
+		if len(params.Arguments) == 1 {
+			src_file_path, ok := params.Arguments[0].(string)
+			if ok && session.IsSrcFilePath(src_file_path) {
+				session.LockedDo(func(sess session.StateAccess) {
+					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+						ret = src_file.Content.Est
 					}
 				})
 				return

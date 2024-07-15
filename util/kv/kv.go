@@ -11,6 +11,14 @@ func Keys[K comparable, V any](m map[K]V) (ret []K) {
 	return
 }
 
+func Values[K comparable, V any](m map[K]V) (ret []V) {
+	ret = make([]V, 0, len(m))
+	for _, v := range m {
+		ret = append(ret, v)
+	}
+	return
+}
+
 func Fill[K comparable, V any](dst map[K]V, from map[K]V) map[K]V {
 	for k, v := range from {
 		dst[k] = v
