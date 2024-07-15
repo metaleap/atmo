@@ -70,27 +70,27 @@ func init() {
 
 func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 	all_src_file_paths := func(fsPath string) (ret []string) {
-		if util.FsIsDir(fsPath) {
+		if session.IsSrcFilePath(fsPath) {
+			ret = append(ret, fsPath)
+		} else if util.FsIsDir(fsPath) {
 			util.FsDirWalk(fsPath, func(fsPath string, fsEntry fs.DirEntry) {
-				if (!fsEntry.IsDir()) && session.IsSrcFilePath(fsPath) {
+				if session.IsSrcFilePath(fsPath) {
 					ret = append(ret, fsPath)
 				}
 			})
-		} else if session.IsSrcFilePath(fsPath) {
-			ret = append(ret, fsPath)
 		}
 		return
 	}
 
 	var removed, added, changed []string
 	for _, it := range fileEvents {
-		switch it.Type {
+		switch path := lsp.LspUriToFsPath(it.Uri); it.Type {
 		case lsp.FileChangeTypeDeleted:
-			removed = append(removed, all_src_file_paths(lsp.LspUriToFsPath(it.Uri))...)
+			removed = append(removed, all_src_file_paths(path)...)
 		case lsp.FileChangeTypeCreated:
-			added = append(added, all_src_file_paths(lsp.LspUriToFsPath(it.Uri))...)
+			added = append(added, all_src_file_paths(path)...)
 		case lsp.FileChangeTypeChanged:
-			changed = append(changed, all_src_file_paths(lsp.LspUriToFsPath(it.Uri))...)
+			changed = append(changed, all_src_file_paths(path)...)
 		}
 	}
 	session.LockedDo(func(sess session.StateAccess) {

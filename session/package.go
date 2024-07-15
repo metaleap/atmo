@@ -6,10 +6,12 @@ import (
 	"strings"
 
 	"atmo/util"
+	"atmo/util/sl"
 )
 
 type SrcPkg struct {
 	DirPath string
+	Files   []*SrcFile
 }
 
 type SrcFile struct {
@@ -27,11 +29,30 @@ type SrcFile struct {
 	}
 }
 
+func IsSrcFilePath(filePath string) bool {
+	return filepath.IsAbs(filePath) && filepath.Ext(filePath) == ".at" &&
+		(!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
+}
+
+func removeSrcFiles(srcFilePaths ...string) {
+	src_files := sl.As(srcFilePaths, func(it string) *SrcFile { return state.srcFiles[it] })
+	del_pkgs := map[string]*SrcPkg{}
+	for _, src_file := range src_files {
+		if (src_file != nil) && (src_file.Pkg != nil) {
+			src_file.Pkg.Files = sl.Where(src_file.Pkg.Files,
+				func(it *SrcFile) bool { return it.FilePath != src_file.FilePath })
+			if len(src_file.Pkg.Files) == 0 {
+				del_pkgs[src_file.Pkg.DirPath] = src_file.Pkg
+			}
+		}
+	}
+}
+
 func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
 	util.Assert(IsSrcFilePath(srcFilePath), srcFilePath)
 
 	if !util.FsIsFile(srcFilePath) {
-		delete(state.srcFiles, srcFilePath)
+		removeSrcFiles(srcFilePath)
 		return nil
 	}
 
@@ -39,6 +60,7 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 	if me == nil {
 		me = &SrcFile{FilePath: srcFilePath}
 		state.srcFiles[srcFilePath] = me
+		me.ensureSrcPkg()
 	}
 
 	old_content, had_last_read_err := me.Content.Src, (me.Notices.LastReadErr != nil)
@@ -47,7 +69,7 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 	} else if (!canSkipFileRead) || had_last_read_err {
 		src_file_bytes, err := os.ReadFile(srcFilePath)
 		if os.IsNotExist(err) {
-			delete(state.srcFiles, srcFilePath)
+			removeSrcFiles(srcFilePath)
 			return nil
 		} else {
 			me.Content.Src, me.Notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, me.Span())
@@ -67,9 +89,17 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 	return me
 }
 
-func IsSrcFilePath(filePath string) bool {
-	return filepath.IsAbs(filePath) && filepath.Ext(filePath) == ".at" &&
-		(!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
+func (me *SrcFile) ensureSrcPkg() {
+	if me.Pkg != nil {
+		return
+	}
+	dir_path := filepath.Dir(me.FilePath)
+	pkg := state.srcPkgs[dir_path]
+	if pkg == nil {
+		pkg = &SrcPkg{DirPath: dir_path}
+		state.srcPkgs[dir_path] = pkg
+	}
+	pkg.Files = sl.With(pkg.Files, me)
 }
 
 func (me *SrcFile) Span() (ret SrcFileSpan) {

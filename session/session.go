@@ -38,9 +38,7 @@ func (*stateAccess) OnSrcFileEdit(srcFilePath string, curFullContent string) {
 }
 
 func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
-	for _, file_path := range removed {
-		delete(state.srcFiles, file_path)
-	}
+	removeSrcFiles(removed...)
 	for _, file_path := range current {
 		ensureSrcFile(file_path, nil, canSkipFileRead)
 	}
