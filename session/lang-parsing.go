@@ -42,22 +42,7 @@ func (me *SrcFile) parse() {
 
 	// group huddled exprs: `foo x+z y` right now is `foo x + z y` BUT lets make it `foo (x + 1) y`:
 	parsed.walk(nil, func(node *AstNode) {
-		idx_from := 0
-		for i := 1; i < len(node.ChildNodes); i++ {
-			cur, prev := node.ChildNodes[i], node.ChildNodes[i-1]
-			if (!cur.canHuddle()) || (!prev.canHuddle()) || !cur.isWhitespaceLesslyRightAfter(prev) {
-				huddled_nodes := node.ChildNodes[idx_from:i]
-				if len(huddled_nodes) > 1 {
-					prevs, nexts := node.ChildNodes[:idx_from], node.ChildNodes[i:]
-					node.ChildNodes = append(append(prevs, &AstNode{
-						Kind: AstNodeKindGroup, ChildNodes: huddled_nodes,
-						Toks: huddled_nodes.toks(), Src: huddled_nodes.toks().src(me.Content.Src),
-					}), nexts...)
-				}
-				idx_from = i
-			}
-		}
-
+		node.ChildNodes = node.ChildNodes.huddled(me.Content.Src)
 	})
 
 	// only now, treat parens non-listish, unlike braces/brackets: hoist any 1-element parens-groups so that `(x)` becomes `x` and `(((foo bar)))` becomes `foo bar`
@@ -286,7 +271,7 @@ func (me *AstNode) isParens() bool {
 	return me.Src[0] == '('
 }
 
-func (me *AstNode) isWhitespaceLesslyRightAfter(it *AstNode) bool {
+func (me *AstNode) isWhitespacelesslyRightAfter(it *AstNode) bool {
 	prev_tok := it.Toks[len(it.Toks)-1]
 	return me.Toks[0].byteOffset == (prev_tok.byteOffset + len(prev_tok.Src))
 }
@@ -363,6 +348,16 @@ func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
 	})
 }
 
+func (me AstNodes) groupIfMultiple(curFullSrcFileContent string) *AstNode {
+	if len(me) == 0 {
+		return nil
+	} else if len(me) == 1 {
+		return me[0]
+	}
+	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(),
+		ChildNodes: me, Src: me.toks().src(curFullSrcFileContent)}
+}
+
 func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
 	if !recurse {
 		ret = sl.HasWhere(me, where)
@@ -377,6 +372,31 @@ func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) 
 
 func (me AstNodes) hasKind(kind AstNodeKind) bool {
 	return me.has(true, func(it *AstNode) bool { return it.Kind == kind })
+}
+
+func (me AstNodes) huddled(curFullSrcFileContent string) (ret AstNodes) {
+	if len(me) <= 1 {
+		return me
+	}
+	all_huddled, huddle := true, AstNodes{me[0]}
+	for i := 1; i < len(me); i++ {
+		prev, cur := me[i-1], me[i]
+		if prev.canHuddle() && cur.canHuddle() && cur.isWhitespacelesslyRightAfter(prev) {
+			huddle = append(huddle, cur)
+		} else {
+			all_huddled = false
+			if it := huddle.groupIfMultiple(curFullSrcFileContent); it != nil {
+				ret = append(ret, it)
+			}
+			huddle = AstNodes{cur}
+		}
+	}
+	if all_huddled {
+		ret = me
+	} else if it := huddle.groupIfMultiple(curFullSrcFileContent); it != nil {
+		ret = append(ret, it)
+	}
+	return
 }
 
 func (me AstNodes) splitByLines() (ret []AstNodes) {
