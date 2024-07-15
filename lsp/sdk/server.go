@@ -94,8 +94,10 @@ func (me *Server) Request_window_showMessageRequest(params ShowMessageRequestPar
 	go me.send("window/showMessageRequest", params, true, on_resp)
 }
 
+func (*Server) newId() string { return strconv.FormatInt(time.Now().UnixNano(), 36) }
+
 func (me *Server) send(methodName string, params any, isReq bool, onResp func(any, any)) {
-	req_id := strconv.FormatInt(time.Now().UnixNano(), 36)
+	req_id := me.newId()
 	req := map[string]any{"method": methodName, "params": params}
 	if onResp != nil {
 		me.waitersMu.Lock()
@@ -297,7 +299,7 @@ func (me *Server) Forever() error {
 			if me.On_workspace_didChangeWatchedFiles != nil {
 				me.Request_client_registerCapability(RegistrationParams{
 					Registrations: []Registration{
-						{Method: "workspace/didChangeWatchedFiles", Id: "workspace/didChangeWatchedFiles",
+						{Method: "workspace/didChangeWatchedFiles", Id: me.newId(),
 							RegisterOptions: DidChangeWatchedFilesRegistrationOptions{Watchers: []FileSystemWatcher{
 								{Kind: WatchKindAll,
 									GlobPattern: struct {

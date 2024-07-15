@@ -22,6 +22,7 @@ type StateAccess interface {
 
 	AllCurrentSrcFileNotices() map[string][]*SrcFileNotice
 	AllCurrentSrcPkgs() []*SrcPkg
+	GetSrcPkg(dirPath string) *SrcPkg
 	SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile
 }
 
@@ -58,6 +59,10 @@ func (*stateAccess) AllCurrentSrcPkgs() []*SrcPkg {
 	return sl.SortedPer(kv.Values(state.srcPkgs), func(pkg1 *SrcPkg, pkg2 *SrcPkg) int {
 		return cmp.Compare(pkg1.DirPath, pkg2.DirPath)
 	})
+}
+
+func (*stateAccess) GetSrcPkg(dirPath string) *SrcPkg {
+	return state.srcPkgs[dirPath]
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {

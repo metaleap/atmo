@@ -69,31 +69,38 @@ func init() {
 }
 
 func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
-	all_src_file_paths := func(fsPath string) (ret []string) {
-		if session.IsSrcFilePath(fsPath) {
-			ret = append(ret, fsPath)
-		} else if util.FsIsDir(fsPath) {
-			util.FsDirWalk(fsPath, func(fsPath string, fsEntry fs.DirEntry) {
-				if session.IsSrcFilePath(fsPath) {
-					ret = append(ret, fsPath)
-				}
-			})
-		}
-		return
-	}
-
-	var removed, added, changed []string
-	for _, it := range fileEvents {
-		switch path := lsp.LspUriToFsPath(it.Uri); it.Type {
-		case lsp.FileChangeTypeDeleted:
-			removed = append(removed, all_src_file_paths(path)...)
-		case lsp.FileChangeTypeCreated:
-			added = append(added, all_src_file_paths(path)...)
-		case lsp.FileChangeTypeChanged:
-			changed = append(changed, all_src_file_paths(path)...)
-		}
-	}
 	session.LockedDo(func(sess session.StateAccess) {
+		all_src_file_paths := func(fsPath string) (ret []string) {
+			if session.IsSrcFilePath(fsPath) {
+				ret = append(ret, fsPath)
+			} else if util.FsIsDir(fsPath) {
+				util.FsDirWalk(fsPath, func(fsPath string, fsEntry fs.DirEntry) {
+					if session.IsSrcFilePath(fsPath) {
+						ret = append(ret, fsPath)
+					}
+				})
+			} else if pkg := sess.GetSrcPkg(fsPath); pkg != nil {
+				session.OnDbgMsg(true, "YAY:"+fsPath)
+				for _, src_file := range pkg.Files {
+					ret = append(ret, src_file.FilePath)
+				}
+			} else {
+				session.OnDbgMsg(true, "NAY:"+fsPath)
+			}
+			return
+		}
+
+		var removed, added, changed []string
+		for _, it := range fileEvents {
+			switch path := lsp.LspUriToFsPath(it.Uri); it.Type {
+			case lsp.FileChangeTypeDeleted:
+				removed = append(removed, all_src_file_paths(path)...)
+			case lsp.FileChangeTypeCreated:
+				added = append(added, all_src_file_paths(path)...)
+			case lsp.FileChangeTypeChanged:
+				changed = append(changed, all_src_file_paths(path)...)
+			}
+		}
 		sess.OnSrcFileEvents(removed, false, append(added, changed...)...)
 	})
 }
