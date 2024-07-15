@@ -54,20 +54,28 @@ func (me *SrcFile) parse() {
 		}
 	})
 
-	// rewrite all call-forms with an infix operator: `foo bar · baz mojo + times 10` becomes `(· (foo bar) (+ (baz mojo) (times 10)))`
-	// that is: everything to its left is its lhs expr, everything to its right is its rhs expr.
+	// rewrite nodes with an opish: everything to its left becomes its lhs expr, everything to its right becomes its rhs expr.
 	parsed.walk(nil, func(node *AstNode) {
-		// if (node.Kind == AstNodeKindGroup) && (len(node.ChildNodes) > 1) {
-		// 	idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOpish)
-		// 	if idx > 0 {
-		// 		op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
-		// 		lhs = AstNodes{{Kind: AstNodeKindGroup, Src: lhs.toks().src(me.Content.Src),
-		// 			Toks: lhs.toks(), ChildNodes: lhs}}
-		// 		rhs = AstNodes{{Kind: AstNodeKindGroup, Src: rhs.toks().src(me.Content.Src),
-		// 			Toks: rhs.toks(), ChildNodes: rhs}}
-		// 		node.ChildNodes = AstNodes{op, lhs[0], rhs[0]}
-		// 	}
-		// }
+		if (node.Kind == AstNodeKindGroup) && (len(node.ChildNodes) > 1) {
+			idx := sl.IdxWhere(node.ChildNodes, (*AstNode).isIdentOpish)
+			if idx == 0 { // prefix operator
+				op, rhs := node.ChildNodes[idx], node.ChildNodes[idx+1:]
+				node.ChildNodes = AstNodes{op,
+					&AstNode{Kind: AstNodeKindGroup, ChildNodes: rhs,
+						Toks: rhs.toks(), Src: rhs.toks().src(me.Content.Src)}}
+			} else if idx > 0 { // infix operator
+				op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
+				lhs = AstNodes{{Kind: AstNodeKindGroup, Src: lhs.toks().src(me.Content.Src),
+					Toks: lhs.toks(), ChildNodes: lhs}}
+				rhs = AstNodes{{Kind: AstNodeKindGroup, Src: rhs.toks().src(me.Content.Src),
+					Toks: rhs.toks(), ChildNodes: rhs}}
+				node.ChildNodes = AstNodes{op,
+					&AstNode{Kind: AstNodeKindGroup, ChildNodes: lhs,
+						Toks: lhs.toks(), Src: lhs.toks().src(me.Content.Src)},
+					&AstNode{Kind: AstNodeKindGroup, ChildNodes: rhs,
+						Toks: rhs.toks(), Src: rhs.toks().src(me.Content.Src)}}
+			}
+		}
 	})
 
 	// sort all top-level nodes to be in source-file order of appearance; also set all `AstNode.parent`s
@@ -385,16 +393,14 @@ func (me AstNodes) huddled(curFullSrcFileContent string) (ret AstNodes) {
 			huddle = append(huddle, cur)
 		} else {
 			all_huddled = false
-			if it := huddle.groupIfMultiple(curFullSrcFileContent); it != nil {
-				ret = append(ret, it)
-			}
+			ret = append(ret, huddle.groupIfMultiple(curFullSrcFileContent))
 			huddle = AstNodes{cur}
 		}
 	}
 	if all_huddled {
 		ret = me
-	} else if it := huddle.groupIfMultiple(curFullSrcFileContent); it != nil {
-		ret = append(ret, it)
+	} else {
+		ret = append(ret, huddle.groupIfMultiple(curFullSrcFileContent))
 	}
 	return
 }
