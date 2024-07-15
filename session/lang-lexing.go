@@ -74,7 +74,7 @@ const (
 )
 
 // only called by `EnsureSrcFile`
-func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs []*SrcFileNotice) {
+func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs []*SrcFileNotice) {
 	if len(curFullSrcFileContent) == 0 {
 		return
 	}
@@ -95,7 +95,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 	}
 	scan.Filename = srcFilePath
 
-	toks = make(Toks, 0, len(curFullSrcFileContent)/3)
+	ret = make(Toks, 0, len(curFullSrcFileContent)/3)
 	var prev *Tok
 	var had_ws_err bool
 	var brace_level int
@@ -123,30 +123,31 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 		}
 
 		if prev == nil { // we're at first token in source
-			if tok.Pos.Char > 1 {
-				errs = append(errs, toks[0].newIndentErr("BAR"))
-			}
 			stack = append(stack, tok.Pos.Char)
-			toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+			ret = append(ret, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+			if tok.Pos.Char > 1 {
+				ret, errs = append(ret, tok), append(errs, tok.newIndentErr())
+				return
+			}
 		} else if is_new_line := (brace_level <= 0) && (tok.Pos.Line > prev.Pos.Line); is_new_line {
 			// on newline: indent/dedent/newline handling, taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
 			stack_top := stack[len(stack)-1]
 			if tok.Pos.Char < stack_top {
 				for ; stack_top > tok.Pos.Char; stack_top = stack[len(stack)-1] {
 					stack = stack[:len(stack)-1]
-					toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+					ret = append(ret, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 				}
 				if stack_top != tok.Pos.Char {
-					errs = append(errs, tok.newIndentErr("FOO"))
+					errs = append(errs, tok.newIndentErr())
 				}
-				toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
-				toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+				ret = append(ret, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+				ret = append(ret, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 			} else if tok.Pos.Char > stack_top {
 				stack = append(stack, tok.Pos.Char)
-				toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+				ret = append(ret, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 			} else {
-				toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
-				toks = append(toks, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+				ret = append(ret, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
+				ret = append(ret, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 			}
 			// also on newline: check for any carriage-return or leading tabs since last tok
 			src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
@@ -166,7 +167,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 
 		switch {
 		default:
-			toks = append(toks, tok)
+			ret = append(ret, tok)
 		case (prev != nil) && (prev.Kind == TokKindIdentOpish) && (tok.Kind == TokKindIdentOpish) &&
 			(!prev.isSep()) && (!tok.isSep()) && ((prev.Pos.Char + len(prev.Src)) == tok.Pos.Char):
 			// multi-char op toks such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
@@ -180,7 +181,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 				Src:        tok.Src[len(tok.Src)-1:],
 			}
 			tok.Kind, tok.Src = TokKindLitInt, tok.Src[:len(tok.Src)-1]
-			toks = append(toks, tok, dot)
+			ret = append(ret, tok, dot)
 			tok = dot // so that `prev` will be correct
 		}
 
@@ -189,7 +190,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (toks Toks, errs
 
 	for len(stack) > 0 {
 		stack = stack[:len(stack)-1]
-		toks = append(toks, &Tok{Kind: TokKindEnd, byteOffset: prev.byteOffset + len(prev.Src), Src: "",
+		ret = append(ret, &Tok{Kind: TokKindEnd, byteOffset: prev.byteOffset + len(prev.Src), Src: "",
 			Pos: SrcFilePos{Line: prev.Pos.Line, Char: prev.Pos.Char + utf8.RuneCountInString(prev.Src)}})
 	}
 
@@ -268,10 +269,8 @@ func (me *Tok) newErr(code SrcFileNoticeCode) *SrcFileNotice {
 	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: errMsgs[code]}
 }
 
-func (me *Tok) newIndentErr(bla string) *SrcFileNotice {
-	ret := me.newErr(NoticeCodeIndentation)
-	ret.Message = bla
-	return ret
+func (me *Tok) newIndentErr() *SrcFileNotice {
+	return me.newErr(NoticeCodeIndentation)
 }
 
 func (me *Tok) span() (ret SrcFileSpan) {

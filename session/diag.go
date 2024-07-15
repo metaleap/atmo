@@ -41,7 +41,7 @@ var (
 		NoticeCodeWhitespace:     "unsupported white-space; ensure both: no line-leading tabs, and LF-only line endings (no CR or CRLF)",
 		NoticeCodeLexingError:    "invalid token: %s",   // actual error msg in %s
 		NoticeCodeLitSyntax:      "invalid literal: %s", // actual error msg in %s
-		NoticeCodeIndentation:    "ambiguous indentation",
+		NoticeCodeIndentation:    "incorrect indentation",
 		NoticeCodeMisplaced:      "unexpected: '%s'",
 		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
 	}
