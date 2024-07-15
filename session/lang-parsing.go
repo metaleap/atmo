@@ -38,7 +38,27 @@ const (
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
 // mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
 func (me *SrcFile) parse() {
-	parsed := me.parseNodes(me.Content.Toks, true)
+	parsed := me.parseNodes(me.Content.Toks)
+
+	// group huddled exprs: `foo x+z y` right now is `foo x + z y` BUT lets make it `foo (x + 1) y`:
+	parsed.walk(nil, func(node *AstNode) {
+		idx_from := 0
+		for i := 1; i < len(node.ChildNodes); i++ {
+			cur, prev := node.ChildNodes[i], node.ChildNodes[i-1]
+			if (!cur.canHuddle()) || (!prev.canHuddle()) || !cur.isWhitespaceLesslyRightAfter(prev) {
+				huddled_nodes := node.ChildNodes[idx_from:i]
+				if len(huddled_nodes) > 1 {
+					prevs, nexts := node.ChildNodes[:idx_from], node.ChildNodes[i:]
+					node.ChildNodes = append(append(prevs, &AstNode{
+						Kind: AstNodeKindGroup, ChildNodes: huddled_nodes,
+						Toks: huddled_nodes.toks(), Src: huddled_nodes.toks().src(me.Content.Src),
+					}), nexts...)
+				}
+				idx_from = i
+			}
+		}
+
+	})
 
 	// only now, treat parens non-listish, unlike braces/brackets: hoist any 1-element parens-groups so that `(x)` becomes `x` and `(((foo bar)))` becomes `foo bar`
 	parsed.walk(nil, func(node *AstNode) {
@@ -52,7 +72,7 @@ func (me *SrcFile) parse() {
 	// rewrite all call-forms with an infix operator: `foo bar · baz mojo + times 10` becomes `(· (foo bar) (+ (baz mojo) (times 10)))`
 	// that is: everything to its left is its lhs expr, everything to its right is its rhs expr.
 	parsed.walk(nil, func(node *AstNode) {
-		// if node.Kind == AstNodeKindGroup {
+		// if (node.Kind == AstNodeKindGroup) && (len(node.ChildNodes) > 1) {
 		// 	idx := 1 + sl.IdxWhere(node.ChildNodes[1:], (*AstNode).isIdentOpish)
 		// 	if idx > 0 {
 		// 		op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
@@ -75,26 +95,18 @@ func (me *SrcFile) parse() {
 	me.Content.Ast = parsed
 }
 
-func (me *SrcFile) parseNode(toks Toks, checkForHuddle bool) *AstNode {
-	nodes := me.parseNodes(toks, checkForHuddle)
+func (me *SrcFile) parseNode(toks Toks) *AstNode {
+	nodes := me.parseNodes(toks)
 	if len(nodes) == 1 {
 		return nodes[0]
 	}
 	return &AstNode{Kind: AstNodeKindGroup, ChildNodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
 }
 
-func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
+func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 	var stack []AstNodes // in case of indents/dedents in toks
 	var had_brace_err bool
 	for len(toks) > 0 {
-		if checkForHuddle {
-			if huddled, rest := toks.huddle(); len(huddled) > 1 && ((len(rest) > 0) || (len(ret) > 0)) {
-				ret = append(ret, me.parseNode(huddled, false))
-				toks = rest
-				continue
-			}
-		}
-
 		tok := toks[0]
 		switch tok.Kind {
 		case TokKindComment:
@@ -141,7 +153,7 @@ func (me *SrcFile) parseNodes(toks Toks, checkForHuddle bool) (ret AstNodes) {
 			} else {
 				node := &AstNode{
 					Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2],
-					ChildNodes: me.parseNodes(toks_inner, checkForHuddle),
+					ChildNodes: me.parseNodes(toks_inner),
 				}
 				node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 				ret = append(ret, node)
@@ -196,28 +208,22 @@ func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 	return
 }
 
+func (me *AstNode) canHuddle() bool {
+	return (me.Kind == AstNodeKindLit) || (me.Kind == AstNodeKindIdent)
+}
+
 func (me *AstNode) cmp(it *AstNode) int {
 	return cmp.Compare(me.Toks[0].byteOffset, it.Toks[0].byteOffset)
 }
 
-func (me *AstNode) equals(it *AstNode) bool {
+func (me *AstNode) equals(it *AstNode, withoutComments bool) bool {
 	util.Assert(me != it, nil)
 
-	if me.Kind != it.Kind || len(me.ChildNodes) != len(it.ChildNodes) {
-		return false
-	}
-
-	var idx int
-	if !sl.All(me.ChildNodes, func(node *AstNode) (isEq bool) {
-		isEq, idx = node.equals(it.ChildNodes[idx]), idx+1
-		return
-	}) {
+	if me.Kind != it.Kind || !me.ChildNodes.equals(it.ChildNodes, withoutComments) {
 		return false
 	}
 
 	switch me.Kind {
-	case AstNodeKindComment:
-		return true
 	case AstNodeKindGroup:
 		return (me.Src[0] == it.Src[0]) // covers parens,brackets,braces
 	case AstNodeKindLit:
@@ -269,14 +275,26 @@ func (me *AstNode) isBrackets() bool {
 }
 
 func (me *AstNode) isIdentOpish() bool {
-	return me.Kind == AstNodeKindIdent && me.Toks[0].Kind == TokKindIdentOpish
+	return (me.Kind == AstNodeKindIdent) && (me.Toks[0].Kind == TokKindIdentOpish)
+}
+
+func (me *AstNode) isIdentSepish() bool {
+	return me.isIdentOpish() && (me.Toks[0].isSep())
 }
 
 func (me *AstNode) isParens() bool {
 	return me.Src[0] == '('
 }
 
+func (me *AstNode) isWhitespaceLesslyRightAfter(it *AstNode) bool {
+	prev_tok := it.Toks[len(it.Toks)-1]
+	return me.Toks[0].byteOffset == (prev_tok.byteOffset + len(prev_tok.Src))
+}
+
 func (me *AstNode) sig(buf *strings.Builder) {
+	if me.Kind == AstNodeKindComment {
+		return
+	}
 	buf.WriteByte('<')
 	buf.WriteString(str.FromInt(int(me.Kind)))
 	buf.WriteByte(',')
@@ -333,7 +351,19 @@ func (me *AstNode) walk(onBefore func(*AstNode) bool, onAfter func(*AstNode)) {
 	}
 }
 
-func (me AstNodes) has(recurse bool, where func(*AstNode) bool) (ret bool) {
+func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
+	var idx int
+	if withoutComments {
+		me, it = me.withoutComments(), it.withoutComments()
+	}
+	return (len(me) == len(it)) && sl.All(me, func(node *AstNode) bool {
+		it := it[idx]
+		idx++
+		return node.equals(it, withoutComments)
+	})
+}
+
+func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
 	if !recurse {
 		ret = sl.HasWhere(me, where)
 	} else {
@@ -345,12 +375,8 @@ func (me AstNodes) has(recurse bool, where func(*AstNode) bool) (ret bool) {
 	return
 }
 
-func (me AstNodes) hasKind(kind AstNodeKind) (ret bool) {
-	me.walk(func(it *AstNode) bool {
-		ret = ret || (it.Kind == kind)
-		return !ret
-	}, nil)
-	return
+func (me AstNodes) hasKind(kind AstNodeKind) bool {
+	return me.has(true, func(it *AstNode) bool { return it.Kind == kind })
 }
 
 func (me AstNodes) splitByLines() (ret []AstNodes) {
@@ -383,4 +409,8 @@ func (me AstNodes) walk(onBefore func(node *AstNode) bool, onAfter func(node *As
 	for _, node := range me {
 		node.walk(onBefore, onAfter)
 	}
+}
+
+func (me AstNodes) withoutComments() AstNodes {
+	return sl.Where(me, func(it *AstNode) bool { return it.Kind != AstNodeKindComment })
 }
