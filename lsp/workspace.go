@@ -31,7 +31,9 @@ func init() {
 	Server.On_textDocument_didChange = func(params *lsp.DidChangeTextDocumentParams) (any, error) {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		if session.IsSrcFilePath(src_file_path) && len(params.ContentChanges) == 1 {
-			session.OnSrcFileEdit(src_file_path, params.ContentChanges[0].Text)
+			session.LockedDo(func(sess session.StateAccess) {
+				sess.OnSrcFileEdit(src_file_path, params.ContentChanges[0].Text)
+			})
 		} else if len(params.ContentChanges) > 1 {
 			return nil, errors.New("'textDocument/didChange' notifications based on `TextDocumentSyncKind.Incremental` not supported")
 		}
@@ -40,21 +42,27 @@ func init() {
 
 	Server.On_textDocument_didSave = func(params *lsp.DidSaveTextDocumentParams) (any, error) {
 		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
-			session.OnSrcFileEvents(nil, true, src_file_path)
+			session.LockedDo(func(sess session.StateAccess) {
+				sess.OnSrcFileEvents(nil, true, src_file_path)
+			})
 		}
 		return nil, nil
 	}
 
 	Server.On_textDocument_didClose = func(params *lsp.DidCloseTextDocumentParams) (any, error) {
 		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
-			session.OnSrcFileEvents(nil, true, src_file_path)
+			session.LockedDo(func(sess session.StateAccess) {
+				sess.OnSrcFileEvents(nil, true, src_file_path)
+			})
 		}
 		return nil, nil
 	}
 
 	Server.On_textDocument_didOpen = func(params *lsp.DidOpenTextDocumentParams) (any, error) {
 		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
-			session.OnSrcFileEvents(nil, true, src_file_path)
+			session.LockedDo(func(sess session.StateAccess) {
+				sess.OnSrcFileEvents(nil, true, src_file_path)
+			})
 		}
 		return nil, nil
 	}
@@ -85,7 +93,9 @@ func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 			changed = append(changed, all_src_file_paths(lsp.LspUriToFsPath(it.Uri))...)
 		}
 	}
-	session.OnSrcFileEvents(removed, false, append(added, changed...)...)
+	session.LockedDo(func(sess session.StateAccess) {
+		sess.OnSrcFileEvents(removed, false, append(added, changed...)...)
+	})
 }
 
 func onWorkspaceFoldersChanged(rootFoldersRemoved []lsp.WorkspaceFolder, rootFoldersAdded []lsp.WorkspaceFolder) {

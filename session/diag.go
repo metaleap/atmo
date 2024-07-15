@@ -69,7 +69,7 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 
 	for _, src_file_path := range provokingFilePaths {
 		var file_notices []*SrcFileNotice
-		if src_file := allSrcFiles[src_file_path]; src_file != nil {
+		if src_file := state.srcFiles[src_file_path]; src_file != nil {
 			if src_file.Notices.LastReadErr != nil {
 				file_notices = append(file_notices, src_file.Notices.LastReadErr)
 			}
@@ -95,7 +95,7 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 
 	var have_changes bool
 	for src_file_path := range allNotices {
-		if _, still_exists := allSrcFiles[src_file_path]; !still_exists {
+		if _, still_exists := state.srcFiles[src_file_path]; !still_exists {
 			have_changes = true
 			delete(allNotices, src_file_path)
 		}

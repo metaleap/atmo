@@ -149,7 +149,7 @@ func init() {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		var ret []*lsp.SelectionRange
 		if len(params.Positions) > 0 && session.IsSrcFilePath(src_file_path) {
-			session.WithState(func(sess *session.StateAccess) {
+			session.LockedDo(func(sess session.StateAccess) {
 				if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 					for _, pos := range params.Positions {
 						if node := src_file.NodeAt(lsp.LspPosToPos(&pos), true); node == nil {

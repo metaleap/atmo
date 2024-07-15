@@ -11,7 +11,7 @@ import (
 func init() {
 	session.OnNoticesChanged = func() {
 		util.Assert(Server.Initialized.Client != nil && Server.Initialized.Server != nil, nil)
-		session.WithState(func(sess *session.StateAccess) {
+		session.LockedDo(func(sess session.StateAccess) {
 			all_notices := sess.AllCurrentSrcFileNotices()
 			for file_path, diags := range all_notices {
 				Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
@@ -36,7 +36,7 @@ func init() {
 			}
 
 			// gather any actions deriving from current `SrcFileNotice`s on the file, if any
-			session.WithState(func(sess *session.StateAccess) {
+			session.LockedDo(func(sess session.StateAccess) {
 				notices := sess.AllCurrentSrcFileNotices()[src_file_path]
 				if len(notices) == 0 {
 					return
