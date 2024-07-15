@@ -54,16 +54,16 @@ func (me *SrcFile) parse() {
 		}
 	})
 
-	// rewrite nodes with an opish: everything to its left becomes its lhs expr, everything to its right becomes its rhs expr.
-	parsed.walk(func(node *AstNode) bool {
-		if (node.Kind == AstNodeKindGroup) && (len(node.ChildNodes) > 1) {
-			if idx := sl.IdxWhere(node.ChildNodes, (*AstNode).isIdentOpish); idx >= 0 {
-				op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
-				node.ChildNodes = AstNodes{op, lhs.group(false, false, me.Content.Src), rhs.group(false, false, me.Content.Src)}
-			}
-		}
-		return true
-	}, nil)
+	// // rewrite nodes with an opish: everything to its left becomes its lhs expr, everything to its right becomes its rhs expr.
+	// parsed.walk(func(node *AstNode) bool {
+	// 	if (node.Kind == AstNodeKindGroup) && (len(node.ChildNodes) > 1) {
+	// 		if idx := sl.IdxWhere(node.ChildNodes, (*AstNode).isIdentOpish); idx >= 0 {
+	// 			op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
+	// 			node.ChildNodes = AstNodes{op, lhs.group(false, false, me.Content.Src), rhs.group(false, false, me.Content.Src)}
+	// 		}
+	// 	}
+	// 	return true
+	// }, nil)
 
 	// sort all top-level nodes to be in source-file order of appearance; also set all `AstNode.parent`s
 	parsed = sl.SortedPer(parsed, (*AstNode).cmp)
