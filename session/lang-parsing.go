@@ -55,28 +55,15 @@ func (me *SrcFile) parse() {
 	})
 
 	// rewrite nodes with an opish: everything to its left becomes its lhs expr, everything to its right becomes its rhs expr.
-	parsed.walk(nil, func(node *AstNode) {
+	parsed.walk(func(node *AstNode) bool {
 		if (node.Kind == AstNodeKindGroup) && (len(node.ChildNodes) > 1) {
-			idx := sl.IdxWhere(node.ChildNodes, (*AstNode).isIdentOpish)
-			if idx == 0 { // prefix operator
-				op, rhs := node.ChildNodes[idx], node.ChildNodes[idx+1:]
-				node.ChildNodes = AstNodes{op,
-					&AstNode{Kind: AstNodeKindGroup, ChildNodes: rhs,
-						Toks: rhs.toks(), Src: rhs.toks().src(me.Content.Src)}}
-			} else if idx > 0 { // infix operator
+			if idx := sl.IdxWhere(node.ChildNodes, (*AstNode).isIdentOpish); idx >= 0 {
 				op, lhs, rhs := node.ChildNodes[idx], node.ChildNodes[:idx], node.ChildNodes[idx+1:]
-				lhs = AstNodes{{Kind: AstNodeKindGroup, Src: lhs.toks().src(me.Content.Src),
-					Toks: lhs.toks(), ChildNodes: lhs}}
-				rhs = AstNodes{{Kind: AstNodeKindGroup, Src: rhs.toks().src(me.Content.Src),
-					Toks: rhs.toks(), ChildNodes: rhs}}
-				node.ChildNodes = AstNodes{op,
-					&AstNode{Kind: AstNodeKindGroup, ChildNodes: lhs,
-						Toks: lhs.toks(), Src: lhs.toks().src(me.Content.Src)},
-					&AstNode{Kind: AstNodeKindGroup, ChildNodes: rhs,
-						Toks: rhs.toks(), Src: rhs.toks().src(me.Content.Src)}}
+				node.ChildNodes = AstNodes{op, lhs.group(false, false, me.Content.Src), rhs.group(false, false, me.Content.Src)}
 			}
 		}
-	})
+		return true
+	}, nil)
 
 	// sort all top-level nodes to be in source-file order of appearance; also set all `AstNode.parent`s
 	parsed = sl.SortedPer(parsed, (*AstNode).cmp)
@@ -271,10 +258,6 @@ func (me *AstNode) isIdentOpish() bool {
 	return (me.Kind == AstNodeKindIdent) && (me.Toks[0].Kind == TokKindIdentOpish)
 }
 
-func (me *AstNode) isIdentSepish() bool {
-	return me.isIdentOpish() && (me.Toks[0].isSep())
-}
-
 func (me *AstNode) isParens() bool {
 	return me.Src[0] == '('
 }
@@ -356,10 +339,10 @@ func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
 	})
 }
 
-func (me AstNodes) groupIfMultiple(curFullSrcFileContent string) *AstNode {
-	if len(me) == 0 {
+func (me AstNodes) group(onlyIfMultiple bool, nilIfEmpty bool, curFullSrcFileContent string) *AstNode {
+	if nilIfEmpty && (len(me) == 0) {
 		return nil
-	} else if len(me) == 1 {
+	} else if onlyIfMultiple && (len(me) == 1) {
 		return me[0]
 	}
 	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(),
@@ -393,33 +376,14 @@ func (me AstNodes) huddled(curFullSrcFileContent string) (ret AstNodes) {
 			huddle = append(huddle, cur)
 		} else {
 			all_huddled = false
-			ret = append(ret, huddle.groupIfMultiple(curFullSrcFileContent))
+			ret = append(ret, huddle.group(true, true, curFullSrcFileContent))
 			huddle = AstNodes{cur}
 		}
 	}
 	if all_huddled {
 		ret = me
 	} else {
-		ret = append(ret, huddle.groupIfMultiple(curFullSrcFileContent))
-	}
-	return
-}
-
-func (me AstNodes) splitByLines() (ret []AstNodes) {
-	cur_line := me[0].Toks[0].Pos.Line
-	var cur AstNodes
-	for _, node := range me {
-		span := node.Toks.Span()
-		if span.Start.Line == cur_line {
-			cur = append(cur, node)
-		} else if len(cur) > 0 {
-			ret = append(ret, cur)
-			cur = AstNodes{node}
-		}
-		cur_line = span.End.Line
-	}
-	if len(cur) > 0 {
-		ret = append(ret, cur)
+		ret = append(ret, huddle.group(true, true, curFullSrcFileContent))
 	}
 	return
 }
