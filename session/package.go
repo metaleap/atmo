@@ -90,16 +90,15 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 }
 
 func (me *SrcFile) ensureSrcPkg() {
-	if me.Pkg != nil {
-		return
+	if me.Pkg == nil {
+		dir_path := filepath.Dir(me.FilePath)
+		me.Pkg = state.srcPkgs[dir_path]
+		if me.Pkg == nil {
+			me.Pkg = &SrcPkg{DirPath: dir_path}
+			state.srcPkgs[dir_path] = me.Pkg
+		}
 	}
-	dir_path := filepath.Dir(me.FilePath)
-	pkg := state.srcPkgs[dir_path]
-	if pkg == nil {
-		pkg = &SrcPkg{DirPath: dir_path}
-		state.srcPkgs[dir_path] = pkg
-	}
-	pkg.Files = sl.With(pkg.Files, me)
+	me.Pkg.Files = sl.With(me.Pkg.Files, me)
 }
 
 func (me *SrcFile) Span() (ret SrcFileSpan) {

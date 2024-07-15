@@ -240,8 +240,8 @@ func Where[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) (ret
 // add only those `items` not yet in `slice`.
 func With[TSlice ~[]TItem, TItem comparable](slice TSlice, items ...TItem) TSlice {
 	append_from := 0
-	for i := range items {
-		if IdxOf(slice, items[i]) < 0 {
+	for i, it := range items {
+		if IdxOf(slice, it) < 0 {
 			slice = append(slice, items[append_from:i+1]...)
 		}
 		append_from = i + 1
