@@ -55,9 +55,9 @@ func pkgsFsRefresh() {
 }
 
 func removeSrcFiles(srcFilePaths ...string) {
-	src_files := sl.As(srcFilePaths, func(it string) *SrcFile { return state.srcFiles[it] })
 	del_pkgs := map[string]*SrcPkg{}
-	for _, src_file := range src_files {
+	for _, src_file_path := range srcFilePaths {
+		src_file := state.srcFiles[src_file_path]
 		if (src_file != nil) && (src_file.pkg != nil) {
 			src_file.pkg.Files = sl.Where(src_file.pkg.Files,
 				func(it *SrcFile) bool { return (it != src_file) && (it.FilePath != src_file.FilePath) })
@@ -65,6 +65,7 @@ func removeSrcFiles(srcFilePaths ...string) {
 				del_pkgs[src_file.pkg.DirPath] = src_file.pkg
 			}
 		}
+		delete(state.srcFiles, src_file.FilePath)
 	}
 	for dir_path := range del_pkgs {
 		delete(state.srcPkgs, dir_path)

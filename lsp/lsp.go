@@ -7,8 +7,14 @@ import (
 	"atmo/util/str"
 )
 
-var Server = lsp.Server{LogPrefixSendRecvJsons: "atmo"}
-var ClientIsAtmoVscExt bool
+const (
+	logJsonMsgs = true
+)
+
+var (
+	Server             = lsp.Server{LogPrefixSendRecvJsons: util.If(logJsonMsgs, "atmo", "")}
+	ClientIsAtmoVscExt bool
+)
 
 func Main() {
 	panic(Server.Forever())
