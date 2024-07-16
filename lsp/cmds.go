@@ -7,6 +7,7 @@ import (
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
 	"atmo/util"
+	"atmo/util/sl"
 	"atmo/util/str"
 )
 
@@ -45,7 +46,27 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.LockedDo(func(sess session.StateAccess) {
 					if src_pkg := sess.GetSrcPkg(filepath.Dir(src_file_path)); src_pkg != nil {
-						ret = src_pkg.Est
+						type EstNode struct {
+							*session.EstNode
+							Nodes      []*EstNode
+							ClientInfo struct {
+								SrcFilePath string               `json:",omitempty"`
+								SrcFileSpan *session.SrcFileSpan `json:",omitempty"`
+							}
+						}
+						var convert func(*session.EstNode) *EstNode
+						convert = func(it *session.EstNode) *EstNode {
+							ret := &EstNode{EstNode: it, Nodes: sl.As(it.ChildNodes, convert)}
+							if it.Src.File != nil {
+								ret.ClientInfo.SrcFilePath = it.Src.File.FilePath
+								if it.Src.Node != nil {
+									ret.ClientInfo.SrcFileSpan = util.Ptr(it.Src.Node.Toks.Span())
+								}
+							}
+							return ret
+						}
+						session.OnDbgMsg(true, "%s", util.JsonFrom(sl.As(src_pkg.Est, convert)))
+						ret = sl.As(src_pkg.Est, convert)
 					}
 				})
 			}

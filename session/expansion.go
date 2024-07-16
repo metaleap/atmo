@@ -2,12 +2,12 @@ package session
 
 type EstNodes []*EstNode
 type EstNode struct {
-	src struct {
+	Src struct {
 		Node *AstNode
 		File *SrcFile
-	}
+	} `json:"-"`
 	Kind       EstNodeKind
-	ChildNodes EstNodes
+	ChildNodes EstNodes `json:"-"`
 }
 
 type EstNodeKind int

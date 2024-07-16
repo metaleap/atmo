@@ -122,3 +122,8 @@ func JsonAs[T any](v any) (ret T, err error) {
 	err = json.Unmarshal(json_bytes, &ret)
 	return
 }
+
+func JsonFrom(it any) string {
+	json_bytes, _ := json.Marshal(it)
+	return string(json_bytes)
+}

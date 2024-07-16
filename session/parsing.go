@@ -43,7 +43,7 @@ func (me *SrcFile) parse() {
 
 	// group huddled exprs: `foo x+z y` right now is `foo x + z y` BUT lets make it `foo (x + 1) y`:
 	parsed.walk(nil, func(node *AstNode) {
-		node.ChildNodes = node.ChildNodes.huddled(me.Content.Src)
+		node.ChildNodes = node.ChildNodes.huddled(me)
 	})
 
 	// only now, treat parens non-listish, unlike braces/brackets: hoist any 1-element parens-groups so that `(x)` becomes `x` and `(((foo bar)))` becomes `foo bar`
@@ -143,8 +143,8 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 		case TokKindEnd:
 			pop := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			ret = append(pop, &AstNode{Kind: AstNodeKindGroup, Toks: ret.toks(),
-				Src: ret.toks().src(me.Content.Src), ChildNodes: ret})
+			ret = append(pop, &AstNode{Kind: AstNodeKindGroup, Toks: ret.toks(me),
+				Src: ret.src(me), ChildNodes: ret})
 			toks = toks[1:]
 		case TokKindBegin:
 			stack = append(stack, ret)
@@ -157,7 +157,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 
 	if (len(stack) > 0) && !had_brace_err {
 		pop := stack[len(stack)-1]
-		ret_toks := util.If(len(ret) == 0, ret, pop).toks()
+		ret_toks := util.If(len(ret) == 0, ret, pop).toks(me)
 		ret = append(pop, &AstNode{Kind: AstNodeKindErr, Toks: ret_toks,
 			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, errParsing: ret_toks[0].newIndentErr()})
 	}
@@ -337,14 +337,14 @@ func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
 	})
 }
 
-func (me AstNodes) group(onlyIfMultiple bool, nilIfEmpty bool, curFullSrcFileContent string) *AstNode {
+func (me AstNodes) group(srcFile *SrcFile, onlyIfMultiple bool, nilIfEmpty bool) *AstNode {
 	if nilIfEmpty && (len(me) == 0) {
 		return nil
 	} else if onlyIfMultiple && (len(me) == 1) {
 		return me[0]
 	}
-	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(),
-		ChildNodes: me, Src: me.toks().src(curFullSrcFileContent)}
+	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(srcFile),
+		ChildNodes: me, Src: me.src(srcFile)}
 }
 
 func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
@@ -363,7 +363,7 @@ func (me AstNodes) hasKind(kind AstNodeKind) bool {
 	return me.has(true, func(it *AstNode) bool { return it.Kind == kind })
 }
 
-func (me AstNodes) huddled(curFullSrcFileContent string) (ret AstNodes) {
+func (me AstNodes) huddled(srcFile *SrcFile) (ret AstNodes) {
 	if len(me) <= 1 {
 		return me
 	}
@@ -374,23 +374,37 @@ func (me AstNodes) huddled(curFullSrcFileContent string) (ret AstNodes) {
 			huddle = append(huddle, cur)
 		} else {
 			all_huddled = false
-			ret = append(ret, huddle.group(true, true, curFullSrcFileContent))
+			ret = append(ret, huddle.group(srcFile, true, true))
 			huddle = AstNodes{cur}
 		}
 	}
 	if all_huddled {
 		ret = me
 	} else {
-		ret = append(ret, huddle.group(true, true, curFullSrcFileContent))
+		ret = append(ret, huddle.group(srcFile, true, true))
 	}
 	return
 }
 
-func (me AstNodes) toks() (ret Toks) {
-	for _, node := range me {
-		ret = append(ret, node.Toks...)
+func (me AstNodes) src(srcFile *SrcFile) string {
+	return me.toks(srcFile).src(srcFile.Content.Src)
+}
+
+func (me AstNodes) toks(srcFile *SrcFile) Toks {
+	if len(me) == 0 {
+		return nil
 	}
-	return
+	node_first, node_last := me[0], me[len(me)-1]
+	tok_first, tok_last := node_first.Toks[0], node_last.Toks[len(node_last.Toks)-1]
+	idx_first := -1
+	for i, tok := range srcFile.Content.Toks {
+		if tok == tok_first {
+			idx_first = i
+		} else if (tok == tok_last) && (idx_first >= 0) {
+			return srcFile.Content.Toks[idx_first : i+1]
+		}
+	}
+	panic(me)
 }
 
 func (me AstNodes) walk(onBefore func(node *AstNode) bool, onAfter func(node *AstNode)) {
