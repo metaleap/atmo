@@ -46,11 +46,11 @@ func (*stateAccess) OnSrcFileEdit(srcFilePath string, curFullContent string) {
 
 func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
 	pkgsFsRefresh()
-	removeSrcFiles(removed...)
+	removeSrcFiles(removed...) // does refreshAndPublishNotices for removed
 	for _, file_path := range current {
 		ensureSrcFile(file_path, nil, canSkipFileRead)
 	}
-	refreshAndPublishNotices(append(removed, current...)...)
+	refreshAndPublishNotices(current...)
 }
 
 func (*stateAccess) AllCurrentSrcFileNotices() map[string][]*SrcFileNotice {

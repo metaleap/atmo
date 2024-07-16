@@ -35,26 +35,29 @@ func IsSrcFilePath(filePath string) bool {
 }
 
 func pkgsFsRefresh() {
-	var gone_files []*SrcFile
+	var gone_files []string
 	var gone_pkgs []string
-	for src_file_path, src_file := range state.srcFiles {
+	for src_file_path := range state.srcFiles {
 		if !util.FsIsFile(src_file_path) {
-			gone_files = append(gone_files, src_file)
+			gone_files = append(gone_files, src_file_path)
 		}
 	}
 	for pkg_dir_path, src_pkg := range state.srcPkgs {
 		if !util.FsIsDir(pkg_dir_path) {
-			gone_files = append(gone_files, src_pkg.Files...)
+			gone_files = append(gone_files, sl.As(src_pkg.Files, func(it *SrcFile) string { return it.FilePath })...)
 			gone_pkgs = append(gone_pkgs, pkg_dir_path)
 		}
 	}
-	removeSrcFiles(sl.As(gone_files, func(it *SrcFile) string { return it.FilePath })...)
+	removeSrcFiles(gone_files...)
 	for _, pkg_dir_path := range gone_pkgs {
 		delete(state.srcPkgs, pkg_dir_path)
 	}
 }
 
 func removeSrcFiles(srcFilePaths ...string) {
+	if len(srcFilePaths) == 0 {
+		return
+	}
 	del_pkgs := map[string]*SrcPkg{}
 	for _, src_file_path := range srcFilePaths {
 		src_file := state.srcFiles[src_file_path]
@@ -65,11 +68,12 @@ func removeSrcFiles(srcFilePaths ...string) {
 				del_pkgs[src_file.pkg.DirPath] = src_file.pkg
 			}
 		}
-		delete(state.srcFiles, src_file.FilePath)
+		delete(state.srcFiles, src_file_path)
 	}
 	for dir_path := range del_pkgs {
 		delete(state.srcPkgs, dir_path)
 	}
+	refreshAndPublishNotices(srcFilePaths...)
 }
 
 func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
