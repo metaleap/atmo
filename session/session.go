@@ -40,16 +40,14 @@ func LockedDo(do func(sess StateAccess)) {
 type stateAccess struct{ sync.Mutex }
 
 func (*stateAccess) OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	ensureSrcFile(srcFilePath, &curFullContent, true)
+	ensureSrcFiles(&curFullContent, true, srcFilePath)
 	refreshAndPublishNotices(srcFilePath)
 }
 
 func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
 	pkgsFsRefresh()
 	removeSrcFiles(removed...) // does refreshAndPublishNotices for removed
-	for _, file_path := range current {
-		ensureSrcFile(file_path, nil, canSkipFileRead)
-	}
+	ensureSrcFiles(nil, canSkipFileRead, current...)
 	refreshAndPublishNotices(current...)
 }
 
@@ -72,8 +70,9 @@ func (*stateAccess) GetSrcPkg(dirPath string) *SrcPkg {
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {
-	src_file := ensureSrcFile(srcFilePath, nil, canSkipFileRead)
-	if src_file == nil { // file might be gone from diags by now
+	refr := ensureSrcFiles(nil, canSkipFileRead, srcFilePath)
+	src_file := state.srcFiles[srcFilePath]
+	if src_file == nil || refr { // file might be gone from diags by now
 		refreshAndPublishNotices(srcFilePath)
 	}
 	return src_file

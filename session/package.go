@@ -83,70 +83,91 @@ func removeSrcFiles(srcFilePaths ...string) {
 	refreshAndPublishNotices(append(pkg_file_paths, srcFilePaths...)...)
 }
 
-func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
-	util.Assert(IsSrcFilePath(srcFilePath), srcFilePath)
-
-	if !util.FsIsFile(srcFilePath) {
-		removeSrcFiles(srcFilePath)
-		return nil
+func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths ...string) (encounteredDiagRelevantChanges bool) {
+	if len(srcFilePaths) == 0 {
+		return
 	}
+	pkgs_to_refresh := map[*SrcPkg]bool{}
+	util.Assert((curFullContent == nil) || (len(srcFilePaths) == 1), len(srcFilePaths))
 
-	me := state.srcFiles[srcFilePath]
-	if me == nil {
-		me = &SrcFile{FilePath: srcFilePath}
-		state.srcFiles[srcFilePath] = me
-	}
-	{ // ensure SrcPkg
-		if me.pkg == nil {
-			dir_path := filepath.Dir(me.FilePath)
-			me.pkg = state.srcPkgs[dir_path]
-			if me.pkg == nil {
-				me.pkg = &SrcPkg{DirPath: dir_path}
-				state.srcPkgs[dir_path] = me.pkg
+	for _, src_file_path := range srcFilePaths {
+		util.Assert(IsSrcFilePath(src_file_path), src_file_path)
+
+		if !util.FsIsFile(src_file_path) {
+			removeSrcFiles(src_file_path)
+			encounteredDiagRelevantChanges = true
+			continue
+		}
+
+		src_file := state.srcFiles[src_file_path]
+		if src_file == nil {
+			src_file = &SrcFile{FilePath: src_file_path}
+			state.srcFiles[src_file_path] = src_file
+		}
+		{ // ensure SrcPkg
+			if src_file.pkg == nil {
+				dir_path := filepath.Dir(src_file.FilePath)
+				src_file.pkg = state.srcPkgs[dir_path]
+				if src_file.pkg == nil {
+					src_file.pkg = &SrcPkg{DirPath: dir_path}
+					state.srcPkgs[dir_path] = src_file.pkg
+				}
+			}
+			src_file.pkg.Files = sl.With(src_file.pkg.Files, src_file)
+		}
+
+		old_content, had_last_read_err := src_file.Content.Src, (src_file.notices.LastReadErr != nil)
+		if curFullContent != nil {
+			src_file.Content.Src, src_file.notices.LastReadErr = *curFullContent, nil
+		} else if (!canSkipFileRead) || had_last_read_err {
+			src_file_bytes, err := os.ReadFile(src_file_path)
+			if os.IsNotExist(err) {
+				removeSrcFiles(src_file_path)
+				encounteredDiagRelevantChanges = true
+				continue
+			} else {
+				src_file.Content.Src, src_file.notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, src_file.Span())
 			}
 		}
-		me.pkg.Files = sl.With(me.pkg.Files, me)
-	}
 
-	old_content, had_last_read_err := me.Content.Src, (me.notices.LastReadErr != nil)
-	if curFullContent != nil {
-		me.Content.Src, me.notices.LastReadErr = *curFullContent, nil
-	} else if (!canSkipFileRead) || had_last_read_err {
-		src_file_bytes, err := os.ReadFile(srcFilePath)
-		if os.IsNotExist(err) {
-			removeSrcFiles(srcFilePath)
-			return nil
-		} else {
-			me.Content.Src, me.notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, me.Span())
-		}
-	}
-
-	if (me.Content.Src != old_content) || had_last_read_err || (me.notices.LastReadErr != nil) {
-		old_ast := me.Content.Ast
-		me.Content.Ast, me.Content.Toks, me.notices.LexErrs = nil, nil, nil
-		if me.notices.LastReadErr == nil {
-			me.Content.Toks, me.notices.LexErrs = tokenize(me.FilePath, me.Content.Src)
-			if len(me.notices.LexErrs) == 0 {
-				new_ast := me.parse()
-				var num_same_nodes int
-				if len(old_ast) == len(new_ast) {
-					for _, old_node := range old_ast {
-						for _, new_node := range new_ast {
-							if old_node.equals(new_node, true) {
-								num_same_nodes++
+		if (src_file.Content.Src != old_content) || had_last_read_err || (src_file.notices.LastReadErr != nil) {
+			old_ast := src_file.Content.Ast
+			src_file.Content.Ast, src_file.Content.Toks, src_file.notices.LexErrs = nil, nil, nil
+			if src_file.notices.LastReadErr != nil {
+				encounteredDiagRelevantChanges = true
+			} else {
+				src_file.Content.Toks, src_file.notices.LexErrs = tokenize(src_file.FilePath, src_file.Content.Src)
+				if len(src_file.notices.LexErrs) > 0 {
+					encounteredDiagRelevantChanges = true
+				} else {
+					new_ast := src_file.parse()
+					if new_ast.hasKind(AstNodeKindErr) {
+						encounteredDiagRelevantChanges = true
+					}
+					var num_same_nodes int
+					if len(old_ast) == len(new_ast) {
+						for _, old_node := range old_ast {
+							for _, new_node := range new_ast {
+								if old_node.equals(new_node, true) {
+									num_same_nodes++
+								}
 							}
 						}
 					}
-				}
-				have_any_changes := (num_same_nodes != len(old_ast)) || (num_same_nodes != len(new_ast))
-				me.Content.Ast = new_ast
-				if have_any_changes { // false if changes were in comments, whitespace (other than top-level indentation), or mere re-ordering of top-level nodes
-					me.pkg.refreshEst()
+					have_changes := (num_same_nodes != len(old_ast)) || (num_same_nodes != len(new_ast))
+					src_file.Content.Ast = new_ast
+					if have_changes { // false if changes were in comments, whitespace (other than top-level indentation), or mere re-ordering of top-level nodes
+						pkgs_to_refresh[src_file.pkg] = true
+					}
 				}
 			}
 		}
 	}
-	return me
+
+	for src_pkg := range pkgs_to_refresh {
+		encounteredDiagRelevantChanges = src_pkg.refreshEst() || encounteredDiagRelevantChanges
+	}
+	return
 }
 
 func (me *SrcFile) Span() (ret SrcFileSpan) {
