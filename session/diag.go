@@ -21,6 +21,7 @@ const (
 type SrcFileNoticeCode string
 
 const (
+	NoticeCodeAtmoTodo       SrcFileNoticeCode = "AtmoTodo"
 	NoticeCodeFileReadError  SrcFileNoticeCode = "FileReadError"
 	NoticeCodeWhitespace     SrcFileNoticeCode = "Whitespace"
 	NoticeCodeLexingError    SrcFileNoticeCode = "LexingError"
@@ -35,6 +36,7 @@ var (
 	OnNoticesChanged = func() {}
 	OnDbgMsg         = func(bool, string, ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
+		NoticeCodeAtmoTodo:       "TODO by Atmo team, please report: %s",
 		NoticeCodeFileReadError:  "%s", // actual error msg in %s
 		NoticeCodeWhitespace:     "unsupported white-space; ensure both: no line-leading tabs, and LF-only line endings (no CR or CRLF)",
 		NoticeCodeLexingError:    "invalid token: %s",   // actual error msg in %s

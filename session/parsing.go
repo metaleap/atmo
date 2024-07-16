@@ -268,6 +268,22 @@ func (me *AstNode) isWhitespacelesslyRightAfter(it *AstNode) bool {
 	return me.Toks[0].byteOffset == (prev_tok.byteOffset + len(prev_tok.Src))
 }
 
+func (me *AstNode) newDiag(kind SrcFileNoticeKind, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return &SrcFileNotice{Kind: kind, Code: code, Span: me.Toks.Span(), Message: str.Fmt(errMsgs[code], args...)}
+}
+func (me *AstNode) newDiagInfo(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindInfo, code, args...)
+}
+func (me *AstNode) newDiagHint(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindHint, code, args...)
+}
+func (me *AstNode) newDiagWarn(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindWarn, code, args...)
+}
+func (me *AstNode) newDiagErr(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindErr, code, args...)
+}
+
 func (me *AstNode) sig(buf *strings.Builder) {
 	if me.Kind == AstNodeKindComment {
 		return
@@ -384,6 +400,22 @@ func (me AstNodes) huddled(srcFile *SrcFile) (ret AstNodes) {
 		ret = append(ret, huddle.group(srcFile, true, true))
 	}
 	return
+}
+
+func (me AstNodes) newDiag(srcFile *SrcFile, kind SrcFileNoticeKind, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return &SrcFileNotice{Kind: kind, Code: code, Span: me.toks(srcFile).Span(), Message: str.Fmt(errMsgs[code], args...)}
+}
+func (me AstNodes) newDiagInfo(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(srcFile, NoticeKindInfo, code, args...)
+}
+func (me AstNodes) newDiagHint(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(srcFile, NoticeKindHint, code, args...)
+}
+func (me AstNodes) newDiagWarn(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(srcFile, NoticeKindWarn, code, args...)
+}
+func (me AstNodes) newDiagErr(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(srcFile, NoticeKindErr, code, args...)
 }
 
 func (me AstNodes) src(srcFile *SrcFile) string {

@@ -57,10 +57,10 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						var convert func(*session.EstNode) *EstNode
 						convert = func(it *session.EstNode) *EstNode {
 							ret := &EstNode{EstNode: it, Nodes: sl.As(it.ChildNodes, convert)}
-							if it.Src.File != nil {
-								ret.ClientInfo.SrcFilePath = it.Src.File.FilePath
-								if it.Src.Node != nil {
-									ret.ClientInfo.SrcFileSpan = util.Ptr(it.Src.Node.Toks.Span())
+							if it.SrcFile != nil {
+								ret.ClientInfo.SrcFilePath = it.SrcFile.FilePath
+								if it.SrcNode != nil {
+									ret.ClientInfo.SrcFileSpan = util.Ptr(it.SrcNode.Toks.Span())
 								}
 							}
 							return ret
