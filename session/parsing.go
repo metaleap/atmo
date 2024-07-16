@@ -38,7 +38,7 @@ const (
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
 // mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
-func (me *SrcFile) parse() {
+func (me *SrcFile) parse() AstNodes {
 	parsed := me.parseNodes(me.Content.Toks)
 
 	// group huddled exprs: `foo x+z y` right now is `foo x + z y` BUT lets make it `foo (x + 1) y`:
@@ -73,7 +73,7 @@ func (me *SrcFile) parse() {
 			it.parent = node
 		}
 	})
-	me.Content.Ast = parsed
+	return parsed
 }
 
 func (me *SrcFile) parseNode(toks Toks) *AstNode {
@@ -400,11 +400,12 @@ func (me AstNodes) toks(srcFile *SrcFile) Toks {
 	for i, tok := range srcFile.Content.Toks {
 		if tok == tok_first {
 			idx_first = i
-		} else if (tok == tok_last) && (idx_first >= 0) {
+		}
+		if (tok == tok_last) && (idx_first >= 0) {
 			return srcFile.Content.Toks[idx_first : i+1]
 		}
 	}
-	panic(me)
+	panic(str.Fmt("%d %d >>%s<< >>%s<<", idx_first, len(me), node_first.Src, node_last.Src))
 }
 
 func (me AstNodes) walk(onBefore func(node *AstNode) bool, onAfter func(node *AstNode)) {

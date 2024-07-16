@@ -122,12 +122,27 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 	}
 
 	if (me.Content.Src != old_content) || had_last_read_err || (me.notices.LastReadErr != nil) {
+		old_ast := me.Content.Ast
 		me.Content.Ast, me.Content.Toks, me.notices.LexErrs = nil, nil, nil
 		if me.notices.LastReadErr == nil {
 			me.Content.Toks, me.notices.LexErrs = tokenize(me.FilePath, me.Content.Src)
 			if len(me.notices.LexErrs) == 0 {
-				me.parse()
-				me.pkg.refreshEst()
+				new_ast := me.parse()
+				var num_same_nodes int
+				if len(old_ast) == len(new_ast) {
+					for _, old_node := range old_ast {
+						for _, new_node := range new_ast {
+							if old_node.equals(new_node, true) {
+								num_same_nodes++
+							}
+						}
+					}
+				}
+				have_any_changes := (num_same_nodes != len(old_ast)) || (num_same_nodes != len(new_ast))
+				me.Content.Ast = new_ast
+				if have_any_changes { // false if changes were in comments, whitespace (other than top-level indentation), or mere re-ordering of top-level nodes
+					me.pkg.refreshEst()
+				}
 			}
 		}
 	}

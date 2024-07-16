@@ -65,7 +65,6 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							}
 							return ret
 						}
-						session.OnDbgMsg(true, "%s", util.JsonFrom(sl.As(src_pkg.Est, convert)))
 						ret = sl.As(src_pkg.Est, convert)
 					}
 				})
