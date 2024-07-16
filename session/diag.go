@@ -52,6 +52,11 @@ type SrcFileNotice struct {
 	Code    SrcFileNoticeCode
 }
 
+func (me *SrcFileNotice) equals(it *SrcFileNotice) bool {
+	return (me == it) || ((me != nil) && (it != nil) &&
+		(me.Code == it.Code) && (me.Kind == it.Kind) && (me.Message == it.Message))
+}
+
 func (me *SrcFileNotice) String() string { return me.Message }
 
 func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNotice {
@@ -67,28 +72,29 @@ func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNo
 func refreshAndPublishNotices(provokingFilePaths ...string) {
 	new_notices := map[string][]*SrcFileNotice{}
 
-	src_pkgs := map[string]*SrcPkg{}
+	// src_pkgs := map[string]*SrcPkg{}
 	for _, src_file_path := range provokingFilePaths {
 		var file_notices []*SrcFileNotice
 		if src_file := state.srcFiles[src_file_path]; src_file != nil {
-			src_pkgs[src_file.pkg.DirPath] = src_file.pkg
+			// src_pkgs[src_file.pkg.DirPath] = src_file.pkg
 			if src_file.notices.LastReadErr != nil {
 				file_notices = append(file_notices, src_file.notices.LastReadErr)
 			}
 			file_notices = append(file_notices, src_file.notices.LexErrs...)
 			src_file.Content.Ast.walk(nil, func(node *AstNode) {
-				if node.err != nil {
-					file_notices = append(file_notices, node.err)
+				if node.errParsing != nil {
+					file_notices = append(file_notices, node.errParsing)
 				}
+				file_notices = append(file_notices, node.errsExpansion...)
 			})
 		}
 		new_notices[src_file_path] = file_notices
 	}
-	for _, src_pkg := range src_pkgs {
-		src_pkg.Est.walk(nil, func(node *EstNode) {
-			new_notices[node.src.File.FilePath] = append(new_notices[node.src.File.FilePath], node.notices...)
-		})
-	}
+	// for _, src_pkg := range src_pkgs {
+	// 	src_pkg.Est.walk(nil, func(node *EstNode) {
+	// 		new_notices[node.src.File.FilePath] = append(new_notices[node.src.File.FilePath], node.notices...)
+	// 	})
+	// }
 
 	// sorting is mainly for the later equality-comparison further down below
 	for src_file_path := range new_notices {

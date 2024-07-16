@@ -15,14 +15,15 @@ import (
 type AstNodes []*AstNode
 
 type AstNode struct {
-	parent     *AstNode
-	Kind       AstNodeKind
-	Src        string
-	Toks       Toks
-	ChildNodes AstNodes
-	err        *SrcFileNotice
-	Lit        any // if AstNodeKindIdent or AstNodeKindLit, one of: float64 | int64 | uint64 | rune | string
-	Ann        any
+	parent        *AstNode
+	Kind          AstNodeKind
+	Src           string
+	Toks          Toks
+	ChildNodes    AstNodes
+	errParsing    *SrcFileNotice
+	errsExpansion []*SrcFileNotice
+	Lit           any // if AstNodeKindIdent or AstNodeKindLit, one of: float64 | int64 | uint64 | rune | string
+	Ann           any
 }
 
 type AstNodeKind int
@@ -128,7 +129,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
 				had_brace_err = true
-				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), err: err})
+				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), errParsing: err})
 				toks = nil
 			} else {
 				node := &AstNode{
@@ -158,7 +159,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 		pop := stack[len(stack)-1]
 		ret_toks := util.If(len(ret) == 0, ret, pop).toks()
 		ret = append(pop, &AstNode{Kind: AstNodeKindErr, Toks: ret_toks,
-			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, err: ret_toks[0].newIndentErr()})
+			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, errParsing: ret_toks[0].newIndentErr()})
 	}
 
 	return
@@ -168,7 +169,7 @@ func parseLit[T cmp.Ordered](toks Toks, kind AstNodeKind, parseFunc func(string)
 	tok := toks[0]
 	lit, err := parseFunc(tok.Src)
 	if err != nil {
-		return &AstNode{Kind: AstNodeKindErr, Toks: toks[:1], Src: tok.Src, err: errToNotice(err, NoticeCodeLitSyntax, tok.span())}
+		return &AstNode{Kind: AstNodeKindErr, Toks: toks[:1], Src: tok.Src, errParsing: errToNotice(err, NoticeCodeLitSyntax, tok.span())}
 	}
 	return &AstNode{Kind: kind, Toks: toks[:1], Src: tok.Src, Lit: lit}
 }
@@ -199,7 +200,12 @@ func (me *AstNode) cmp(it *AstNode) int {
 func (me *AstNode) equals(it *AstNode, withoutComments bool) bool {
 	util.Assert(me != it, nil)
 
-	if me.Kind != it.Kind || !me.ChildNodes.equals(it.ChildNodes, withoutComments) {
+	var idx int
+	if me.Kind != it.Kind || (!me.ChildNodes.equals(it.ChildNodes, withoutComments)) ||
+		!sl.All(me.errsExpansion, func(diag *SrcFileNotice) (ret bool) {
+			ret, idx = diag.equals(it.errsExpansion[idx]), idx+1
+			return
+		}) {
 		return false
 	}
 
@@ -229,8 +235,7 @@ func (me *AstNode) equals(it *AstNode, withoutComments bool) bool {
 	case AstNodeKindIdent:
 		return (me.Lit.(string) == it.Lit.(string))
 	case AstNodeKindErr:
-		return (me.err == it.err) || ((me.err != nil) && (it.err != nil) &&
-			(me.err.Code == it.err.Code) && (me.err.Kind == it.err.Kind) && (me.err.Message == it.err.Message))
+		return me.errParsing.equals(it.errParsing)
 	default:
 		panic(me.Kind)
 	}

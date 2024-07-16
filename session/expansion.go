@@ -6,11 +6,21 @@ type EstNode struct {
 		Node *AstNode
 		File *SrcFile
 	}
+	Kind       EstNodeKind
 	ChildNodes EstNodes
-	notices    []*SrcFileNotice
 }
 
+type EstNodeKind int
+
+const (
+	_ EstNodeKind = iota
+	EstNodeKindIdent
+	EstNodeKindLit
+	EstNodeKindCall
+)
+
 func (me *SrcPkg) refreshEst() {
+	me.Est = EstNodes{{Kind: EstNodeKindCall, ChildNodes: EstNodes{&EstNode{Kind: EstNodeKindIdent}, &EstNode{Kind: EstNodeKindLit}}}}
 }
 
 func (me *EstNode) walk(onBefore func(*EstNode) bool, onAfter func(*EstNode)) {
