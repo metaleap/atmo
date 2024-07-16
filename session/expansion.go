@@ -7,11 +7,11 @@ type EstNode struct {
 		File *SrcFile
 	}
 	ChildNodes EstNodes
+	srcFile    *SrcFile
 	diags      []*SrcFileNotice
 }
 
-func (me *SrcFile) expand() {
-
+func (me *SrcPkg) refreshEst() {
 }
 
 func (me *EstNode) walk(onBefore func(*EstNode) bool, onAfter func(*EstNode)) {

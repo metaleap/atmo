@@ -12,6 +12,7 @@ import (
 type SrcPkg struct {
 	DirPath string
 	Files   []*SrcFile
+	Est     EstNodes
 }
 
 type SrcFile struct {
@@ -21,7 +22,6 @@ type SrcFile struct {
 		Src  string
 		Toks Toks
 		Ast  AstNodes
-		Est  EstNodes
 	} `json:"-"`
 	notices struct {
 		LastReadErr *SrcFileNotice
@@ -44,7 +44,7 @@ func pkgsFsRefresh() {
 	}
 	for pkg_dir_path, src_pkg := range state.srcPkgs {
 		if !util.FsIsDir(pkg_dir_path) {
-			gone_files = append(gone_files, sl.As(src_pkg.Files, func(it *SrcFile) string { return it.FilePath })...)
+			gone_files = append(gone_files, src_pkg.srcFilePaths()...)
 			gone_pkgs = append(gone_pkgs, pkg_dir_path)
 		}
 	}
@@ -58,22 +58,29 @@ func removeSrcFiles(srcFilePaths ...string) {
 	if len(srcFilePaths) == 0 {
 		return
 	}
-	del_pkgs := map[string]*SrcPkg{}
+	pkgs_to_delete, pkgs_encountered := map[string]*SrcPkg{}, map[string]*SrcPkg{}
 	for _, src_file_path := range srcFilePaths {
 		src_file := state.srcFiles[src_file_path]
 		if (src_file != nil) && (src_file.pkg != nil) {
+			pkgs_encountered[src_file.pkg.DirPath] = src_file.pkg
 			src_file.pkg.Files = sl.Where(src_file.pkg.Files,
 				func(it *SrcFile) bool { return (it != src_file) && (it.FilePath != src_file.FilePath) })
 			if len(src_file.pkg.Files) == 0 {
-				del_pkgs[src_file.pkg.DirPath] = src_file.pkg
+				pkgs_to_delete[src_file.pkg.DirPath] = src_file.pkg
 			}
 		}
 		delete(state.srcFiles, src_file_path)
 	}
-	for dir_path := range del_pkgs {
-		delete(state.srcPkgs, dir_path)
+
+	var pkg_file_paths []string
+	for pkg_dir_path := range pkgs_to_delete {
+		delete(state.srcPkgs, pkg_dir_path)
 	}
-	refreshAndPublishNotices(srcFilePaths...)
+	for _, src_pkg := range pkgs_encountered {
+		pkg_file_paths = append(pkg_file_paths, src_pkg.srcFilePaths()...)
+		src_pkg.refreshEst()
+	}
+	refreshAndPublishNotices(append(pkg_file_paths, srcFilePaths...)...)
 }
 
 func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead bool) *SrcFile {
@@ -88,7 +95,17 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 	if me == nil {
 		me = &SrcFile{FilePath: srcFilePath}
 		state.srcFiles[srcFilePath] = me
-		me.ensureSrcPkg()
+	}
+	{ // ensure SrcPkg
+		if me.pkg == nil {
+			dir_path := filepath.Dir(me.FilePath)
+			me.pkg = state.srcPkgs[dir_path]
+			if me.pkg == nil {
+				me.pkg = &SrcPkg{DirPath: dir_path}
+				state.srcPkgs[dir_path] = me.pkg
+			}
+		}
+		me.pkg.Files = sl.With(me.pkg.Files, me)
 	}
 
 	old_content, had_last_read_err := me.Content.Src, (me.notices.LastReadErr != nil)
@@ -105,28 +122,16 @@ func ensureSrcFile(srcFilePath string, curFullContent *string, canSkipFileRead b
 	}
 
 	if (me.Content.Src != old_content) || had_last_read_err || (me.notices.LastReadErr != nil) {
-		me.Content.Ast, me.Content.Est, me.Content.Toks, me.notices.LexErrs = nil, nil, nil, nil
+		me.Content.Ast, me.Content.Toks, me.notices.LexErrs = nil, nil, nil
 		if me.notices.LastReadErr == nil {
 			me.Content.Toks, me.notices.LexErrs = tokenize(me.FilePath, me.Content.Src)
 			if len(me.notices.LexErrs) == 0 {
 				me.parse()
-				me.expand()
+				me.pkg.refreshEst()
 			}
 		}
 	}
 	return me
-}
-
-func (me *SrcFile) ensureSrcPkg() {
-	if me.pkg == nil {
-		dir_path := filepath.Dir(me.FilePath)
-		me.pkg = state.srcPkgs[dir_path]
-		if me.pkg == nil {
-			me.pkg = &SrcPkg{DirPath: dir_path}
-			state.srcPkgs[dir_path] = me.pkg
-		}
-	}
-	me.pkg.Files = sl.With(me.pkg.Files, me)
 }
 
 func (me *SrcFile) Span() (ret SrcFileSpan) {
@@ -140,4 +145,8 @@ func (me *SrcFile) Span() (ret SrcFileSpan) {
 		ret.End.Line++
 	}
 	return
+}
+
+func (me *SrcPkg) srcFilePaths() []string {
+	return sl.As(me.Files, func(it *SrcFile) string { return it.FilePath })
 }

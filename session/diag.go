@@ -67,9 +67,11 @@ func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNo
 func refreshAndPublishNotices(provokingFilePaths ...string) {
 	new_notices := map[string][]*SrcFileNotice{}
 
+	src_pkgs := map[string]*SrcPkg{}
 	for _, src_file_path := range provokingFilePaths {
 		var file_notices []*SrcFileNotice
 		if src_file := state.srcFiles[src_file_path]; src_file != nil {
+			src_pkgs[src_file.pkg.DirPath] = src_file.pkg
 			if src_file.notices.LastReadErr != nil {
 				file_notices = append(file_notices, src_file.notices.LastReadErr)
 			}
@@ -79,18 +81,23 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 					file_notices = append(file_notices, node.err)
 				}
 			})
-			src_file.Content.Est.walk(nil, func(node *EstNode) {
-				file_notices = append(file_notices, node.diags...)
-			})
 		}
-		// sorting is mainly for the later equality-comparison further down below
-		file_notices = sl.SortedPer(file_notices, func(diag1 *SrcFileNotice, diag2 *SrcFileNotice) int {
+		new_notices[src_file_path] = file_notices
+	}
+	for _, src_pkg := range src_pkgs {
+		src_pkg.Est.walk(nil, func(node *EstNode) {
+			new_notices[node.srcFile.FilePath] = append(new_notices[node.srcFile.FilePath], node.diags...)
+		})
+	}
+
+	// sorting is mainly for the later equality-comparison further down below
+	for src_file_path := range new_notices {
+		new_notices[src_file_path] = sl.SortedPer(new_notices[src_file_path], func(diag1 *SrcFileNotice, diag2 *SrcFileNotice) int {
 			if diag1.Span.Start.Line == diag2.Span.Start.Line {
 				return cmp.Compare(diag1.Span.Start.Char, diag2.Span.Start.Char)
 			}
 			return cmp.Compare(diag1.Span.Start.Line, diag2.Span.Start.Line)
 		})
-		new_notices[src_file_path] = file_notices
 	}
 
 	var have_changes bool

@@ -67,19 +67,6 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			}
 		}
 
-	case "getSrcFileEst":
-		if len(params.Arguments) == 1 {
-			src_file_path, ok := params.Arguments[0].(string)
-			if ok && session.IsSrcFilePath(src_file_path) {
-				session.LockedDo(func(sess session.StateAccess) {
-					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
-						ret = src_file.Content.Est
-					}
-				})
-				return
-			}
-		}
-
 	}
 
 	return
