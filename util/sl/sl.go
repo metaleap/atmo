@@ -169,6 +169,14 @@ func Any[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) bool {
 	return false
 }
 
+func Eq[TSlice ~[]TItem, TItem any](slice1 TSlice, slice2 TSlice, eq func(TItem, TItem) bool) bool {
+	var idx int
+	return (len(slice1) == len(slice2)) && All(slice1, func(slice1Item TItem) (ret bool) {
+		ret, idx = eq(slice1Item, slice2[idx]), idx+1
+		return
+	})
+}
+
 func None[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) bool {
 	for i := range slice {
 		if pred(slice[i]) {

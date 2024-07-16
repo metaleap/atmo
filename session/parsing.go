@@ -200,12 +200,8 @@ func (me *AstNode) cmp(it *AstNode) int {
 func (me *AstNode) equals(it *AstNode, withoutComments bool) bool {
 	util.Assert(me != it, nil)
 
-	var idx int
 	if me.Kind != it.Kind || (!me.ChildNodes.equals(it.ChildNodes, withoutComments)) ||
-		!sl.All(me.errsExpansion, func(diag *SrcFileNotice) (ret bool) {
-			ret, idx = diag.equals(it.errsExpansion[idx]), idx+1
-			return
-		}) {
+		!sl.Eq(me.errsExpansion, it.errsExpansion, (*SrcFileNotice).equals) {
 		return false
 	}
 
@@ -333,14 +329,11 @@ func (me *AstNode) walk(onBefore func(*AstNode) bool, onAfter func(*AstNode)) {
 }
 
 func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
-	var idx int
 	if withoutComments {
 		me, it = me.withoutComments(), it.withoutComments()
 	}
-	return (len(me) == len(it)) && sl.All(me, func(node *AstNode) bool {
-		it := it[idx]
-		idx++
-		return node.equals(it, withoutComments)
+	return sl.Eq(me, it, func(node1 *AstNode, node2 *AstNode) bool {
+		return node1.equals(node2, withoutComments)
 	})
 }
 
