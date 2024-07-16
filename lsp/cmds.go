@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"errors"
+	"path/filepath"
 
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
@@ -23,7 +24,6 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 
 	case "announceAtmoVscExt":
 		ClientIsAtmoVscExt = true
-		return
 
 	case "eval":
 		if len(params.Arguments) == 1 {
@@ -33,13 +33,23 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 
 	case "pkgsFsRefresh":
 		session.LockedDo(session.StateAccess.PkgsFsRefresh)
-		return
 
 	case "getSrcPkgs":
 		session.LockedDo(func(sess session.StateAccess) {
 			ret = sess.AllCurrentSrcPkgs()
 		})
-		return
+
+	case "getSrcPkgEst":
+		if len(params.Arguments) == 1 {
+			src_file_path, ok := params.Arguments[0].(string)
+			if ok && session.IsSrcFilePath(src_file_path) {
+				session.LockedDo(func(sess session.StateAccess) {
+					if src_pkg := sess.GetSrcPkg(filepath.Dir(src_file_path)); src_pkg != nil {
+						ret = src_pkg.Est
+					}
+				})
+			}
+		}
 
 	case "getSrcFileToks":
 		if len(params.Arguments) == 1 {
@@ -50,7 +60,6 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						ret = src_file.Content.Toks
 					}
 				})
-				return
 			}
 		}
 
@@ -63,7 +72,6 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						ret = src_file.Content.Ast
 					}
 				})
-				return
 			}
 		}
 

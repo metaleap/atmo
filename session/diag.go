@@ -86,7 +86,7 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 	}
 	for _, src_pkg := range src_pkgs {
 		src_pkg.Est.walk(nil, func(node *EstNode) {
-			new_notices[node.srcFile.FilePath] = append(new_notices[node.srcFile.FilePath], node.diags...)
+			new_notices[node.src.File.FilePath] = append(new_notices[node.src.File.FilePath], node.notices...)
 		})
 	}
 

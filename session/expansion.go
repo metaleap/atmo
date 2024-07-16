@@ -2,13 +2,12 @@ package session
 
 type EstNodes []*EstNode
 type EstNode struct {
-	Ast struct {
+	src struct {
 		Node *AstNode
 		File *SrcFile
 	}
 	ChildNodes EstNodes
-	srcFile    *SrcFile
-	diags      []*SrcFileNotice
+	notices    []*SrcFileNotice
 }
 
 func (me *SrcPkg) refreshEst() {
