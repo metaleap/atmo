@@ -70,6 +70,9 @@ func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNo
 
 // callers have already `sharedState.Lock`ed
 func refreshAndPublishNotices(provokingFilePaths ...string) {
+	if len(provokingFilePaths) == 0 {
+		return
+	}
 	new_notices := map[string][]*SrcFileNotice{}
 
 	for _, src_file_path := range provokingFilePaths {

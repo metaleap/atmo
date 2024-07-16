@@ -23,9 +23,8 @@ const (
 	EstNodeKindCall
 )
 
-func (me *SrcPkg) refreshEst() (encounteredDiagRelevantChanges bool) {
-	new_ast_nodes := map[*AstNode]bool{}
-	same_est_nodes := map[*EstNode]bool{}
+func (me *SrcPkg) refreshEst() (encounteredDiagsRelevantChanges bool) {
+	new_ast_nodes, same_est_nodes := map[*AstNode]bool{}, map[*EstNode]bool{}
 	for _, src_file := range me.Files {
 		for _, ast_node := range src_file.Content.Ast {
 			var found bool
@@ -44,7 +43,7 @@ func (me *SrcPkg) refreshEst() (encounteredDiagRelevantChanges bool) {
 		return same_est_nodes[it]
 	})
 
-	encounteredDiagRelevantChanges = (len(new_est) != len(me.Est)) || (len(new_ast_nodes) > 0)
+	encounteredDiagsRelevantChanges = (len(new_est) != len(me.Est)) || (len(new_ast_nodes) > 0)
 	for ast_node := range new_ast_nodes {
 		_ = ast_node
 	}

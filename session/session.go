@@ -40,15 +40,13 @@ func LockedDo(do func(sess StateAccess)) {
 type stateAccess struct{ sync.Mutex }
 
 func (*stateAccess) OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	ensureSrcFiles(&curFullContent, true, srcFilePath)
-	refreshAndPublishNotices(srcFilePath)
+	refreshAndPublishNotices(ensureSrcFiles(&curFullContent, true, srcFilePath)...)
 }
 
 func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
 	pkgsFsRefresh()
 	removeSrcFiles(removed...) // does refreshAndPublishNotices for removed
-	ensureSrcFiles(nil, canSkipFileRead, current...)
-	refreshAndPublishNotices(current...)
+	refreshAndPublishNotices(ensureSrcFiles(nil, canSkipFileRead, current...)...)
 }
 
 func (*stateAccess) AllCurrentSrcFileNotices() map[string][]*SrcFileNotice {
@@ -70,10 +68,10 @@ func (*stateAccess) GetSrcPkg(dirPath string) *SrcPkg {
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {
-	refr := ensureSrcFiles(nil, canSkipFileRead, srcFilePath)
+	refr_diags_for := ensureSrcFiles(nil, canSkipFileRead, srcFilePath)
 	src_file := state.srcFiles[srcFilePath]
-	if src_file == nil || refr { // file might be gone from diags by now
-		refreshAndPublishNotices(srcFilePath)
+	if (src_file == nil) || (len(refr_diags_for) > 0) { // the latter, if non-empty, WILL have srcFilePath
+		refreshAndPublishNotices(refr_diags_for...)
 	}
 	return src_file
 }

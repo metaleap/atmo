@@ -83,7 +83,7 @@ func removeSrcFiles(srcFilePaths ...string) {
 	refreshAndPublishNotices(append(pkg_file_paths, srcFilePaths...)...)
 }
 
-func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths ...string) (encounteredDiagRelevantChanges bool) {
+func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths ...string) (encounteredDiagsRelevantChanges []string) {
 	if len(srcFilePaths) == 0 {
 		return
 	}
@@ -91,27 +91,26 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 	util.Assert((curFullContent == nil) || (len(srcFilePaths) == 1), len(srcFilePaths))
 
 	for _, src_file_path := range srcFilePaths {
+		flag_for_diags_refr := func() { encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_file_path) }
 		util.Assert(IsSrcFilePath(src_file_path), src_file_path)
 
 		if !util.FsIsFile(src_file_path) {
 			removeSrcFiles(src_file_path)
-			encounteredDiagRelevantChanges = true
+			flag_for_diags_refr()
 			continue
 		}
 
 		src_file := state.srcFiles[src_file_path]
 		if src_file == nil {
+			flag_for_diags_refr()
 			src_file = &SrcFile{FilePath: src_file_path}
 			state.srcFiles[src_file_path] = src_file
-		}
-		{ // ensure SrcPkg
+			// ensure SrcPkg
+			pkg_dir_path := filepath.Dir(src_file.FilePath)
+			src_file.pkg = state.srcPkgs[pkg_dir_path]
 			if src_file.pkg == nil {
-				dir_path := filepath.Dir(src_file.FilePath)
-				src_file.pkg = state.srcPkgs[dir_path]
-				if src_file.pkg == nil {
-					src_file.pkg = &SrcPkg{DirPath: dir_path}
-					state.srcPkgs[dir_path] = src_file.pkg
-				}
+				src_file.pkg = &SrcPkg{DirPath: pkg_dir_path}
+				state.srcPkgs[pkg_dir_path] = src_file.pkg
 			}
 			src_file.pkg.Files = sl.With(src_file.pkg.Files, src_file)
 		}
@@ -123,7 +122,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 			src_file_bytes, err := os.ReadFile(src_file_path)
 			if os.IsNotExist(err) {
 				removeSrcFiles(src_file_path)
-				encounteredDiagRelevantChanges = true
+				flag_for_diags_refr()
 				continue
 			} else {
 				src_file.Content.Src, src_file.notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, src_file.Span())
@@ -134,15 +133,15 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 			old_ast := src_file.Content.Ast
 			src_file.Content.Ast, src_file.Content.Toks, src_file.notices.LexErrs = nil, nil, nil
 			if src_file.notices.LastReadErr != nil {
-				encounteredDiagRelevantChanges = true
+				flag_for_diags_refr()
 			} else {
 				src_file.Content.Toks, src_file.notices.LexErrs = tokenize(src_file.FilePath, src_file.Content.Src)
 				if len(src_file.notices.LexErrs) > 0 {
-					encounteredDiagRelevantChanges = true
+					flag_for_diags_refr()
 				} else {
 					new_ast := src_file.parse()
 					if new_ast.hasKind(AstNodeKindErr) {
-						encounteredDiagRelevantChanges = true
+						flag_for_diags_refr()
 					}
 					var num_same_nodes int
 					if len(old_ast) == len(new_ast) {
@@ -165,7 +164,9 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 	}
 
 	for src_pkg := range pkgs_to_refresh {
-		encounteredDiagRelevantChanges = src_pkg.refreshEst() || encounteredDiagRelevantChanges
+		if src_pkg.refreshEst() {
+			encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_pkg.srcFilePaths()...)
+		}
 	}
 	return
 }
