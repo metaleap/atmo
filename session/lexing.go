@@ -74,7 +74,7 @@ const (
 )
 
 // only called by `EnsureSrcFile`
-func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs []*SrcFileNotice) {
+func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs SrcFileNotices) {
 	if len(curFullSrcFileContent) == 0 {
 		return
 	}
@@ -83,8 +83,8 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 	scan.Init(strings.NewReader(curFullSrcFileContent))
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
-		errs = append(errs, &SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError,
-			Message: str.Fmt(errMsgs[NoticeCodeLexingError], msg), Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
+		errs.Add(&SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError,
+			Message: errMsg(NoticeCodeLexingError, msg), Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
 	}
 	var last_ident_first_char rune
 	scan.IsIdentRune = func(char rune, i int) bool {
@@ -138,7 +138,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 					ret = append(ret, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 				}
 				if stack_top != tok.Pos.Char {
-					errs = append(errs, tok.newIndentErr())
+					errs.Add(tok.newIndentErr())
 				}
 				ret = append(ret, &Tok{Kind: TokKindEnd, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
 				ret = append(ret, &Tok{Kind: TokKindBegin, byteOffset: tok.byteOffset, Pos: tok.Pos, Src: tok.Src})
@@ -266,7 +266,7 @@ func (me Toks) huddle() (huddled Toks, rest Toks) {
 }
 
 func (me *Tok) newErr(code SrcFileNoticeCode) *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: errMsgs[code]}
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: errMsg(code)}
 }
 
 func (me *Tok) newIndentErr() *SrcFileNotice {
@@ -305,22 +305,19 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 		}
 	}
 	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch,
-		Message: str.Fmt(errMsgs[NoticeCodeBracesMismatch],
+		Message: errMsg(NoticeCodeBracesMismatch,
 			util.If((me[0].Src[0] == '(') || (me[0].Src[0] == ')'), "parens",
 				util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
 					"braces")))}
 }
 
-func (me Toks) newErr(code SrcFileNoticeCode, errMsg string) *SrcFileNotice {
-	if errMsg == "" {
-		errMsg = errMsgs[code]
-	}
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.Span(), Message: errMsg}
-}
-
 func (me Toks) Span() (ret SrcFileSpan) {
 	ret.Start, ret.End = me[0].Pos, me[len(me)-1].span().End
 	return
+}
+
+func (me Toks) SpanEnd() (ret SrcFileSpan) {
+	return me[len(me)-1].span().End.ToSpan()
 }
 
 func (me Toks) src(curFullSrcFileContent string) string {

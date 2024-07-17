@@ -20,7 +20,7 @@ type StateAccess interface {
 	OnSrcFileEdit(srcFilePath string, curFullContent string)
 	OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string)
 
-	AllCurrentSrcFileNotices() map[string][]*SrcFileNotice
+	AllCurrentSrcFileNotices() map[string]SrcFileNotices
 	AllCurrentSrcPkgs() []*SrcPkg
 	PkgsFsRefresh()
 	GetSrcPkg(dirPath string) *SrcPkg
@@ -49,7 +49,7 @@ func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, curr
 	refreshAndPublishNotices(ensureSrcFiles(nil, canSkipFileRead, current...)...)
 }
 
-func (*stateAccess) AllCurrentSrcFileNotices() map[string][]*SrcFileNotice {
+func (*stateAccess) AllCurrentSrcFileNotices() map[string]SrcFileNotices {
 	return allNotices
 }
 

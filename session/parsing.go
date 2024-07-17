@@ -19,11 +19,10 @@ type AstNode struct {
 	Kind          AstNodeKind
 	Src           string
 	Toks          Toks
-	ChildNodes    AstNodes
+	Nodes         AstNodes `json:",omitempty"`
 	errParsing    *SrcFileNotice
-	errsExpansion []*SrcFileNotice
-	Lit           any // if AstNodeKindIdent or AstNodeKindLit, one of: float64 | int64 | uint64 | rune | string
-	Ann           any
+	errsExpansion SrcFileNotices
+	Lit           any `json:",omitempty"` // if AstNodeKindIdent or AstNodeKindLit, one of: float64 | int64 | uint64 | rune | string
 }
 
 type AstNodeKind int
@@ -43,14 +42,14 @@ func (me *SrcFile) parse() AstNodes {
 
 	// group huddled exprs: `foo x+z y` right now is `foo x + z y` BUT lets make it `foo (x + 1) y`:
 	parsed.walk(nil, func(node *AstNode) {
-		node.ChildNodes = node.ChildNodes.huddled(me)
+		node.Nodes = node.Nodes.huddled(me)
 	})
 
 	// only now, treat parens non-listish, unlike braces/brackets: hoist any 1-element parens-groups so that `(x)` becomes `x` and `(((foo bar)))` becomes `foo bar`
 	parsed.walk(nil, func(node *AstNode) {
-		for i, it := range node.ChildNodes {
-			if it.isParens() && len(it.ChildNodes) == 1 {
-				node.ChildNodes[i] = it.ChildNodes[0]
+		for i, it := range node.Nodes {
+			if it.isParens() && len(it.Nodes) == 1 {
+				node.Nodes[i] = it.Nodes[0]
 			}
 		}
 	})
@@ -69,7 +68,7 @@ func (me *SrcFile) parse() AstNodes {
 	// sort all top-level nodes to be in source-file order of appearance; also set all `AstNode.parent`s
 	parsed = sl.SortedPer(parsed, (*AstNode).cmp)
 	parsed.walk(nil, func(node *AstNode) {
-		for _, it := range node.ChildNodes {
+		for _, it := range node.Nodes {
 			it.parent = node
 		}
 	})
@@ -81,7 +80,7 @@ func (me *SrcFile) parseNode(toks Toks) *AstNode {
 	if len(nodes) == 1 {
 		return nodes[0]
 	}
-	return &AstNode{Kind: AstNodeKindGroup, ChildNodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
+	return &AstNode{Kind: AstNodeKindGroup, Nodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
 }
 
 func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
@@ -134,7 +133,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 			} else {
 				node := &AstNode{
 					Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2],
-					ChildNodes: me.parseNodes(toks_inner),
+					Nodes: me.parseNodes(toks_inner),
 				}
 				node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
 				ret = append(ret, node)
@@ -144,7 +143,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 			pop := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			ret = append(pop, &AstNode{Kind: AstNodeKindGroup, Toks: ret.toks(me),
-				Src: ret.src(me), ChildNodes: ret})
+				Src: ret.src(me), Nodes: ret})
 			toks = toks[1:]
 		case TokKindBegin:
 			stack = append(stack, ret)
@@ -159,7 +158,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 		pop := stack[len(stack)-1]
 		ret_toks := util.If(len(ret) == 0, ret, pop).toks(me)
 		ret = append(pop, &AstNode{Kind: AstNodeKindErr, Toks: ret_toks,
-			Src: ret_toks.src(me.Content.Src), ChildNodes: ret, errParsing: ret_toks[0].newIndentErr()})
+			Src: ret_toks.src(me.Content.Src), Nodes: ret, errParsing: ret_toks[0].newIndentErr()})
 	}
 
 	return
@@ -178,7 +177,7 @@ func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 	for _, node := range me.Content.Ast {
 		if node.Toks.Span().contains(&pos) {
 			ret = node.find(func(it *AstNode) bool {
-				return (len(it.ChildNodes) == 0) && it.Toks.Span().contains(&pos)
+				return (len(it.Nodes) == 0) && it.Toks.Span().contains(&pos)
 			})
 			if ret == nil && orAncestor {
 				ret = node
@@ -200,7 +199,7 @@ func (me *AstNode) cmp(it *AstNode) int {
 func (me *AstNode) equals(it *AstNode, withoutComments bool) bool {
 	util.Assert(me != it, nil)
 
-	if me.Kind != it.Kind || (!me.ChildNodes.equals(it.ChildNodes, withoutComments)) ||
+	if me.Kind != it.Kind || (!me.Nodes.equals(it.Nodes, withoutComments)) ||
 		!sl.Eq(me.errsExpansion, it.errsExpansion, (*SrcFileNotice).equals) {
 		return false
 	}
@@ -247,6 +246,10 @@ func (me *AstNode) find(where func(*AstNode) bool) (ret *AstNode) {
 	return
 }
 
+func (me *AstNode) ident() string {
+	return util.If(me.Kind == AstNodeKindIdent, me.Src, "")
+}
+
 func (me *AstNode) isBraces() bool {
 	return me.Src[0] == '{'
 }
@@ -268,20 +271,20 @@ func (me *AstNode) isWhitespacelesslyRightAfter(it *AstNode) bool {
 	return me.Toks[0].byteOffset == (prev_tok.byteOffset + len(prev_tok.Src))
 }
 
-func (me *AstNode) newDiag(kind SrcFileNoticeKind, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return &SrcFileNotice{Kind: kind, Code: code, Span: me.Toks.Span(), Message: str.Fmt(errMsgs[code], args...)}
+func (me *AstNode) newDiag(kind SrcFileNoticeKind, atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return &SrcFileNotice{Kind: kind, Code: code, Span: util.If(atEnd, Toks.SpanEnd, Toks.Span)(me.Toks), Message: errMsg(code, args...)}
 }
-func (me *AstNode) newDiagInfo(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindInfo, code, args...)
+func (me *AstNode) newDiagInfo(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindInfo, atEnd, code, args...)
 }
-func (me *AstNode) newDiagHint(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindHint, code, args...)
+func (me *AstNode) newDiagHint(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindHint, atEnd, code, args...)
 }
-func (me *AstNode) newDiagWarn(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindWarn, code, args...)
+func (me *AstNode) newDiagWarn(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindWarn, atEnd, code, args...)
 }
-func (me *AstNode) newDiagErr(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindErr, code, args...)
+func (me *AstNode) newDiagErr(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindErr, atEnd, code, args...)
 }
 
 func (me *AstNode) sig(buf *strings.Builder) {
@@ -311,7 +314,7 @@ func (me *AstNode) sig(buf *strings.Builder) {
 		}
 	}
 	buf.WriteByte(',')
-	for _, it := range me.ChildNodes {
+	for _, it := range me.Nodes {
 		it.sig(buf)
 	}
 	buf.WriteByte('>')
@@ -319,7 +322,7 @@ func (me *AstNode) sig(buf *strings.Builder) {
 
 func (me *AstNode) Sig() string {
 	var buf strings.Builder
-	if me.Kind != AstNodeKindErr && !me.ChildNodes.hasKind(AstNodeKindErr) {
+	if me.Kind != AstNodeKindErr && !me.Nodes.hasKind(AstNodeKindErr) {
 		me.sig(&buf)
 	}
 	return buf.String()
@@ -336,7 +339,7 @@ func (me *AstNode) walk(onBefore func(*AstNode) bool, onAfter func(*AstNode)) {
 	if onBefore != nil && !onBefore(me) {
 		return
 	}
-	for _, node := range me.ChildNodes {
+	for _, node := range me.Nodes {
 		node.walk(onBefore, onAfter)
 	}
 	if onAfter != nil {
@@ -353,6 +356,8 @@ func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
 	})
 }
 
+func (me AstNodes) first() *AstNode { return me[0] }
+
 func (me AstNodes) group(srcFile *SrcFile, onlyIfMultiple bool, nilIfEmpty bool) *AstNode {
 	if nilIfEmpty && (len(me) == 0) {
 		return nil
@@ -360,7 +365,7 @@ func (me AstNodes) group(srcFile *SrcFile, onlyIfMultiple bool, nilIfEmpty bool)
 		return me[0]
 	}
 	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(srcFile),
-		ChildNodes: me, Src: me.src(srcFile)}
+		Nodes: me, Src: me.src(srcFile)}
 }
 
 func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
@@ -402,8 +407,10 @@ func (me AstNodes) huddled(srcFile *SrcFile) (ret AstNodes) {
 	return
 }
 
+func (me AstNodes) last() *AstNode { return me[len(me)-1] }
+
 func (me AstNodes) newDiag(srcFile *SrcFile, kind SrcFileNoticeKind, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return &SrcFileNotice{Kind: kind, Code: code, Span: me.toks(srcFile).Span(), Message: str.Fmt(errMsgs[code], args...)}
+	return &SrcFileNotice{Kind: kind, Code: code, Span: me.toks(srcFile).Span(), Message: errMsg(code, args...)}
 }
 func (me AstNodes) newDiagInfo(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
 	return me.newDiag(srcFile, NoticeKindInfo, code, args...)

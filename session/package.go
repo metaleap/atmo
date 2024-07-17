@@ -25,7 +25,7 @@ type SrcFile struct {
 	} `json:"-"`
 	notices struct {
 		LastReadErr *SrcFileNotice
-		LexErrs     []*SrcFileNotice
+		LexErrs     SrcFileNotices
 	}
 }
 

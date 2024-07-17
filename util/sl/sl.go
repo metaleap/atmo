@@ -327,6 +327,10 @@ func (me *Of[T]) EnsureAllUnique(areEqual func(T, T) bool) {
 	*me = this
 }
 
+func (me *Of[T]) Add(items ...T) {
+	*me = append(*me, items...)
+}
+
 func (me *Of[T]) BufDone(push func([]T)) {
 	if this := *me; len(this) > 0 {
 		push(this)
