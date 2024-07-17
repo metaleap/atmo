@@ -48,19 +48,19 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 					if src_pkg := sess.GetSrcPkg(filepath.Dir(src_file_path)); src_pkg != nil {
 						type EstNode struct {
 							*session.EstNode
-							Nodes      []*EstNode `json:",omitempty"`
 							ClientInfo struct {
 								SrcFilePath string               `json:",omitempty"`
 								SrcFileSpan *session.SrcFileSpan `json:",omitempty"`
+								SrcFileText string               `json:",omitempty"`
 							} `json:",omitempty"`
 						}
-						var convert func(*session.EstNode) *EstNode
-						convert = func(it *session.EstNode) *EstNode {
-							ret := &EstNode{EstNode: it, Nodes: sl.As(it.Nodes, convert)}
+						convert := func(it *session.EstNode) *EstNode {
+							ret := &EstNode{EstNode: it}
 							if it.SrcFile != nil {
 								ret.ClientInfo.SrcFilePath = it.SrcFile.FilePath
 								if it.SrcNode != nil {
 									ret.ClientInfo.SrcFileSpan = util.Ptr(it.SrcNode.Toks.Span())
+									ret.ClientInfo.SrcFileText = it.SrcNode.Src
 								}
 							}
 							return ret

@@ -2,16 +2,15 @@ package session
 
 import (
 	"atmo/util/sl"
+	"cmp"
 )
 
 type EstNodes []*EstNode
 type EstNode struct {
-	parent  *EstNode
 	SrcNode *AstNode `json:"-"`
 	SrcFile *SrcFile `json:"-"`
 	Kind    EstNodeKind
-	Nodes   EstNodes `json:"-"`
-	Self    estNode  `json:",omitempty"`
+	Self    estNode `json:",omitempty"`
 }
 
 type EstNodeKind int
@@ -58,10 +57,10 @@ func (me *SrcPkg) refreshEst() (encounteredDiagsRelevantChanges bool) {
 		}
 	}
 	ctx := ctxExpand{pkg: me, est: sl.Where(me.Est, func(it *EstNode) bool {
-		return same_est_nodes[it]
+		return same_est_nodes[it] // keep only same-as-before nodes
 	})}
-
 	encounteredDiagsRelevantChanges = (len(ctx.est) != len(me.Est)) || (len(new_ast_nodes) > 0)
+
 	for top_level_ast_node, src_file := range new_ast_nodes {
 		ctx.curAstNodesSrcFile = src_file
 		ctx.addMacroFrom(top_level_ast_node)
@@ -70,7 +69,8 @@ func (me *SrcPkg) refreshEst() (encounteredDiagsRelevantChanges bool) {
 		ctx.curAstNodesSrcFile = src_file
 		ctx.addCallFrom(top_level_ast_node, true)
 	}
-	me.Est = ctx.est
+
+	me.Est = ctx.est.sorted()
 	return
 }
 
@@ -92,7 +92,7 @@ func (me *ctxExpand) addMacroFrom(astNode *AstNode) {
 	case (len(astNode.Nodes) < 3):
 		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFooHere, "macro body", "after `@macro` and pattern"))
 	default:
-		self := EstNodeMacro{
+		self := &EstNodeMacro{
 			Pattern: astNode.Nodes[1].Nodes,
 			Body:    astNode.Nodes[2:],
 		}
@@ -103,6 +103,9 @@ func (me *ctxExpand) addMacroFrom(astNode *AstNode) {
 }
 
 func (me *ctxExpand) addCallFrom(astNode *AstNode, must bool) {
+	if astNode.isMacro() {
+		return
+	}
 	switch astNode.Kind {
 	case AstNodeKindComment, AstNodeKindErr:
 	case AstNodeKindGroup:
@@ -113,22 +116,16 @@ func (me *ctxExpand) addCallFrom(astNode *AstNode, must bool) {
 	}
 }
 
-func (me *EstNode) walk(onBefore func(*EstNode) bool, onAfter func(*EstNode)) {
-	if onBefore != nil && !onBefore(me) {
-		return
-	}
-	for _, node := range me.Nodes {
-		node.walk(onBefore, onAfter)
-	}
-	if onAfter != nil {
-		onAfter(me)
-	}
-}
-
-func (me EstNodes) walk(onBefore func(node *EstNode) bool, onAfter func(node *EstNode)) {
-	for _, node := range me {
-		node.walk(onBefore, onAfter)
-	}
+func (me EstNodes) sorted() EstNodes {
+	return sl.SortedPer(me, func(node1 *EstNode, node2 *EstNode) int {
+		if node1.SrcFile.FilePath != node2.SrcFile.FilePath {
+			return cmp.Compare(node1.SrcFile.FilePath, node2.SrcFile.FilePath)
+		}
+		if node1.SrcNode.Toks[0].Pos.Line != node2.SrcNode.Toks[0].Pos.Line {
+			return cmp.Compare(node1.SrcNode.Toks[0].Pos.Line, node2.SrcNode.Toks[0].Pos.Line)
+		}
+		return cmp.Compare(node1.SrcNode.Toks[0].Pos.Char, node2.SrcNode.Toks[0].Pos.Char)
+	})
 }
 
 func (me *AstNode) isMacro() bool {
