@@ -94,6 +94,9 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 	for _, src_file_path := range provokingFilePaths {
 		var file_notices SrcFileNotices
 		if src_file := state.srcFiles[src_file_path]; src_file != nil {
+			has_brace_err := src_file.Content.Ast.has(true, func(node *AstNode) bool {
+				return (node.errParsing != nil) && (node.errParsing.Code == NoticeCodeBracesMismatch)
+			})
 			if src_file.notices.LastReadErr != nil {
 				file_notices.Add(src_file.notices.LastReadErr)
 			}
@@ -102,7 +105,9 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 				if node.errParsing != nil {
 					file_notices.Add(node.errParsing)
 				}
-				file_notices.Add(node.errsExpansion...)
+				if !has_brace_err {
+					file_notices.Add(node.errsExpansion...)
+				}
 			})
 		}
 		new_notices[src_file_path] = file_notices
