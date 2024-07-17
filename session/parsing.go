@@ -256,8 +256,7 @@ func (me *AstNode) isParens() bool {
 }
 
 func (me *AstNode) isWhitespacelesslyRightAfter(it *AstNode) bool {
-	prev_tok := it.Toks[len(it.Toks)-1]
-	return me.Toks[0].byteOffset == (prev_tok.byteOffset + len(prev_tok.Src))
+	return me.Toks[0].isWhitespacelesslyRightAfter(it.Toks[len(it.Toks)-1])
 }
 
 func (me *AstNode) newDiag(kind SrcFileNoticeKind, atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {

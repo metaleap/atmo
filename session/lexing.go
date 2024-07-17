@@ -116,6 +116,9 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 			tok.Kind = TokKindLitStr
 		case scanner.Ident:
 			tok.Kind = TokKindIdentWord
+			if (prev != nil) && ((prev.Kind == TokKindLitFloat) || (prev.Kind == TokKindLitInt)) && tok.isWhitespacelesslyRightAfter(prev) {
+				errs = append(errs, tok.newErr(NoticeCodeLexingError, "separate `"+prev.Src+"` from `"+tok.Src+"`"))
+			}
 		case '(', ')', '{', '}', '[', ']':
 			tok.Kind = TokKindBrace
 		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
@@ -252,6 +255,10 @@ func (me *Tok) isSep() bool {
 	return (len(me.Src) == 1) && ((me.Src[0] == ',') || (me.Src[0] == ';') || (me.Src[0] == ':') || (me.Src[0] == '.'))
 }
 
+func (me *Tok) isWhitespacelesslyRightAfter(it *Tok) bool {
+	return me.byteOffset == (it.byteOffset + len(it.Src))
+}
+
 func (me Toks) huddle() (huddled Toks, rest Toks) {
 	var idx_until int
 	for i := 1; i < len(me); i++ {
@@ -265,8 +272,8 @@ func (me Toks) huddle() (huddled Toks, rest Toks) {
 	return me[:idx_until], me[idx_until:]
 }
 
-func (me *Tok) newErr(code SrcFileNoticeCode) *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: errMsg(code)}
+func (me *Tok) newErr(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: errMsg(code, args...)}
 }
 
 func (me *Tok) newIndentErr() *SrcFileNotice {
