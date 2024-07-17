@@ -109,6 +109,7 @@ func (me *ctxExpand) addCallFrom(astNode *AstNode, must bool) {
 	switch astNode.Kind {
 	case AstNodeKindComment, AstNodeKindErr:
 	case AstNodeKindGroup:
+
 	default:
 		if must {
 			astNode.errsExpansion.Add(astNode.newDiagErr(false, NoticeCodeExpectedFooHere, "call", ""))
