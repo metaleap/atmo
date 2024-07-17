@@ -143,17 +143,19 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 					if new_ast.hasKind(AstNodeKindErr) {
 						flag_for_diags_refr()
 					}
-					var num_same_nodes int
+					new_same_as_old := make(map[*AstNode]bool, len(old_ast)) // avoids double-counting
 					if len(old_ast) == len(new_ast) {
-						for _, old_node := range old_ast {
-							for _, new_node := range new_ast {
+						for _, new_node := range new_ast {
+							for _, old_node := range old_ast {
 								if old_node.equals(new_node, true) {
-									num_same_nodes++
+									new_same_as_old[new_node] = true
+									break
 								}
 							}
 						}
 					}
-					have_changes := (num_same_nodes != len(old_ast)) || (num_same_nodes != len(new_ast))
+					have_changes := (len(new_same_as_old) != len(old_ast)) || (len(new_same_as_old) != len(new_ast))
+
 					src_file.Content.Ast = new_ast
 					if have_changes { // false if changes were in comments, whitespace (other than top-level indentation), or mere re-ordering of top-level nodes
 						pkgs_to_refresh[src_file.pkg] = true

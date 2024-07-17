@@ -40,7 +40,7 @@ const (
 var (
 	allNotices       = map[string]SrcFileNotices{}
 	OnNoticesChanged = func() {}
-	OnDbgMsg         = func(bool, string, ...any) {}
+	OnDbgMsg         = func(showIf bool, fmt string, args ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
 		NoticeCodeAtmoTodo:      "TODO by Atmo team, please report: %s",
 		NoticeCodeFileReadError: "%s", // actual error msg in %s

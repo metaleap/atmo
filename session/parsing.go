@@ -188,8 +188,9 @@ func (me *AstNode) cmp(it *AstNode) int {
 func (me *AstNode) equals(it *AstNode, withoutComments bool) bool {
 	util.Assert(me != it, nil)
 
-	if me.Kind != it.Kind || (!me.Nodes.equals(it.Nodes, withoutComments)) ||
-		!sl.Eq(me.errsExpansion, it.errsExpansion, (*SrcFileNotice).equals) {
+	// note: AstNode.errsExpansion are not compared, because usually one comparee already has them and the other not-yet
+
+	if (me.Kind != it.Kind) || (!me.Nodes.equals(it.Nodes, withoutComments)) {
 		return false
 	}
 
