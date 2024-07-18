@@ -175,6 +175,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 			(!prev.isSep()) && (!tok.isSep()) && ((prev.Pos.Char + len(prev.Src)) == tok.Pos.Char):
 			// multi-char op toks such as `!=` are at this point single-char toks ie. '!', '='. we stitch them together:
 			prev.Src += tok.Src
+			continue // to avoid the further-below setting of `prev = tok` in this `case`
 		case ((tok.Kind == TokKindLitFloat) && str.Ends(tok.Src, ".")):
 			// split dot-ending float toks like `10.` into 2 toks (int then dot), to allow for dot-methods on int literals like `10.timesDo fn` etc.
 			dot := &Tok{
@@ -257,19 +258,6 @@ func (me *Tok) isSep() bool {
 
 func (me *Tok) isWhitespacelesslyRightAfter(it *Tok) bool {
 	return me.byteOffset == (it.byteOffset + len(it.Src))
-}
-
-func (me Toks) huddle() (huddled Toks, rest Toks) {
-	var idx_until int
-	for i := 1; i < len(me); i++ {
-		cur, prev := me[i], me[i-1]
-		if cur.byteOffset == (prev.byteOffset+len(prev.Src)) && cur.Kind >= TokKindIdentOpish && prev.Kind >= TokKindIdentOpish {
-			idx_until = i + 1
-		} else {
-			break
-		}
-	}
-	return me[:idx_until], me[idx_until:]
 }
 
 func (me *Tok) newErr(code SrcFileNoticeCode, args ...any) *SrcFileNotice {

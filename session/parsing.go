@@ -62,6 +62,9 @@ func (me *SrcFile) parse() AstNodes {
 			it.parent = node
 		}
 	})
+	if len(parsed) > 0 && str.Begins(parsed[0].Src, "#!/usr/bin/env ") {
+		parsed[0].Kind = AstNodeKindComment
+	}
 	return parsed
 }
 

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	logJsonMsgs = true
+	logJsonMsgs = false
 )
 
 var (
