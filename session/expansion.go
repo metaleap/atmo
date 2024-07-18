@@ -61,6 +61,7 @@ func (me *SrcPkg) refreshEst() (encounteredDiagsRelevantChanges bool) {
 	})}
 	encounteredDiagsRelevantChanges = (len(ctx.est) != len(me.Est)) || (len(new_ast_nodes) > 0)
 
+	// file away any top-level macros encountered
 	for top_level_ast_node, src_file := range new_ast_nodes {
 		ctx.curAstNodesSrcFile = src_file
 		ctx.addMacroFrom(top_level_ast_node)
