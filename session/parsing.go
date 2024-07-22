@@ -45,15 +45,6 @@ func (me *SrcFile) parse() AstNodes {
 		node.Nodes = node.Nodes.huddled(me)
 	})
 
-	// // only now, treat parens non-listish (vs. braces/brackets) by flattening redundant nestings
-	// parsed.walk(nil, func(node *AstNode) {
-	// 	for i, it := range node.Nodes {
-	// 		if it.isParens() && (len(it.Nodes) == 1) {
-	// 			node.Nodes[i] = it.Nodes[0]
-	// 		}
-	// 	}
-	// })
-
 	// set all `AstNode.parent`s only after above re-arrangements; also
 	// sort all top-level nodes to be in source-file order of appearance
 	parsed = sl.SortedPer(parsed, (*AstNode).cmp)

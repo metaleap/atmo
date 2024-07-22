@@ -145,8 +145,9 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 					}
 					new_same_as_old := make(map[*AstNode]bool, len(old_ast)) // avoids double-counting
 					if len(old_ast) == len(new_ast) {
-						for _, new_node := range new_ast {
-							for _, old_node := range old_ast {
+						old_ast_sans_comments := old_ast.withoutComments()
+						for _, new_node := range new_ast.withoutComments() {
+							for _, old_node := range old_ast_sans_comments {
 								if old_node.equals(new_node, true) {
 									new_same_as_old[new_node] = true
 									break

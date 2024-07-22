@@ -87,11 +87,11 @@ func (me *ctxExpand) addMacroFrom(astNode *AstNode) {
 	}
 	switch {
 	case (len(astNode.Nodes) < 2):
-		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFooHere, "macro pattern and body", "after `%macro`"))
+		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFooHere, "macro pattern and body", "after `@macro`"))
 	case (len(astNode.Nodes[1].Nodes) <= 1):
 		astNode.errsExpansion.Add(astNode.Nodes[1].newDiagErr(true, NoticeCodeExpectedFooHere, "macro pattern", ""))
 	case (len(astNode.Nodes) < 3):
-		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFooHere, "macro body", "after `%macro` and pattern"))
+		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFooHere, "macro body", "after `@macro` and pattern"))
 	default:
 		self := &EstNodeMacro{
 			Pattern: astNode.Nodes[1].Nodes,
@@ -131,5 +131,5 @@ func (me EstNodes) sorted() EstNodes {
 }
 
 func (me *AstNode) isMacro() bool {
-	return (me.Kind == AstNodeKindGroup) && (len(me.Nodes) > 0) && (me.Nodes[0].ident() == "%macro")
+	return (me.Kind == AstNodeKindGroup) && (len(me.Nodes) > 0) && (me.Nodes[0].ident() == "@macro")
 }
