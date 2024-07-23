@@ -1,36 +1,43 @@
 package session
 
 import (
+	"errors"
+	"os"
+
 	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
-	"errors"
-	"os"
 )
 
-type Interp interface {
+type Evaler interface {
 	Eval(*AtExpr) (*AtExpr, error)
-	Parse(src string) (*AtExpr, error)
 }
 
-type interp struct {
-	SrcFile    *SrcFile
-	env        *AtEnv
-	stackTrace []string
+type Interp struct {
+	SrcFile *SrcFile
+	Env     *AtEnv
+	Evaler  Evaler
 }
 
-func (me *interp) Eval(*AtExpr) (*AtExpr, error) {
-	me.stackTrace = nil
+type DefaultEvaler struct {
+	Ctx            *Interp
+	LastStackTrace []string
+}
+
+func (me *DefaultEvaler) Eval(expr *AtExpr) (*AtExpr, error) {
+	me.LastStackTrace = nil
+	return me.evalAndApply(expr)
+}
+
+func (*DefaultEvaler) evalAndApply(*AtExpr) (*AtExpr, error) {
 	return nil, nil
 }
 
-func (*interp) evalAndApply() {
+func (*DefaultEvaler) evalExpr(*AtExpr) (*AtExpr, error) {
+	return nil, nil
 }
 
-func (*interp) evalExpr() {
-}
-
-func (me *interp) Parse(src string) (*AtExpr, error) {
+func (me *Interp) Parse(src string) (*AtExpr, error) {
 	me.SrcFile.Src.Ast, me.SrcFile.Src.Toks, me.SrcFile.Src.Text = nil, nil, src
 	toks, errs := tokenize(me.SrcFile.FilePath, src)
 	if len(errs) > 0 {
@@ -55,14 +62,18 @@ func (me *interp) Parse(src string) (*AtExpr, error) {
 		return nil, nil
 	}
 
-	util.Assert(me.SrcFile.Src.Ast[0].Kind == AstNodeKindGroup, nil)
-	if len(me.SrcFile.Src.Ast[0].Nodes) > 1 {
-		me.SrcFile.Src.Ast[0].Nodes = []*AstNode{me.SrcFile.Src.Ast[0].Nodes.group(me.SrcFile, me.SrcFile.Src.Ast[0], true, false)}
-	}
-	return me.SrcFile.toExpr(me.SrcFile.Src.Ast[0].Nodes[0])
+	return me.SrcFile.NodeToExpr(me.SrcFile.Src.Ast[0])
 }
 
-func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
+func (me *SrcFile) NodeToExpr(topNode *AstNode) (*AtExpr, error) {
+	util.Assert((topNode.Kind == AstNodeKindGroup) && (len(topNode.Nodes) > 0), nil)
+	if len(topNode.Nodes) > 1 {
+		topNode.Nodes = []*AstNode{topNode.Nodes.group(me, topNode, true, false)}
+	}
+	return me.nodeToExpr(topNode.Nodes[0])
+}
+
+func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 	var val AtVal
 	switch node.Kind {
 	case AstNodeKindIdent:
@@ -93,7 +104,7 @@ func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
 					return nil, err_node.newDiagErr(err_node != node, NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")
 				}
 				err_node = expr_node
-				expr, err := me.toExpr(expr_node)
+				expr, err := me.nodeToExpr(expr_node)
 				if err != nil {
 					return nil, err
 				}
@@ -106,18 +117,18 @@ func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
 			err_node := node
 			for _, expr_node := range items {
 				if expr_node == nil {
-					return nil, err_node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression", "in between the 2 consecutive commas")
+					return nil, err_node.newDiagErr(err_node != node, NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")
 				}
 				err_node = expr_node
 				pair := expr_node.Nodes.splitByIdentWithGrouping(me, expr_node, ":")
 				if len(pair) != 2 || pair[0] == nil || pair[1] == nil {
-					return nil, err_node.newDiagErr(true, NoticeCodeExpectedFooHere, "expression pair separated by `:`", "")
+					return nil, err_node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression pair separated by `:`", "")
 				}
-				expr_key, err := me.toExpr(pair[0])
+				expr_key, err := me.nodeToExpr(pair[0])
 				if err != nil {
 					return nil, err
 				}
-				expr_val, err := me.toExpr(pair[1])
+				expr_val, err := me.nodeToExpr(pair[1])
 				if err != nil {
 					return nil, err
 				}
@@ -126,14 +137,14 @@ func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
 			val = rec
 		default:
 			if len(node.Nodes) == 1 {
-				return me.toExpr(node.Nodes[0])
+				return me.nodeToExpr(node.Nodes[0])
 			} else if len(node.Nodes) == 0 {
 				return nil, node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression", "inside the parens")
 			}
 
 			call_form := make(atValCall, 0, len(node.Nodes))
 			for _, node := range node.Nodes {
-				expr, err := me.toExpr(node)
+				expr, err := me.nodeToExpr(node)
 				if err != nil {
 					return nil, err
 				}

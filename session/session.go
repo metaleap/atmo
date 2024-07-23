@@ -26,7 +26,7 @@ type StateAccess interface {
 	AllCurrentSrcPacks() []*SrcPack
 	PacksFsRefresh()
 	GetSrcPack(dirPath string, loadIfMissing bool) *SrcPack
-	Interpreter(dirPath string) Interp
+	Interpreter(dirPath string) *Interp
 	SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile
 }
 
@@ -82,12 +82,12 @@ func (*stateAccess) GetSrcPack(dirPath string, loadIfMissing bool) (ret *SrcPack
 	return
 }
 
-func (me *stateAccess) Interpreter(dirPath string) Interp {
+func (me *stateAccess) Interpreter(dirPath string) *Interp {
 	src_file_path := newSrcFilePathFakeAndReplish(dirPath)
 	me.SrcFile(src_file_path, true)
 	src_file := state.srcFiles[src_file_path]
 	util.Assert(src_file != nil, nil)
-	return &interp{env: newAtEnv(nil, nil, nil), SrcFile: src_file}
+	return &Interp{Env: newAtEnv(nil, nil, nil), SrcFile: src_file, Evaler: &DefaultEvaler{}}
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {
