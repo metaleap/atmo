@@ -99,45 +99,10 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 	case AstNodeKindGroup:
 		switch {
 		case node.IsSquareBrackets():
-			items := node.Nodes.splitByIdentWithGrouping(me, node, ",")
-			arr := make(atValArr, 0, len(items))
-			err_node := node
-			for _, expr_node := range items {
-				println(node.Toks.Span().String(), expr_node.Toks.Span().String())
-				if expr_node == nil {
-					return nil, err_node.newDiagErr(err_node != node, NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")
-				}
-				err_node = expr_node
-				expr, err := me.nodeToExpr(expr_node)
-				if err != nil {
-					return nil, err
-				}
-				arr = append(arr, expr)
-			}
+			arr := make(atValArr, 0)
 			val = arr
 		case node.IsCurlyBraces():
-			items := node.Nodes.splitByIdentWithGrouping(me, node, ",")
-			rec := make(atValRec, len(items))
-			err_node := node
-			for _, expr_node := range items {
-				if expr_node == nil {
-					return nil, err_node.newDiagErr(err_node != node, NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")
-				}
-				err_node = expr_node
-				pair := expr_node.Nodes.splitByIdentWithGrouping(me, expr_node, ":")
-				if len(pair) != 2 || pair[0] == nil || pair[1] == nil {
-					return nil, err_node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression pair separated by `:`", "")
-				}
-				expr_key, err := me.nodeToExpr(pair[0])
-				if err != nil {
-					return nil, err
-				}
-				expr_val, err := me.nodeToExpr(pair[1])
-				if err != nil {
-					return nil, err
-				}
-				rec[expr_key] = expr_val
-			}
+			rec := make(atValRec, 0)
 			val = rec
 		default:
 			if len(node.Nodes) == 1 {

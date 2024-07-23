@@ -315,6 +315,27 @@ func (me Toks) SpanEnd() (ret SrcFileSpan) {
 	return me[len(me)-1].span().End.ToSpan()
 }
 
+func (me Toks) split(delimChar byte) (ret []Toks) {
+	var idx int
+	var brace_level int
+	for i, tok := range me {
+		if (tok.Src[0] == delimChar) && (brace_level == 0) {
+			ret = append(ret, me[idx:i])
+			idx = i + 1
+		} else if tok.isBraceOpening(0) {
+			brace_level++
+		} else if tok.isBraceClosing(0) {
+			brace_level--
+		}
+	}
+	if idx == 0 {
+		ret = []Toks{me}
+	} else if rest := me[idx:]; len(rest) > 0 {
+		ret = append(ret, rest)
+	}
+	return
+}
+
 func (me Toks) src(curFullSrcFileContent string) string {
 	if len(me) == 0 {
 		return ""

@@ -115,11 +115,28 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Src.Text), errParsing: err})
 				toks = nil
 			} else {
-				node := &AstNode{
-					Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2],
-					Nodes: me.parseNodes(toks_inner),
+				node := &AstNode{Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2]}
+				node.Src = node.Toks.src(me.Src.Text)
+				if (!node.IsSquareBrackets()) && (!node.IsCurlyBraces()) {
+					node.Nodes = me.parseNodes(toks_inner)
+				} else {
+					err_toks := node.Toks[1:2]
+					thetoks := toks_inner.split(',')
+					for i, item_toks := range thetoks {
+						if len(item_toks) == 0 {
+							if i < len(thetoks)-1 {
+								if tmp := thetoks[i+1]; len(tmp) > 0 {
+									err_toks = tmp
+								}
+							}
+							node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: node.Src,
+								errParsing: err_toks[len(err_toks)-1].newErr(NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")})
+						} else {
+							err_toks = item_toks[len(item_toks)-1:]
+							node.Nodes = append(node.Nodes, me.parseNode(item_toks))
+						}
+					}
 				}
-				node.Src = node.Toks.src(me.Src.Text) // .. and for Src to reflect that SrcFileSpan fully
 				ret = append(ret, node)
 				toks = toks_tail
 			}
@@ -400,23 +417,6 @@ func (me AstNodes) newDiagWarn(srcFile *SrcFile, code SrcFileNoticeCode, args ..
 }
 func (me AstNodes) newDiagErr(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
 	return me.newDiag(srcFile, NoticeKindErr, code, args...)
-}
-
-func (me AstNodes) splitByIdentWithGrouping(srcFile *SrcFile, parent *AstNode, ident string) AstNodes {
-	var idx int
-	var ret []AstNodes
-	for i, node := range me {
-		if (node.Kind == AstNodeKindIdent) && (node.Src == ident) {
-			ret = append(ret, me[idx:i])
-			idx = i
-		}
-	}
-	if sub := me[idx:]; len(sub) > 0 {
-		ret = append(ret, sub)
-	}
-	return AstNodes(sl.As(ret, func(nodes AstNodes) *AstNode {
-		return nodes.toGroupNode(srcFile, parent, true, true)
-	}))
 }
 
 func (me AstNodes) src(srcFile *SrcFile) string {
