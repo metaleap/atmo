@@ -2,7 +2,6 @@ package session
 
 import (
 	"errors"
-	"os"
 
 	"atmo/util"
 	"atmo/util/sl"
@@ -140,12 +139,11 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 			val = call_form
 		}
 	}
-	if val != nil {
-		ret := &AtExpr{SrcNode: node, Val: val}
-		os.Stdout.WriteString(">>>")
-		ret.WriteTo(os.Stdout)
-		os.Stdout.WriteString("<<<\n")
-		return ret, nil
-	}
-	return nil, nil
+	ret := &AtExpr{SrcNode: node, Val: val}
+	// if val != nil {
+	// 	os.Stdout.WriteString(">>>")
+	// 	ret.WriteTo(os.Stdout)
+	// 	os.Stdout.WriteString("<<<\n")
+	// }
+	return ret, nil
 }
