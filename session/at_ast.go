@@ -66,7 +66,6 @@ func (*atValFunc) valType() AtValType { return AtValTypeFunc }
 
 type AtExpr struct {
 	SrcNode *AstNode `json:"-"`
-	SrcFile *SrcFile `json:"-"`
 	Val     AtVal
 }
 

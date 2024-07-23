@@ -1,5 +1,12 @@
 package session
 
+import (
+	"atmo/util/sl"
+	"atmo/util/str"
+	"errors"
+	"os"
+)
+
 type Interp interface {
 	Eval(*AtExpr) (*AtExpr, error)
 	Parse(src string) (*AtExpr, error)
@@ -29,18 +36,82 @@ func (me *interp) Parse(src string) (*AtExpr, error) {
 		return nil, errs[0]
 	}
 	me.SrcFile.Src.Toks = toks
-	me.SrcFile.Src.Ast = me.SrcFile.parse().withoutComments()
-	for _, diag := range me.SrcFile.allNotices() {
+	ast := me.SrcFile.parse()
+	filter := func(it *AstNode) bool { return (it.Kind != AstNodeKindErr) && (it.Kind != AstNodeKindComment) }
+	ast = sl.Where(ast, filter)
+	ast.walk(func(node *AstNode) bool {
+		node.Nodes = sl.Where(node.Nodes, filter)
+		return true
+	}, nil)
+	if len(ast) > 1 {
+		return nil, errors.New("one at a time, please")
+	}
+
+	me.SrcFile.Src.Ast = ast
+	for _, diag := range me.SrcFile.allNotices(me.SrcFile.Src.Ast) {
 		if diag.Kind == NoticeKindErr {
 			return nil, diag
 		}
 	}
-	return nil, nil
+
+	if len(me.SrcFile.Src.Ast) == 0 {
+		return nil, nil
+	}
+	return me.SrcFile.toExpr(me.SrcFile.Src.Ast[0])
 }
 
 func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
+	var val AtVal
 	switch node.Kind {
+	case AstNodeKindIdent:
+		val = atValIdent(node.Src)
+	case AstNodeKindLit:
+		switch it := node.Lit.(type) {
+		case rune:
+			val = atValChar(it)
+		case string:
+			val = atValStr(it)
+		case float64:
+			val = atValFloat(it)
+		case int64:
+			val = atValInt(it)
+		case uint64:
+			val = atValUint(it)
+		default:
+			panic(str.Fmt("TODO: lit type %T", it))
+		}
+	case AstNodeKindGroup:
+		switch {
+		case node.isBraces():
+			rec := make(atValRec, len(node.Nodes)/4)
+			val = rec
+		case node.isBrackets():
+			rec := make(atValArr, 0, len(node.Nodes)/2)
+			val = rec
+		default:
+			if len(node.Nodes) == 1 {
+				return me.toExpr(node.Nodes[0])
+			} else if len(node.Nodes) == 0 {
+				return nil, node.newDiagErr(true, NoticeCodeExpectedFooHere, "expression", "inside the parens")
+			}
 
+			rec := make(atValCall, 0, len(node.Nodes))
+			for _, node := range node.Nodes {
+				expr, err := me.toExpr(node)
+				if err != nil {
+					return nil, err
+				}
+				rec = append(rec, expr)
+			}
+			val = rec
+		}
+	}
+	if val != nil {
+		ret := &AtExpr{SrcNode: node, Val: val}
+		os.Stdout.WriteString(">>>")
+		ret.WriteTo(os.Stdout)
+		os.Stdout.WriteString("<<<\n")
+		return ret, nil
 	}
 	return nil, nil
 }
