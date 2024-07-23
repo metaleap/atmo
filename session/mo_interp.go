@@ -133,8 +133,42 @@ func (me *DefaultEvaler) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNo
 	return expr, nil
 }
 
-func (me *DefaultEvaler) macroExpand(_ *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *DefaultEvaler) call(fnExpr *MoExpr, args []*MoExpr, diagCtxCallee *MoExpr) (*MoExpr, *SrcFileNotice) {
+	switch fn := fnExpr.Val.(type) {
+	case moValFn:
+		return fn(args...)
+	case *moValFunc:
+		env, err := fn.envWith(args, diagCtxCallee)
+		if err != nil {
+			return nil, err
+		}
+		return me.evalAndApply(env, fn.body)
+	}
+	return nil, diagCtxCallee.SrcNode.newDiagErr(false, NoticeCodeUncallable, diagCtxCallee.String())
+}
+
+func (me *DefaultEvaler) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+	for fn := expr.macroCallCallee(env); fn != nil; fn = expr.macroCallCallee(env) {
+		it, err := me.call(fn, expr.Val.(moValCall)[1:], expr.Val.(moValCall)[0])
+		if err != nil {
+			return nil, err
+		}
+		expr = it
+	}
 	return expr, nil
+}
+
+func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
+	if call, is := me.Val.(moValCall); is {
+		if ident, _ := call[0].Val.(moValIdent); ident != "" {
+			if expr := env.lookup(ident); expr != nil {
+				if fn, _ := expr.Val.(*moValFunc); fn != nil && fn.isMacro {
+					return expr
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr, diagCtx *MoExpr) *SrcFileNotice {
