@@ -115,25 +115,35 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Src.Text), errParsing: err})
 				toks = nil
 			} else {
-				node := &AstNode{Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2]}
+				node := &AstNode{Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2], Lit: toks[0].Src[0]}
 				node.Src = node.Toks.src(me.Src.Text)
-				if (!node.IsSquareBrackets()) && (!node.IsCurlyBraces()) {
-					node.Nodes = me.parseNodes(toks_inner)
-				} else {
-					err_toks := node.Toks[1:2]
-					thetoks := toks_inner.split(',')
-					for i, item_toks := range thetoks {
-						if len(item_toks) == 0 {
-							if i < len(thetoks)-1 {
-								if tmp := thetoks[i+1]; len(tmp) > 0 {
-									err_toks = tmp
+				if len(toks_inner) > 0 {
+					if is_curly := node.IsCurlyBraces(); (!is_curly) && (!node.IsSquareBrackets()) {
+						node.Nodes = me.parseNodes(toks_inner)
+					} else {
+						err_toks := node.Toks[1:2]
+						split_by_comma := toks_inner.split(',')
+						for i, item_toks := range split_by_comma {
+							if len(item_toks) == 0 {
+								if i < len(split_by_comma)-1 {
+									if tmp := split_by_comma[i+1]; len(tmp) > 0 {
+										err_toks = tmp
+									}
+								}
+								node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: err_toks.src(me.Src.Text),
+									errParsing: err_toks[len(err_toks)-1].newErr(NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")})
+							} else {
+								err_toks = item_toks[len(item_toks)-1:]
+								if !is_curly {
+									node.Nodes = append(node.Nodes, me.parseNode(item_toks))
+								} else if pair := item_toks.split(':'); len(pair) != 2 {
+									node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: err_toks.src(me.Src.Text),
+										errParsing: err_toks[0].newErr(NoticeCodeExpectedFooHere, "expression pair separated by `:`")})
+								} else {
+									node_key, node_val := me.parseNode(pair[0]), me.parseNode(pair[1])
+									node.Nodes = append(node.Nodes, AstNodes{node_key, node_val}.toGroupNode(me, node, true, true))
 								}
 							}
-							node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: node.Src,
-								errParsing: err_toks[len(err_toks)-1].newErr(NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")})
-						} else {
-							err_toks = item_toks[len(item_toks)-1:]
-							node.Nodes = append(node.Nodes, me.parseNode(item_toks))
 						}
 					}
 				}
@@ -256,11 +266,21 @@ func (me *AstNode) ident() string {
 }
 
 func (me *AstNode) IsCurlyBraces() bool {
-	return me.Src[0] == '{'
+	if me.Kind == AstNodeKindGroup {
+		if lit, is := me.Lit.(byte); is {
+			return (lit == '{')
+		}
+	}
+	return false
 }
 
 func (me *AstNode) IsSquareBrackets() bool {
-	return me.Src[0] == '['
+	if me.Kind == AstNodeKindGroup {
+		if lit, is := me.Lit.(byte); is {
+			return (lit == '[')
+		}
+	}
+	return false
 }
 
 func (me *AstNode) isIdentOpish() bool {
