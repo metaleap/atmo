@@ -1,6 +1,7 @@
 package session
 
 import (
+	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 	"errors"
@@ -50,10 +51,15 @@ func (me *interp) Parse(src string) (*AtExpr, error) {
 	}, nil)
 	if len(me.SrcFile.Src.Ast) > 1 {
 		return nil, errors.New("one at a time, please")
-	} else if len(me.SrcFile.Src.Ast) == 0 {
+	} else if (len(me.SrcFile.Src.Ast) == 0) || (len(me.SrcFile.Src.Ast[0].Nodes) == 0) {
 		return nil, nil
 	}
-	return me.SrcFile.toExpr(me.SrcFile.Src.Ast[0])
+
+	util.Assert(me.SrcFile.Src.Ast[0].Kind == AstNodeKindGroup, nil)
+	if len(me.SrcFile.Src.Ast[0].Nodes) > 1 {
+		me.SrcFile.Src.Ast[0].Nodes = []*AstNode{me.SrcFile.Src.Ast[0].Nodes.group(me.SrcFile, me.SrcFile.Src.Ast[0], true, false)}
+	}
+	return me.SrcFile.toExpr(me.SrcFile.Src.Ast[0].Nodes[0])
 }
 
 func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
@@ -84,7 +90,7 @@ func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
 			err_node := node
 			for _, expr_node := range items {
 				if expr_node == nil {
-					return nil, err_node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression", "in between the 2 consecutive commas")
+					return nil, err_node.newDiagErr(err_node != node, NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")
 				}
 				err_node = expr_node
 				expr, err := me.toExpr(expr_node)
