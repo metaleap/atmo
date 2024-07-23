@@ -65,7 +65,7 @@ func Main() {
 
 		expr, err := interp.Parse(string(line))
 		if (err == nil) && (expr != nil) {
-			expr, err = interp.Evaler.Eval(expr)
+			expr, err = interp.Eval(expr)
 		}
 		if err != nil {
 			os.Stderr.WriteString(errMsg(err) + "\n")

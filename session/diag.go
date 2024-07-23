@@ -38,6 +38,7 @@ const (
 
 	// semantic
 	NoticeCodeExpectedFoo SrcFileNoticeCode = "Unexpected"
+	NoticeCodeUndefined   SrcFileNoticeCode = "Undefined"
 )
 
 var (
@@ -56,6 +57,7 @@ var (
 		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
 
 		NoticeCodeExpectedFoo: "expected %s",
+		NoticeCodeUndefined:   "`%s` is undefined or not in scope",
 	}
 )
 

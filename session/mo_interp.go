@@ -9,34 +9,52 @@ import (
 )
 
 type Evaler interface {
-	Eval(*AtExpr) (*AtExpr, error)
+	eval(ctx *Interp, expr *MoExpr) (*MoExpr, error)
 }
 
 type Interp struct {
 	SrcFile *SrcFile
-	Env     *AtEnv
-	Evaler  Evaler
+	Env     *MoEnv
+	evaler  Evaler
 }
 
 type DefaultEvaler struct {
-	Ctx            *Interp
 	LastStackTrace []string
 }
 
-func (me *DefaultEvaler) Eval(expr *AtExpr) (*AtExpr, error) {
+func newInterp(srcFile *SrcFile, evaler Evaler) *Interp {
+	if evaler == nil {
+		evaler = &DefaultEvaler{}
+	}
+	interp := &Interp{Env: newMoEnv(nil, nil, nil), SrcFile: srcFile, evaler: evaler}
+	return interp
+}
+
+func (me *Interp) Eval(expr *MoExpr) (*MoExpr, error) {
+	return me.evaler.eval(me, expr)
+}
+
+func (me *DefaultEvaler) eval(ctx *Interp, expr *MoExpr) (*MoExpr, error) {
 	me.LastStackTrace = nil
-	return me.evalAndApply(expr)
+	return me.evalAndApply(ctx.Env, expr)
 }
 
-func (*DefaultEvaler) evalAndApply(*AtExpr) (*AtExpr, error) {
+func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, error) {
+	return me.evalExpr(env, expr)
+}
+
+func (me *DefaultEvaler) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, error) {
+	switch val := expr.Val.(type) {
+	case moValIdent:
+		found := env.lookup(val)
+		if found == nil {
+			return nil, expr.SrcNode.newDiagErr(false, NoticeCodeUndefined, val)
+		}
+	}
 	return nil, nil
 }
 
-func (*DefaultEvaler) evalExpr(*AtExpr) (*AtExpr, error) {
-	return nil, nil
-}
-
-func (me *Interp) Parse(src string) (*AtExpr, error) {
+func (me *Interp) Parse(src string) (*MoExpr, error) {
 	me.SrcFile.Src.Ast, me.SrcFile.Src.Toks, me.SrcFile.Src.Text = nil, nil, src
 	toks, errs := tokenize(me.SrcFile.FilePath, src)
 	if len(errs) > 0 {
@@ -61,46 +79,46 @@ func (me *Interp) Parse(src string) (*AtExpr, error) {
 		return nil, nil
 	}
 
-	return me.SrcFile.NodeToExpr(me.SrcFile.Src.Ast[0])
+	return me.SrcFile.ExprFromAstNode(me.SrcFile.Src.Ast[0])
 }
 
-func (me *SrcFile) NodeToExpr(topNode *AstNode) (*AtExpr, error) {
+func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, error) {
 	util.Assert((topNode.Kind == AstNodeKindGroup) && (len(topNode.Nodes) > 0), nil)
 	if len(topNode.Nodes) > 1 {
 		topNode.Nodes = []*AstNode{topNode.Nodes.toGroupNode(me, topNode, true, false)}
 	}
-	return me.nodeToExpr(topNode.Nodes[0])
+	return me.exprFromAstNode(topNode.Nodes[0])
 }
 
-func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
-	var val AtVal
+func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, error) {
+	var val MoVal
 	switch node.Kind {
 	case AstNodeKindIdent:
 		if node.Toks[0].isSep() {
-			return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "no `"+node.Src+"`")
+			return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression instead of `"+node.Src+"` here")
 		}
-		val = atValIdent(node.Src)
+		val = moValIdent(node.Src)
 	case AstNodeKindLit:
 		switch it := node.Lit.(type) {
 		case rune:
-			val = atValChar(it)
+			val = moValChar(it)
 		case string:
-			val = atValStr(it)
+			val = moValStr(it)
 		case float64:
-			val = atValFloat(it)
+			val = moValFloat(it)
 		case int64:
-			val = atValInt(it)
+			val = moValInt(it)
 		case uint64:
-			val = atValUint(it)
+			val = moValUint(it)
 		default:
 			panic(str.Fmt("TODO: lit type %T", it))
 		}
 	case AstNodeKindGroup:
 		switch {
 		case node.IsSquareBrackets():
-			arr := make(atValArr, 0, len(node.Nodes))
+			arr := make(moValArr, 0, len(node.Nodes))
 			for _, node := range node.Nodes {
-				expr, err := me.nodeToExpr(node)
+				expr, err := me.exprFromAstNode(node)
 				if err != nil {
 					return nil, err
 				}
@@ -108,13 +126,13 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 			}
 			val = arr
 		case node.IsCurlyBraces():
-			rec := make(atValRec, len(node.Nodes))
+			rec := make(moValRec, len(node.Nodes))
 			for _, node := range node.Nodes {
-				expr_key, err := me.nodeToExpr(node.Nodes[0])
+				expr_key, err := me.exprFromAstNode(node.Nodes[0])
 				if err != nil {
 					return nil, err
 				}
-				expr_val, err := me.nodeToExpr(node.Nodes[1])
+				expr_val, err := me.exprFromAstNode(node.Nodes[1])
 				if err != nil {
 					return nil, err
 				}
@@ -123,14 +141,14 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 			val = rec
 		default:
 			if len(node.Nodes) == 1 {
-				return me.nodeToExpr(node.Nodes[0])
+				return me.exprFromAstNode(node.Nodes[0])
 			} else if len(node.Nodes) == 0 {
 				return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression inside these empty parens")
 			}
 
-			call_form := make(atValCall, 0, len(node.Nodes))
+			call_form := make(moValCall, 0, len(node.Nodes))
 			for _, node := range node.Nodes {
-				expr, err := me.nodeToExpr(node)
+				expr, err := me.exprFromAstNode(node)
 				if err != nil {
 					return nil, err
 				}
@@ -139,7 +157,7 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 			val = call_form
 		}
 	}
-	ret := &AtExpr{SrcNode: node, Val: val}
+	ret := &MoExpr{SrcNode: node, Val: val}
 	// if val != nil {
 	// 	os.Stdout.WriteString(">>>")
 	// 	ret.WriteTo(os.Stdout)

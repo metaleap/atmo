@@ -87,7 +87,7 @@ func (me *stateAccess) Interpreter(dirPath string) *Interp {
 	me.SrcFile(src_file_path, true)
 	src_file := state.srcFiles[src_file_path]
 	util.Assert(src_file != nil, nil)
-	return &Interp{Env: newAtEnv(nil, nil, nil), SrcFile: src_file, Evaler: &DefaultEvaler{}}
+	return newInterp(src_file, nil)
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {
