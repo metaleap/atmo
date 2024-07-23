@@ -73,7 +73,7 @@ func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFi
 					env = nil
 				case *moValFunc:
 					expr = fn.body
-					env, err = fn.envWith(call_args)
+					env, err = fn.envWith(call_args, expr)
 					if err != nil {
 						return nil, err
 					}
@@ -131,6 +131,48 @@ func (me *DefaultEvaler) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNo
 
 func (me *DefaultEvaler) macroExpand(_ *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	return expr, nil
+}
+
+func checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr, ctxExpr *MoExpr) *SrcFileNotice {
+	if wantAtLeast < 0 {
+		return nil
+	} else if want_exactly := wantAtLeast; (want_exactly == wantAtMost) && (want_exactly != len(have)) {
+		return ctxExpr.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d arg(s), not %d", want_exactly, len(have)))
+	} else if len(have) < wantAtLeast {
+		return ctxExpr.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("at least %d arg(s), not %d", wantAtLeast, len(have)))
+	} else if (wantAtMost > wantAtLeast) && (len(have) > wantAtMost) {
+		return ctxExpr.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d to %d arg(s), not %d", wantAtLeast, wantAtMost, len(have)))
+	}
+	return nil
+}
+
+func checkIs(want MoValType, have *MoExpr) *SrcFileNotice {
+	if have_type := have.Val.valType(); have_type != want {
+		return have.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("`%s`, not `%s`", want, have_type))
+	}
+	return nil
+}
+
+func checkAre(want MoValType, have ...*MoExpr) *SrcFileNotice {
+	for _, expr := range have {
+		if err := checkIs(want, expr); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkAreBoth(want MoValType, have []*MoExpr, exactArgsCount bool, ctxExpr *MoExpr) (err *SrcFileNotice) {
+	max_args_count := -1
+	if exactArgsCount {
+		max_args_count = 2
+	}
+	if err = checkCount(2, max_args_count, have, ctxExpr); err == nil {
+		if err = checkIs(want, have[0]); err == nil {
+			err = checkIs(want, have[1])
+		}
+	}
+	return
 }
 
 func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {

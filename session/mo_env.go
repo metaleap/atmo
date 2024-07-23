@@ -41,7 +41,10 @@ func (me *MoEnv) lookup(name moValIdent) *MoExpr {
 	return found
 }
 
-func (me *moValFunc) envWith([]*MoExpr) (*MoEnv, *SrcFileNotice) {
-	// TODO
-	return me.env, nil
+func (me *moValFunc) envWith(args []*MoExpr, ctxExpr *MoExpr) (*MoEnv, *SrcFileNotice) {
+	num_args_min, num_args_max := len(me.params), len(me.params)
+	if err := checkCount(num_args_min, num_args_max, args, ctxExpr); err != nil {
+		return nil, err
+	}
+	return newMoEnv(me.env, me.params, args), nil
 }
