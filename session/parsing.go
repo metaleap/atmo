@@ -42,7 +42,7 @@ func (me *SrcFile) parse() AstNodes {
 
 	// group huddled exprs: `foo x+z y` right now is `foo x + z y` BUT lets make it `foo (x + 1) y`:
 	parsed.walk(nil, func(node *AstNode) {
-		node.Nodes = node.Nodes.huddled(me)
+		node.Nodes = node.Nodes.huddled(me, node)
 	})
 
 	// set all `AstNode.parent`s only after above re-arrangements; also
@@ -342,14 +342,13 @@ func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
 
 func (me AstNodes) first() *AstNode { return me[0] }
 
-func (me AstNodes) group(srcFile *SrcFile, onlyIfMultiple bool, nilIfEmpty bool) *AstNode {
+func (me AstNodes) group(srcFile *SrcFile, parent *AstNode, onlyIfMultiple bool, nilIfEmpty bool) *AstNode {
 	if nilIfEmpty && (len(me) == 0) {
 		return nil
 	} else if onlyIfMultiple && (len(me) == 1) {
 		return me[0]
 	}
-	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(srcFile),
-		Nodes: me, Src: me.src(srcFile)}
+	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(srcFile), parent: parent, Nodes: me, Src: me.src(srcFile)}
 }
 
 func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
@@ -368,7 +367,7 @@ func (me AstNodes) hasKind(kind AstNodeKind) bool {
 	return me.has(true, func(it *AstNode) bool { return it.Kind == kind })
 }
 
-func (me AstNodes) huddled(srcFile *SrcFile) (ret AstNodes) {
+func (me AstNodes) huddled(srcFile *SrcFile, parent *AstNode) (ret AstNodes) {
 	if len(me) <= 1 {
 		return me
 	}
@@ -379,14 +378,14 @@ func (me AstNodes) huddled(srcFile *SrcFile) (ret AstNodes) {
 			huddle = append(huddle, cur)
 		} else {
 			all_huddled = false
-			ret = append(ret, huddle.group(srcFile, true, true))
+			ret = append(ret, huddle.group(srcFile, parent, true, true))
 			huddle = AstNodes{cur}
 		}
 	}
 	if all_huddled {
 		ret = me
 	} else {
-		ret = append(ret, huddle.group(srcFile, true, true))
+		ret = append(ret, huddle.group(srcFile, parent, true, true))
 	}
 	return
 }
@@ -407,6 +406,24 @@ func (me AstNodes) newDiagWarn(srcFile *SrcFile, code SrcFileNoticeCode, args ..
 }
 func (me AstNodes) newDiagErr(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
 	return me.newDiag(srcFile, NoticeKindErr, code, args...)
+}
+
+func (me AstNodes) splitByIdentWithGrouping(srcFile *SrcFile, parent *AstNode, ident string) (ret AstNodes) {
+	to_node := func(nodes AstNodes) *AstNode {
+		return nodes.group(srcFile, parent, true, true)
+	}
+
+	var idx_last int
+	for i, node := range me {
+		if (node.Kind == AstNodeKindIdent) && (node.Src == ident) {
+			ret = append(ret, to_node(me[idx_last:i]))
+			idx_last = i + 1
+		}
+	}
+	if sub := me[idx_last:]; len(sub) > 0 {
+		ret = append(ret, to_node(sub))
+	}
+	return
 }
 
 func (me AstNodes) src(srcFile *SrcFile) string {

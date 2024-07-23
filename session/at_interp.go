@@ -78,11 +78,45 @@ func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
 		}
 	case AstNodeKindGroup:
 		switch {
-		case node.isBraces():
-			rec := make(atValRec, len(node.Nodes)/4)
-			val = rec
 		case node.isBrackets():
-			rec := make(atValArr, 0, len(node.Nodes)/2)
+			items := node.Nodes.splitByIdentWithGrouping(me, node, ",")
+			arr := make(atValArr, 0, len(items))
+			err_node := node
+			for _, expr_node := range items {
+				if expr_node == nil {
+					return nil, err_node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression", "in between the 2 consecutive commas")
+				}
+				err_node = expr_node
+				expr, err := me.toExpr(expr_node)
+				if err != nil {
+					return nil, err
+				}
+				arr = append(arr, expr)
+			}
+			val = arr
+		case node.isBraces():
+			items := node.Nodes.splitByIdentWithGrouping(me, node, ",")
+			rec := make(atValRec, len(items))
+			err_node := node
+			for _, expr_node := range items {
+				if expr_node == nil {
+					return nil, err_node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression", "in between the 2 consecutive commas")
+				}
+				err_node = expr_node
+				pair := expr_node.Nodes.splitByIdentWithGrouping(me, expr_node, ":")
+				if len(pair) != 2 || pair[0] == nil || pair[1] == nil {
+					return nil, err_node.newDiagErr(true, NoticeCodeExpectedFooHere, "expression pair separated by `:`", "")
+				}
+				expr_key, err := me.toExpr(pair[0])
+				if err != nil {
+					return nil, err
+				}
+				expr_val, err := me.toExpr(pair[1])
+				if err != nil {
+					return nil, err
+				}
+				rec[expr_key] = expr_val
+			}
 			val = rec
 		default:
 			if len(node.Nodes) == 1 {
@@ -91,15 +125,15 @@ func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
 				return nil, node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression", "inside the parens")
 			}
 
-			rec := make(atValCall, 0, len(node.Nodes))
+			call_form := make(atValCall, 0, len(node.Nodes))
 			for _, node := range node.Nodes {
 				expr, err := me.toExpr(node)
 				if err != nil {
 					return nil, err
 				}
-				rec = append(rec, expr)
+				call_form = append(call_form, expr)
 			}
-			val = rec
+			val = call_form
 		}
 	}
 	if val != nil {
