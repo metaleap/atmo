@@ -37,7 +37,7 @@ const (
 	NoticeCodeLitSyntax      SrcFileNoticeCode = "LitSyntax"
 
 	// semantic
-	NoticeCodeExpectedFooHere SrcFileNoticeCode = "Unexpected"
+	NoticeCodeExpectedFoo SrcFileNoticeCode = "Unexpected"
 )
 
 var (
@@ -55,7 +55,7 @@ var (
 		NoticeCodeLitSyntax:      "invalid literal: %s", // actual error msg in %s
 		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
 
-		NoticeCodeExpectedFooHere: "expected %s here %s",
+		NoticeCodeExpectedFoo: "expected %s",
 	}
 )
 

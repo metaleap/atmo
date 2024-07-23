@@ -78,7 +78,7 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 	switch node.Kind {
 	case AstNodeKindIdent:
 		if node.Toks[0].isSep() {
-			return nil, node.newDiagErr(false, NoticeCodeExpectedFooHere, "no `"+node.Src+"`", "")
+			return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "no `"+node.Src+"`")
 		}
 		val = atValIdent(node.Src)
 	case AstNodeKindLit:
@@ -99,16 +99,34 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 	case AstNodeKindGroup:
 		switch {
 		case node.IsSquareBrackets():
-			arr := make(atValArr, 0)
+			arr := make(atValArr, 0, len(node.Nodes))
+			for _, node := range node.Nodes {
+				expr, err := me.nodeToExpr(node)
+				if err != nil {
+					return nil, err
+				}
+				arr = append(arr, expr)
+			}
 			val = arr
 		case node.IsCurlyBraces():
-			rec := make(atValRec, 0)
+			rec := make(atValRec, len(node.Nodes))
+			for _, node := range node.Nodes {
+				expr_key, err := me.nodeToExpr(node.Nodes[0])
+				if err != nil {
+					return nil, err
+				}
+				expr_val, err := me.nodeToExpr(node.Nodes[1])
+				if err != nil {
+					return nil, err
+				}
+				rec[expr_key] = expr_val
+			}
 			val = rec
 		default:
 			if len(node.Nodes) == 1 {
 				return me.nodeToExpr(node.Nodes[0])
 			} else if len(node.Nodes) == 0 {
-				return nil, node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression", "inside the parens")
+				return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression inside these empty parens")
 			}
 
 			call_form := make(atValCall, 0, len(node.Nodes))

@@ -125,20 +125,18 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 						split_by_comma := toks_inner.split(',')
 						for i, item_toks := range split_by_comma {
 							if len(item_toks) == 0 {
-								if i < len(split_by_comma)-1 {
-									if tmp := split_by_comma[i+1]; len(tmp) > 0 {
-										err_toks = tmp
-									}
+								if (i < len(split_by_comma)-1) && (len(split_by_comma[i+1]) > 0) { // catch a better error position closer the trouble, if possible
+									err_toks = split_by_comma[i+1]
 								}
 								node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: err_toks.src(me.Src.Text),
-									errParsing: err_toks[len(err_toks)-1].newErr(NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")})
+									errParsing: err_toks[util.If(is_curly, 0, len(err_toks)-1)].newErr(NoticeCodeExpectedFoo, "expression before the superfluous comma")})
 							} else {
 								err_toks = item_toks[len(item_toks)-1:]
 								if !is_curly {
 									node.Nodes = append(node.Nodes, me.parseNode(item_toks))
-								} else if pair := item_toks.split(':'); len(pair) != 2 {
+								} else if pair := item_toks.split(':'); (len(pair) != 2) || (len(pair[0]) == 0) || (len(pair[1]) == 0) {
 									node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: err_toks.src(me.Src.Text),
-										errParsing: err_toks[0].newErr(NoticeCodeExpectedFooHere, "expression pair separated by `:`")})
+										errParsing: err_toks[0].newErr(NoticeCodeExpectedFoo, "expression pair separated by `:`")})
 								} else {
 									node_key, node_val := me.parseNode(pair[0]), me.parseNode(pair[1])
 									node.Nodes = append(node.Nodes, AstNodes{node_key, node_val}.toGroupNode(me, node, true, true))

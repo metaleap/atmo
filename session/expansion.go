@@ -87,11 +87,11 @@ func (me *ctxExpand) addMacroFrom(astNode *AstNode) {
 	}
 	switch {
 	case (len(astNode.Nodes) < 2):
-		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFooHere, "macro pattern and body", "after `@macro`"))
+		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFoo, "macro pattern and body after `@macro`"))
 	case (len(astNode.Nodes[1].Nodes) <= 1):
-		astNode.errsExpansion.Add(astNode.Nodes[1].newDiagErr(true, NoticeCodeExpectedFooHere, "macro pattern", ""))
+		astNode.errsExpansion.Add(astNode.Nodes[1].newDiagErr(true, NoticeCodeExpectedFoo, "macro pattern"))
 	case (len(astNode.Nodes) < 3):
-		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFooHere, "macro body", "after `@macro` and pattern"))
+		astNode.errsExpansion.Add(astNode.Nodes.last().newDiagErr(true, NoticeCodeExpectedFoo, "macro body after `@macro` and pattern"))
 	default:
 		self := &EstNodeMacro{
 			Pattern: astNode.Nodes[1].Nodes,
@@ -113,7 +113,7 @@ func (me *ctxExpand) addCallFrom(astNode *AstNode, must bool) {
 
 	default:
 		if must {
-			astNode.errsExpansion.Add(astNode.newDiagErr(false, NoticeCodeExpectedFooHere, "call", ""))
+			astNode.errsExpansion.Add(astNode.newDiagErr(false, NoticeCodeExpectedFoo, "call"))
 		}
 	}
 }
