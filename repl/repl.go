@@ -8,6 +8,12 @@ import (
 
 	"atmo/session"
 	"atmo/util"
+	"atmo/util/str"
+)
+
+const (
+	prompt              = "\n💭 "
+	diagMsgIconFallback = '☕'
 )
 
 var (
@@ -39,9 +45,9 @@ func Main() {
 
 	session.LockedDo(func(sess session.StateAccess) {
 		interp = sess.Interpreter(".")
+		interp.StackTraces = true
 	})
 
-	const prompt = "\n💭 "
 	for {
 		{
 			mutex.Lock()
@@ -67,26 +73,28 @@ func Main() {
 		if (diag == nil) && (expr != nil) {
 			expr, diag = interp.Eval(expr)
 		}
-		if diag != nil {
-			os.Stderr.WriteString(errMsg(diag) + "\n")
-		} else if expr != nil {
+		if expr != nil {
 			expr.WriteTo(os.Stdout)
+		} else if diag != nil {
+			os.Stderr.WriteString(errMsg(interp.SrcFile.FilePath, diag) + "\n")
+			for _, item := range interp.LastStackTrace {
+				os.Stderr.WriteString(str.Fmt("\t%s\t\t%s", item.SrcNode.Toks.Span().LocStr(interp.SrcFile.FilePath), item))
+			}
 		}
 
 	}
 }
 
-func errMsg(err error) string {
+func errMsg(srcFilePath string, err error) string {
 	diag, _ := err.(*session.SrcFileNotice)
 	if diag != nil {
-		return diagMsg("<repl>", diag)
+		return diagMsg(srcFilePath, diag)
 	}
 	return "⛔ " + err.Error()
 }
 
 func diagMsg(srcFilePath string, diag *session.SrcFileNotice) string {
-	const icon_fallback = '☕'
-	icon := icon_fallback
+	icon := diagMsgIconFallback
 	switch diag.Kind {
 	case session.NoticeKindErr:
 		icon = '⛔'
@@ -95,5 +103,5 @@ func diagMsg(srcFilePath string, diag *session.SrcFileNotice) string {
 	default:
 		icon = '💡'
 	}
-	return fmt.Sprintf("%s [%s] %s: %s", string(icon), diag.Code, diag.LocStr(srcFilePath), diag.Message)
+	return fmt.Sprintf("%s %s: [%s] %s", string(icon), diag.LocStr(srcFilePath), diag.Code, diag.Message)
 }

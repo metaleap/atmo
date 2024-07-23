@@ -46,7 +46,12 @@ func (me SrcFileSpan) contains(it *SrcFilePos) bool {
 	return it.afterOrAt(&me.Start) && it.beforeOrAt(&me.End)
 }
 func (me *SrcFileSpan) isSinglePos() bool { return me.Start == me.End }
-func (me SrcFileSpan) String() string     { return str.Fmt("%s-%s", me.Start.String(), me.End.String()) }
+func (me SrcFileSpan) String() string {
+	if me.isSinglePos() {
+		return me.Start.String()
+	}
+	return str.Fmt("%s-%s", me.Start.String(), me.End.String())
+}
 
 type Toks []*Tok
 type Tok struct {

@@ -11,14 +11,15 @@ type Evaler interface {
 }
 
 type Interp struct {
-	SrcFile *SrcFile
-	Env     *MoEnv
-	evaler  Evaler
+	SrcFile        *SrcFile
+	Env            *MoEnv
+	evaler         Evaler
+	StackTraces    bool
+	LastStackTrace []*MoExpr
 }
 
 type DefaultEvaler struct {
-	LastStackTrace []string
-	ctx            *Interp
+	ctx *Interp
 }
 
 func newInterp(srcFile *SrcFile, evaler Evaler) *Interp {
@@ -30,12 +31,12 @@ func newInterp(srcFile *SrcFile, evaler Evaler) *Interp {
 }
 
 func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+	me.LastStackTrace = me.LastStackTrace[:0] // keeps old capacity allocated
 	return me.evaler.eval(me, expr)
 }
 
 func (me *DefaultEvaler) eval(ctx *Interp, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	me.ctx = ctx
-	me.LastStackTrace = nil
 	return me.evalAndApply(ctx.Env, expr)
 }
 
@@ -60,6 +61,9 @@ func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFi
 			} else {
 				if expr, err = me.evalExpr(env, expr); err != nil {
 					return nil, err
+				}
+				if me.ctx.StackTraces {
+					me.ctx.LastStackTrace = append(me.ctx.LastStackTrace, expr)
 				}
 				call = expr.Val.(moValCall)
 				callee, call_args = call[0], ([]*MoExpr)(call[1:])
@@ -133,15 +137,15 @@ func (me *DefaultEvaler) macroExpand(_ *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileN
 	return expr, nil
 }
 
-func checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr, ctxExpr *MoExpr) *SrcFileNotice {
+func checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr, diagCtx *MoExpr) *SrcFileNotice {
 	if wantAtLeast < 0 {
 		return nil
-	} else if want_exactly := wantAtLeast; (want_exactly == wantAtMost) && (want_exactly != len(have)) {
-		return ctxExpr.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d arg(s), not %d", want_exactly, len(have)))
+	} else if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
+		return diagCtx.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d arg(s), not %d", wantAtLeast, len(have)))
 	} else if len(have) < wantAtLeast {
-		return ctxExpr.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("at least %d arg(s), not %d", wantAtLeast, len(have)))
+		return diagCtx.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("at least %d arg(s), not %d", wantAtLeast, len(have)))
 	} else if (wantAtMost > wantAtLeast) && (len(have) > wantAtMost) {
-		return ctxExpr.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d to %d arg(s), not %d", wantAtLeast, wantAtMost, len(have)))
+		return diagCtx.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d to %d arg(s), not %d", wantAtLeast, wantAtMost, len(have)))
 	}
 	return nil
 }
@@ -162,12 +166,12 @@ func checkAre(want MoValType, have ...*MoExpr) *SrcFileNotice {
 	return nil
 }
 
-func checkAreBoth(want MoValType, have []*MoExpr, exactArgsCount bool, ctxExpr *MoExpr) (err *SrcFileNotice) {
+func checkAreBoth(want MoValType, have []*MoExpr, exactArgsCount bool, diagCtx *MoExpr) (err *SrcFileNotice) {
 	max_args_count := -1
 	if exactArgsCount {
 		max_args_count = 2
 	}
-	if err = checkCount(2, max_args_count, have, ctxExpr); err == nil {
+	if err = checkCount(2, max_args_count, have, diagCtx); err == nil {
 		if err = checkIs(want, have[0]); err == nil {
 			err = checkIs(want, have[1])
 		}

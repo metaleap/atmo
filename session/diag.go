@@ -82,7 +82,11 @@ func (me *SrcFileNotice) LocStr(srcFilePath string) string {
 	if tmp, err := filepath.Rel(".", srcFilePath); err != nil && tmp != "" {
 		srcFilePath = tmp
 	}
-	return fmt.Sprintf("%s:%d,%d", srcFilePath, me.Span.Start.Line, me.Span.Start.Char)
+	return me.Span.LocStr(srcFilePath)
+}
+
+func (me SrcFileSpan) LocStr(srcFilePath string) string {
+	return fmt.Sprintf("%s:%s", srcFilePath, me.String())
 }
 
 func errMsg(code SrcFileNoticeCode, args ...any) string {
