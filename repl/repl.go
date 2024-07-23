@@ -11,10 +11,7 @@ import (
 	"atmo/util/str"
 )
 
-const (
-	prompt              = "\n💭 "
-	diagMsgIconFallback = '☕'
-)
+const prompt = "\n💭 "
 
 var (
 	interp *session.Interp
@@ -76,9 +73,9 @@ func Main() {
 		if expr != nil {
 			expr.WriteTo(os.Stdout)
 		} else if diag != nil {
-			os.Stderr.WriteString(errMsg(interp.SrcFile.FilePath, diag) + "\n")
+			os.Stderr.WriteString(errMsg("", diag) + "\n")
 			for _, item := range interp.LastStackTrace {
-				os.Stderr.WriteString(str.Fmt("\t%s\t\t%s", item.SrcNode.Toks.Span().LocStr(interp.SrcFile.FilePath), item))
+				os.Stderr.WriteString(str.Fmt("\t%s\t\t%s", item.SrcNode.Toks.Span().LocStr(""), item))
 			}
 		}
 
@@ -94,7 +91,7 @@ func errMsg(srcFilePath string, err error) string {
 }
 
 func diagMsg(srcFilePath string, diag *session.SrcFileNotice) string {
-	icon := diagMsgIconFallback
+	icon := '☕'
 	switch diag.Kind {
 	case session.NoticeKindErr:
 		icon = '⛔'

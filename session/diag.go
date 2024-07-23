@@ -79,13 +79,16 @@ func (me *SrcFileNotice) equals(it *SrcFileNotice) bool {
 func (me *SrcFileNotice) Error() string  { return me.String() }
 func (me *SrcFileNotice) String() string { return util.JsonFrom(me) }
 func (me *SrcFileNotice) LocStr(srcFilePath string) string {
-	if tmp, err := filepath.Rel(".", srcFilePath); err != nil && tmp != "" {
+	if tmp, err := filepath.Rel(".", srcFilePath); (srcFilePath != "") && (err != nil) && (tmp != "") {
 		srcFilePath = tmp
 	}
 	return me.Span.LocStr(srcFilePath)
 }
 
 func (me SrcFileSpan) LocStr(srcFilePath string) string {
+	if srcFilePath == "" {
+		return me.String()
+	}
 	return fmt.Sprintf("%s:%s", srcFilePath, me.String())
 }
 
