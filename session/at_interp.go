@@ -36,25 +36,21 @@ func (me *interp) Parse(src string) (*AtExpr, error) {
 		return nil, errs[0]
 	}
 	me.SrcFile.Src.Toks = toks
-	ast := me.SrcFile.parse()
-	filter := func(it *AstNode) bool { return (it.Kind != AstNodeKindErr) && (it.Kind != AstNodeKindComment) }
-	ast = sl.Where(ast, filter)
-	ast.walk(func(node *AstNode) bool {
-		node.Nodes = sl.Where(node.Nodes, filter)
-		return true
-	}, nil)
-	if len(ast) > 1 {
-		return nil, errors.New("one at a time, please")
-	}
-
-	me.SrcFile.Src.Ast = ast
+	me.SrcFile.Src.Ast = me.SrcFile.parse()
 	for _, diag := range me.SrcFile.allNotices() {
 		if diag.Kind == NoticeKindErr {
 			return nil, diag
 		}
 	}
-
-	if len(me.SrcFile.Src.Ast) == 0 {
+	filter := func(it *AstNode) bool { return (it.Kind != AstNodeKindErr) && (it.Kind != AstNodeKindComment) }
+	me.SrcFile.Src.Ast = sl.Where(me.SrcFile.Src.Ast, filter)
+	me.SrcFile.Src.Ast.walk(func(node *AstNode) bool {
+		node.Nodes = sl.Where(node.Nodes, filter)
+		return true
+	}, nil)
+	if len(me.SrcFile.Src.Ast) > 1 {
+		return nil, errors.New("one at a time, please")
+	} else if len(me.SrcFile.Src.Ast) == 0 {
 		return nil, nil
 	}
 	return me.SrcFile.toExpr(me.SrcFile.Src.Ast[0])
@@ -92,7 +88,7 @@ func (me *SrcFile) toExpr(node *AstNode) (*AtExpr, error) {
 			if len(node.Nodes) == 1 {
 				return me.toExpr(node.Nodes[0])
 			} else if len(node.Nodes) == 0 {
-				return nil, node.newDiagErr(true, NoticeCodeExpectedFooHere, "expression", "inside the parens")
+				return nil, node.newDiagErr(false, NoticeCodeExpectedFooHere, "expression", "inside the parens")
 			}
 
 			rec := make(atValCall, 0, len(node.Nodes))
