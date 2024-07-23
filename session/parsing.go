@@ -173,7 +173,10 @@ func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 }
 
 func (me *AstNode) canHuddle() bool {
-	return (me.Kind == AstNodeKindLit) || (me.Kind == AstNodeKindIdent)
+	if me.Kind == AstNodeKindIdent {
+		return !me.Toks[0].isSep()
+	}
+	return (me.Kind == AstNodeKindLit)
 }
 
 func (me *AstNode) cmp(it *AstNode) int {

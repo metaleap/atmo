@@ -253,7 +253,7 @@ func (me *Tok) isBraceMatch(it *Tok) bool {
 }
 
 func (me *Tok) isSep() bool {
-	return (len(me.Src) == 1) && ((me.Src[0] == ',') || (me.Src[0] == ';') || (me.Src[0] == ':') || (me.Src[0] == '.'))
+	return (len(me.Src) == 1) && ((me.Src[0] == ',') || (me.Src[0] == ';') || (me.Src[0] == ':'))
 }
 
 func (me *Tok) isWhitespacelesslyRightAfter(it *Tok) bool {
