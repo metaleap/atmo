@@ -9,7 +9,7 @@ import (
 	"atmo/util/sl"
 )
 
-type SrcPkg struct {
+type SrcPack struct {
 	DirPath string
 	Files   []*SrcFile
 	Est     EstNodes
@@ -17,7 +17,7 @@ type SrcPkg struct {
 
 type SrcFile struct {
 	FilePath string
-	pkg      *SrcPkg
+	pack     *SrcPack
 	Content  struct {
 		Src  string
 		Toks Toks
@@ -34,23 +34,23 @@ func IsSrcFilePath(filePath string) bool {
 		(!strings.Contains(filePath, string(filepath.Separator)+".")) && (!util.FsIsDir(filePath))
 }
 
-func pkgsFsRefresh() {
+func packsFsRefresh() {
 	var gone_files []string
-	var gone_pkgs []string
+	var gone_packs []string
 	for src_file_path := range state.srcFiles {
 		if !util.FsIsFile(src_file_path) {
 			gone_files = append(gone_files, src_file_path)
 		}
 	}
-	for pkg_dir_path, src_pkg := range state.srcPkgs {
-		if !util.FsIsDir(pkg_dir_path) {
-			gone_files = append(gone_files, src_pkg.srcFilePaths()...)
-			gone_pkgs = append(gone_pkgs, pkg_dir_path)
+	for pack_dir_path, src_pack := range state.srcPacks {
+		if !util.FsIsDir(pack_dir_path) {
+			gone_files = append(gone_files, src_pack.srcFilePaths()...)
+			gone_packs = append(gone_packs, pack_dir_path)
 		}
 	}
 	removeSrcFiles(gone_files...)
-	for _, pkg_dir_path := range gone_pkgs {
-		delete(state.srcPkgs, pkg_dir_path)
+	for _, pack_dir_path := range gone_packs {
+		delete(state.srcPacks, pack_dir_path)
 	}
 }
 
@@ -58,36 +58,36 @@ func removeSrcFiles(srcFilePaths ...string) {
 	if len(srcFilePaths) == 0 {
 		return
 	}
-	pkgs_to_delete, pkgs_encountered := map[string]*SrcPkg{}, map[string]*SrcPkg{}
+	packs_to_drop, packs_encountered := map[string]*SrcPack{}, map[string]*SrcPack{}
 	for _, src_file_path := range srcFilePaths {
 		src_file := state.srcFiles[src_file_path]
-		if (src_file != nil) && (src_file.pkg != nil) {
-			pkgs_encountered[src_file.pkg.DirPath] = src_file.pkg
-			src_file.pkg.Files = sl.Where(src_file.pkg.Files,
+		if (src_file != nil) && (src_file.pack != nil) {
+			packs_encountered[src_file.pack.DirPath] = src_file.pack
+			src_file.pack.Files = sl.Where(src_file.pack.Files,
 				func(it *SrcFile) bool { return (it != src_file) && (it.FilePath != src_file.FilePath) })
-			if len(src_file.pkg.Files) == 0 {
-				pkgs_to_delete[src_file.pkg.DirPath] = src_file.pkg
+			if len(src_file.pack.Files) == 0 {
+				packs_to_drop[src_file.pack.DirPath] = src_file.pack
 			}
 		}
 		delete(state.srcFiles, src_file_path)
 	}
 
-	var pkg_file_paths []string
-	for pkg_dir_path := range pkgs_to_delete {
-		delete(state.srcPkgs, pkg_dir_path)
+	var pack_file_paths []string
+	for pack_dir_path := range packs_to_drop {
+		delete(state.srcPacks, pack_dir_path)
 	}
-	for _, src_pkg := range pkgs_encountered {
-		pkg_file_paths = append(pkg_file_paths, src_pkg.srcFilePaths()...)
-		src_pkg.refreshEst()
+	for _, src_pack := range packs_encountered {
+		pack_file_paths = append(pack_file_paths, src_pack.srcFilePaths()...)
+		src_pack.refreshEst()
 	}
-	refreshAndPublishNotices(append(pkg_file_paths, srcFilePaths...)...)
+	refreshAndPublishNotices(append(pack_file_paths, srcFilePaths...)...)
 }
 
 func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths ...string) (encounteredDiagsRelevantChanges []string) {
 	if len(srcFilePaths) == 0 {
 		return
 	}
-	pkgs_to_refresh := map[*SrcPkg]bool{}
+	packs_to_refresh := map[*SrcPack]bool{}
 	util.Assert((curFullContent == nil) || (len(srcFilePaths) == 1), len(srcFilePaths))
 
 	for _, src_file_path := range srcFilePaths {
@@ -105,14 +105,15 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 			flag_for_diags_refr()
 			src_file = &SrcFile{FilePath: src_file_path}
 			state.srcFiles[src_file_path] = src_file
-			// ensure SrcPkg
-			pkg_dir_path := filepath.Dir(src_file.FilePath)
-			src_file.pkg = state.srcPkgs[pkg_dir_path]
-			if src_file.pkg == nil {
-				src_file.pkg = &SrcPkg{DirPath: pkg_dir_path}
-				state.srcPkgs[pkg_dir_path] = src_file.pkg
+			// ensure SrcPack
+			pack_dir_path := filepath.Dir(src_file.FilePath)
+			src_file.pack = state.srcPacks[pack_dir_path]
+			if src_file.pack == nil {
+				src_file.pack = &SrcPack{DirPath: pack_dir_path}
+				state.srcPacks[pack_dir_path] = src_file.pack
 			}
-			src_file.pkg.Files = sl.With(src_file.pkg.Files, src_file)
+			src_file.pack.Files = sl.With(src_file.pack.Files, src_file)
+			canSkipFileRead = false
 		}
 
 		old_content, had_last_read_err := src_file.Content.Src, (src_file.notices.LastReadErr != nil)
@@ -159,16 +160,16 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 
 					src_file.Content.Ast = new_ast
 					if have_changes { // false if changes were in comments, whitespace (other than top-level indentation), or mere re-ordering of top-level nodes
-						pkgs_to_refresh[src_file.pkg] = true
+						packs_to_refresh[src_file.pack] = true
 					}
 				}
 			}
 		}
 	}
 
-	for src_pkg := range pkgs_to_refresh {
-		if src_pkg.refreshEst() {
-			encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_pkg.srcFilePaths()...)
+	for src_pack := range packs_to_refresh {
+		if src_pack.refreshEst() {
+			encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_pack.srcFilePaths()...)
 		}
 	}
 	return
@@ -187,6 +188,6 @@ func (me *SrcFile) Span() (ret SrcFileSpan) {
 	return
 }
 
-func (me *SrcPkg) srcFilePaths() []string {
+func (me *SrcPack) srcFilePaths() []string {
 	return sl.As(me.Files, func(it *SrcFile) string { return it.FilePath })
 }

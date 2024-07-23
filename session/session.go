@@ -2,8 +2,10 @@ package session
 
 import (
 	"cmp"
+	"io/fs"
 	"sync"
 
+	"atmo/util"
 	"atmo/util/kv"
 	"atmo/util/sl"
 )
@@ -12,7 +14,7 @@ var (
 	state struct {
 		stateAccess
 		srcFiles map[string]*SrcFile
-		srcPkgs  map[string]*SrcPkg
+		srcPacks map[string]*SrcPack
 	}
 )
 
@@ -21,14 +23,14 @@ type StateAccess interface {
 	OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string)
 
 	AllCurrentSrcFileNotices() map[string]SrcFileNotices
-	AllCurrentSrcPkgs() []*SrcPkg
-	PkgsFsRefresh()
-	GetSrcPkg(dirPath string) *SrcPkg
+	AllCurrentSrcPacks() []*SrcPack
+	PacksFsRefresh()
+	GetSrcPack(dirPath string, loadIfMissing bool) *SrcPack
 	SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile
 }
 
 func init() {
-	state.srcFiles, state.srcPkgs = map[string]*SrcFile{}, map[string]*SrcPkg{}
+	state.srcFiles, state.srcPacks = map[string]*SrcFile{}, map[string]*SrcPack{}
 }
 
 func LockedDo(do func(sess StateAccess)) {
@@ -44,7 +46,7 @@ func (*stateAccess) OnSrcFileEdit(srcFilePath string, curFullContent string) {
 }
 
 func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
-	pkgsFsRefresh()
+	packsFsRefresh()
 	removeSrcFiles(removed...) // does refreshAndPublishNotices for removed
 	refreshAndPublishNotices(ensureSrcFiles(nil, canSkipFileRead, current...)...)
 }
@@ -53,18 +55,28 @@ func (*stateAccess) AllCurrentSrcFileNotices() map[string]SrcFileNotices {
 	return allNotices
 }
 
-func (*stateAccess) AllCurrentSrcPkgs() []*SrcPkg {
-	return sl.SortedPer(kv.Values(state.srcPkgs), func(pkg1 *SrcPkg, pkg2 *SrcPkg) int {
-		return cmp.Compare(pkg1.DirPath, pkg2.DirPath)
+func (*stateAccess) AllCurrentSrcPacks() []*SrcPack {
+	return sl.SortedPer(kv.Values(state.srcPacks), func(pack1 *SrcPack, pack2 *SrcPack) int {
+		return cmp.Compare(pack1.DirPath, pack2.DirPath)
 	})
 }
 
-func (*stateAccess) PkgsFsRefresh() {
-	pkgsFsRefresh()
+func (*stateAccess) PacksFsRefresh() {
+	packsFsRefresh()
 }
 
-func (*stateAccess) GetSrcPkg(dirPath string) *SrcPkg {
-	return state.srcPkgs[dirPath]
+func (*stateAccess) GetSrcPack(dirPath string, loadIfMissing bool) (ret *SrcPack) {
+	ret = state.srcPacks[dirPath]
+	if ret == nil && loadIfMissing {
+		var src_file_paths []string
+		util.FsDirWalk(dirPath, func(fsPath string, fsEntry fs.DirEntry) {
+			if IsSrcFilePath(fsPath) {
+				src_file_paths = append(src_file_paths, fsPath)
+			}
+		})
+		ensureSrcFiles(nil, true, src_file_paths...)
+	}
+	return
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {

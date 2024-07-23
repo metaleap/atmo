@@ -1,9 +1,10 @@
 package session
 
 import (
-	"atmo/util/str"
 	"io"
 	"strconv"
+
+	"atmo/util/str"
 )
 
 type atFnEager = func(...*AtExpr) (*AtExpr, *SrcFileNotice)
@@ -69,12 +70,7 @@ type AtExpr struct {
 	Val     AtVal
 }
 
-type Writer interface {
-	io.StringWriter
-	io.ByteWriter
-}
-
-func (me *AtExpr) writeTo(w Writer) {
+func (me *AtExpr) WriteTo(w io.StringWriter) {
 	switch it := me.Val.(type) {
 	case atValType:
 		w.WriteString(AtValType(it).String())
@@ -92,39 +88,39 @@ func (me *AtExpr) writeTo(w Writer) {
 		w.WriteString(str.Q(string(it)))
 	case atValErr:
 		w.WriteString("(@Err ")
-		it.Err.writeTo(w)
-		w.WriteByte(')')
+		it.Err.WriteTo(w)
+		w.WriteString(")")
 	case atValRec:
-		w.WriteByte('{')
+		w.WriteString("{")
 		var n int
 		for k, v := range it {
 			if n > 0 {
 				w.WriteString(", ")
 			}
-			k.writeTo(w)
+			k.WriteTo(w)
 			w.WriteString(": ")
-			v.writeTo(w)
+			v.WriteTo(w)
 			n++
 		}
-		w.WriteByte('}')
+		w.WriteString("}")
 	case atValArr:
-		w.WriteByte('[')
+		w.WriteString("[")
 		for i, item := range it {
 			if i > 0 {
 				w.WriteString(", ")
 			}
-			item.writeTo(w)
+			item.WriteTo(w)
 		}
-		w.WriteByte(']')
+		w.WriteString("]")
 	case atValCall:
-		w.WriteByte('(')
+		w.WriteString("(")
 		for i, item := range it {
 			if i > 0 {
 				w.WriteString(" ")
 			}
-			item.writeTo(w)
+			item.WriteTo(w)
 		}
-		w.WriteByte(')')
+		w.WriteString(")")
 	case atValFn, *atValFunc:
 		w.WriteString(me.SrcNode.Src)
 	default:

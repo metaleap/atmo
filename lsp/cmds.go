@@ -33,11 +33,11 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 		}
 
 	case "pkgsFsRefresh":
-		session.LockedDo(session.StateAccess.PkgsFsRefresh)
+		session.LockedDo(session.StateAccess.PacksFsRefresh)
 
 	case "getSrcPkgs":
 		session.LockedDo(func(sess session.StateAccess) {
-			ret = sess.AllCurrentSrcPkgs()
+			ret = sess.AllCurrentSrcPacks()
 		})
 
 	case "getSrcPkgEst":
@@ -45,7 +45,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.LockedDo(func(sess session.StateAccess) {
-					if src_pkg := sess.GetSrcPkg(filepath.Dir(src_file_path)); src_pkg != nil {
+					if src_pkg := sess.GetSrcPack(filepath.Dir(src_file_path), true); src_pkg != nil {
 						type EstNode struct {
 							*session.EstNode
 							ClientInfo struct {

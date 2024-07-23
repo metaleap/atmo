@@ -29,7 +29,7 @@ type Scope struct {
 }
 
 type Ref struct {
-	pkg  *SrcPkg
+	pack *SrcPack
 	node *EstNode
 }
 
@@ -40,7 +40,7 @@ type EstNodeMacro struct {
 	Body    AstNodes
 }
 
-func (me *SrcPkg) refreshEst() (encounteredDiagsRelevantChanges bool) {
+func (me *SrcPack) refreshEst() (encounteredDiagsRelevantChanges bool) {
 	new_ast_nodes, same_est_nodes := map[*AstNode]*SrcFile{}, map[*EstNode]bool{}
 	for _, src_file := range me.Files {
 		for _, ast_node := range src_file.Content.Ast {
@@ -56,7 +56,7 @@ func (me *SrcPkg) refreshEst() (encounteredDiagsRelevantChanges bool) {
 			}
 		}
 	}
-	ctx := ctxExpand{pkg: me, est: sl.Where(me.Est, func(it *EstNode) bool {
+	ctx := ctxExpand{pack: me, est: sl.Where(me.Est, func(it *EstNode) bool {
 		return same_est_nodes[it] // keep only same-as-before nodes
 	})}
 	encounteredDiagsRelevantChanges = (len(ctx.est) != len(me.Est)) || (len(new_ast_nodes) > 0)
@@ -76,7 +76,7 @@ func (me *SrcPkg) refreshEst() (encounteredDiagsRelevantChanges bool) {
 }
 
 type ctxExpand struct {
-	pkg                *SrcPkg
+	pack               *SrcPack
 	curAstNodesSrcFile *SrcFile
 	est                EstNodes
 }
