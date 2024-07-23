@@ -77,7 +77,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.LockedDo(func(sess session.StateAccess) {
 					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
-						ret = src_file.Content.Toks
+						ret = src_file.Src.Toks
 					}
 				})
 			}
@@ -89,7 +89,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.LockedDo(func(sess session.StateAccess) {
 					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
-						ret = src_file.Content.Ast
+						ret = src_file.Src.Ast
 					}
 				})
 			}

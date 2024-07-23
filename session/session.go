@@ -26,6 +26,7 @@ type StateAccess interface {
 	AllCurrentSrcPacks() []*SrcPack
 	PacksFsRefresh()
 	GetSrcPack(dirPath string, loadIfMissing bool) *SrcPack
+	Interpreter(dirPath string) Interp
 	SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile
 }
 
@@ -67,16 +68,26 @@ func (*stateAccess) PacksFsRefresh() {
 
 func (*stateAccess) GetSrcPack(dirPath string, loadIfMissing bool) (ret *SrcPack) {
 	ret = state.srcPacks[dirPath]
-	if ret == nil && loadIfMissing {
+	if (ret == nil) && loadIfMissing {
 		var src_file_paths []string
 		util.FsDirWalk(dirPath, func(fsPath string, fsEntry fs.DirEntry) {
 			if IsSrcFilePath(fsPath) {
 				src_file_paths = append(src_file_paths, fsPath)
 			}
 		})
-		ensureSrcFiles(nil, true, src_file_paths...)
+		if refr_diags_for := ensureSrcFiles(nil, true, src_file_paths...); len(refr_diags_for) > 0 {
+			refreshAndPublishNotices(refr_diags_for...)
+		}
 	}
 	return
+}
+
+func (me *stateAccess) Interpreter(dirPath string) Interp {
+	src_file_path := newSrcFilePathFakeAndReplish(dirPath)
+	me.SrcFile(src_file_path, true)
+	src_file := state.srcFiles[src_file_path]
+	util.Assert(src_file != nil, nil)
+	return &interp{env: newAtEnv(nil, nil, nil), SrcFile: src_file}
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {

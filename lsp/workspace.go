@@ -79,7 +79,7 @@ func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 						ret = append(ret, fsPath)
 					}
 				})
-			} else if pkg := sess.GetSrcPack(fsPath, true); pkg != nil {
+			} else if pkg := sess.GetSrcPack(fsPath, false); pkg != nil {
 				for _, src_file := range pkg.Files {
 					ret = append(ret, src_file.FilePath)
 				}

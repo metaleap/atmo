@@ -2,13 +2,16 @@ package repl
 
 import (
 	"fmt"
+	"io"
 	"os"
-	"strings"
 	"sync"
 
 	"atmo/session"
 	"atmo/util"
-	"atmo/util/str"
+)
+
+var (
+	interp session.Interp
 )
 
 func Main() {
@@ -25,30 +28,20 @@ func Main() {
 			mutex.Lock()
 			defer mutex.Unlock()
 			for src_file_path, diags := range sess.AllCurrentSrcFileNotices() {
-				const icon_fallback = '☕'
 				for _, diag := range diags {
-					icon := icon_fallback
-					switch diag.Kind {
-					case session.NoticeKindErr:
-						icon = '⛔'
-					case session.NoticeKindWarn:
-						icon = '⚠'
-					case session.NoticeKindInfo:
-						icon = '📑'
-					case session.NoticeKindHint:
-						icon = '🚀'
+					if diag.Kind != session.NoticeKindHint {
+						sess_msgs = append(sess_msgs, diagMsg(src_file_path, diag))
 					}
-					sess_msgs = append(sess_msgs, fmt.Sprintf("%s [%s] %s: %s", string(icon), diag.Code, diag.LocStr(src_file_path), diag.Message))
 				}
 			}
 		})
 	}
 
 	session.LockedDo(func(sess session.StateAccess) {
-		// sess.GetSrcPack(".")
+		interp = sess.Interpreter(".")
 	})
 
-	const prompt = "\n💡 "
+	const prompt = "\n💭 "
 	for {
 		{
 			mutex.Lock()
@@ -60,22 +53,47 @@ func Main() {
 			}
 			mutex.Unlock()
 		}
+
 		fmt.Print(prompt)
 		line, err := util.ReadUntil(os.Stdin, '\n', 128)
-		if err != nil {
+		if err == io.EOF {
+			os.Stdout.WriteString("\n\n")
+			break
+		} else if err != nil {
 			panic(err)
 		}
-		input := str.Trim(string(line))
-		expr, err := readAndEval(input)
+
+		expr, err := interp.Parse(string(line))
+		if (err == nil) && (expr != nil) {
+			expr, err = interp.Eval(expr)
+		}
 		if err != nil {
-			msg := err.Error()
-			os.Stderr.WriteString(strings.Repeat("~", 2+len(msg)) + "\n " + msg + "\n" + strings.Repeat("~", 2+len(msg)) + "\n")
+			os.Stderr.WriteString(errMsg(err) + "\n")
 		} else if expr != nil {
 			expr.WriteTo(os.Stdout)
 		}
+
 	}
 }
 
-func readAndEval(string) (*session.AtExpr, error) {
-	return nil, nil
+func errMsg(err error) string {
+	diag, _ := err.(*session.SrcFileNotice)
+	if diag != nil {
+		return diagMsg("<repl>", diag)
+	}
+	return "⛔ " + err.Error()
+}
+
+func diagMsg(srcFilePath string, diag *session.SrcFileNotice) string {
+	const icon_fallback = '☕'
+	icon := icon_fallback
+	switch diag.Kind {
+	case session.NoticeKindErr:
+		icon = '⛔'
+	case session.NoticeKindWarn:
+		icon = '⚠'
+	default:
+		icon = '💡'
+	}
+	return fmt.Sprintf("%s [%s] %s: %s", string(icon), diag.Code, diag.LocStr(srcFilePath), diag.Message)
 }

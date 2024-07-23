@@ -94,6 +94,25 @@ func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNo
 	return &SrcFileNotice{Kind: NoticeKindErr, Message: err_msg, Code: code, Span: span}
 }
 
+func (me *SrcFile) allNotices() (ret sl.Of[*SrcFileNotice]) {
+	has_brace_err := me.Src.Ast.has(true, func(node *AstNode) bool {
+		return (node.errParsing != nil) && (node.errParsing.Code == NoticeCodeBracesMismatch)
+	})
+	if me.notices.LastReadErr != nil {
+		ret.Add(me.notices.LastReadErr)
+	}
+	ret.Add(me.notices.LexErrs...)
+	me.Src.Ast.walk(nil, func(node *AstNode) {
+		if node.errParsing != nil {
+			ret.Add(node.errParsing)
+		}
+		if !has_brace_err {
+			ret.Add(node.errsExpansion...)
+		}
+	})
+	return
+}
+
 // callers have already `sharedState.Lock`ed
 func refreshAndPublishNotices(provokingFilePaths ...string) {
 	if len(provokingFilePaths) == 0 {
@@ -104,21 +123,7 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 	for _, src_file_path := range provokingFilePaths {
 		var file_notices SrcFileNotices
 		if src_file := state.srcFiles[src_file_path]; src_file != nil {
-			has_brace_err := src_file.Content.Ast.has(true, func(node *AstNode) bool {
-				return (node.errParsing != nil) && (node.errParsing.Code == NoticeCodeBracesMismatch)
-			})
-			if src_file.notices.LastReadErr != nil {
-				file_notices.Add(src_file.notices.LastReadErr)
-			}
-			file_notices.Add(src_file.notices.LexErrs...)
-			src_file.Content.Ast.walk(nil, func(node *AstNode) {
-				if node.errParsing != nil {
-					file_notices.Add(node.errParsing)
-				}
-				if !has_brace_err {
-					file_notices.Add(node.errsExpansion...)
-				}
-			})
+			file_notices.Add(src_file.allNotices()...)
 		}
 		new_notices[src_file_path] = file_notices
 	}

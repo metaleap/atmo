@@ -48,7 +48,7 @@ func init() {
 				for _, it := range notices {
 					switch it.Code {
 					case session.NoticeCodeIndentation:
-						if src_file.Content.Toks[0].Pos.Char > 1 {
+						if src_file.Src.Toks[0].Pos.Char > 1 {
 							diags := []lsp.Diagnostic{srcFileNoticeToLspDiag(it)}
 							cmd_title := "Fix first-line mis-indentation"
 							ret = append(ret, lsp.CodeAction{
@@ -56,14 +56,14 @@ func init() {
 								Kind:        lsp.CodeActionKindQuickFix,
 								Diagnostics: diags,
 								Edit: &lsp.WorkspaceEdit{Changes: map[string][]lsp.TextEdit{
-									src_file_path: {{NewText: str.Trim(src_file.Content.Src), Range: lsp.SpanToLspRange(src_file.Span())}},
+									src_file_path: {{NewText: str.Trim(src_file.Src.Text), Range: lsp.SpanToLspRange(src_file.Span())}},
 								}},
 							})
 						}
 					case session.NoticeCodeWhitespace:
 						if ClientIsAtmoVscExt {
 							diags := []lsp.Diagnostic{srcFileNoticeToLspDiag(it)}
-							if cmd_title := "Convert all line-leading tabs to spaces"; str.Idx(src_file.Content.Src, '\t') >= 0 {
+							if cmd_title := "Convert all line-leading tabs to spaces"; str.Idx(src_file.Src.Text, '\t') >= 0 {
 								ret = append(ret, lsp.CodeAction{
 									Title:       cmd_title,
 									Kind:        lsp.CodeActionKindQuickFix,
@@ -71,7 +71,7 @@ func init() {
 									Command:     &lsp.Command{Title: cmd_title, Command: "editor.action.indentationToSpaces"},
 								})
 							}
-							if cmd_title := "Fix end-of-line sequences"; str.Idx(src_file.Content.Src, '\r') >= 0 {
+							if cmd_title := "Fix end-of-line sequences"; str.Idx(src_file.Src.Text, '\r') >= 0 {
 								ret = append(ret, lsp.CodeAction{
 									Title:       cmd_title,
 									Kind:        lsp.CodeActionKindQuickFix,

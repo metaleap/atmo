@@ -38,7 +38,7 @@ const (
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
 // mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
 func (me *SrcFile) parse() AstNodes {
-	parsed := me.parseNodes(me.Content.Toks)
+	parsed := me.parseNodes(me.Src.Toks)
 
 	// group huddled exprs: `foo x+z y` right now is `foo x + z y` BUT lets make it `foo (x + 1) y`:
 	parsed.walk(nil, func(node *AstNode) {
@@ -64,7 +64,7 @@ func (me *SrcFile) parseNode(toks Toks) *AstNode {
 	if len(nodes) == 1 {
 		return nodes[0]
 	}
-	return &AstNode{Kind: AstNodeKindGroup, Nodes: nodes, Toks: toks, Src: toks.src(me.Content.Src)}
+	return &AstNode{Kind: AstNodeKindGroup, Nodes: nodes, Toks: toks, Src: toks.src(me.Src.Text)}
 }
 
 func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
@@ -112,14 +112,14 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 			toks_inner, toks_tail, err := toks.braceMatch()
 			if err != nil {
 				had_brace_err = true
-				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Content.Src), errParsing: err})
+				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Src.Text), errParsing: err})
 				toks = nil
 			} else {
 				node := &AstNode{
 					Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2],
 					Nodes: me.parseNodes(toks_inner),
 				}
-				node.Src = node.Toks.src(me.Content.Src) // .. and for Src to reflect that SrcFileSpan fully
+				node.Src = node.Toks.src(me.Src.Text) // .. and for Src to reflect that SrcFileSpan fully
 				ret = append(ret, node)
 				toks = toks_tail
 			}
@@ -142,7 +142,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 		pop := stack[len(stack)-1]
 		ret_toks := util.If(len(ret) == 0, ret, pop).toks(me)
 		ret = append(pop, &AstNode{Kind: AstNodeKindErr, Toks: ret_toks,
-			Src: ret_toks.src(me.Content.Src), Nodes: ret, errParsing: ret_toks[0].newIndentErr()})
+			Src: ret_toks.src(me.Src.Text), Nodes: ret, errParsing: ret_toks[0].newIndentErr()})
 	}
 
 	return
@@ -158,7 +158,7 @@ func parseLit[T cmp.Ordered](toks Toks, kind AstNodeKind, parseFunc func(string)
 }
 
 func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
-	for _, node := range me.Content.Ast {
+	for _, node := range me.Src.Ast {
 		if node.Toks.Span().contains(&pos) {
 			ret = node.find(func(it *AstNode) bool {
 				return (len(it.Nodes) == 0) && it.Toks.Span().contains(&pos)
@@ -410,7 +410,7 @@ func (me AstNodes) newDiagErr(srcFile *SrcFile, code SrcFileNoticeCode, args ...
 }
 
 func (me AstNodes) src(srcFile *SrcFile) string {
-	return me.toks(srcFile).src(srcFile.Content.Src)
+	return me.toks(srcFile).src(srcFile.Src.Text)
 }
 
 func (me AstNodes) toks(srcFile *SrcFile) Toks {
@@ -420,12 +420,12 @@ func (me AstNodes) toks(srcFile *SrcFile) Toks {
 	node_first, node_last := me[0], me[len(me)-1]
 	tok_first, tok_last := node_first.Toks[0], node_last.Toks[len(node_last.Toks)-1]
 	idx_first := -1
-	for i, tok := range srcFile.Content.Toks {
+	for i, tok := range srcFile.Src.Toks {
 		if tok == tok_first {
 			idx_first = i
 		}
 		if (tok == tok_last) && (idx_first >= 0) {
-			return srcFile.Content.Toks[idx_first : i+1]
+			return srcFile.Src.Toks[idx_first : i+1]
 		}
 	}
 	panic(str.Fmt("%d %d >>%s<< >>%s<<", idx_first, len(me), node_first.Src, node_last.Src))

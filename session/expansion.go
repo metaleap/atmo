@@ -43,7 +43,7 @@ type EstNodeMacro struct {
 func (me *SrcPack) refreshEst() (encounteredDiagsRelevantChanges bool) {
 	new_ast_nodes, same_est_nodes := map[*AstNode]*SrcFile{}, map[*EstNode]bool{}
 	for _, src_file := range me.Files {
-		for _, ast_node := range src_file.Content.Ast {
+		for _, ast_node := range src_file.Src.Ast {
 			var found bool
 			for _, est_node := range me.Est {
 				if est_node.SrcNode.equals(ast_node, true) {
