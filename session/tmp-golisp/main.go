@@ -20,10 +20,6 @@ func main() {
 
 	addOsArgsToEnv()
 
-	if malCompat {
-		ensureMALCompatibility()
-	}
-
 	// check if we are to run the REPL or run a specified source file
 	if len(os.Args) > 1 { // run the specified source file and exit
 		if _, err := readAndEval(fmt.Sprintf("(loadFile %q)", os.Args[1])); err != nil {

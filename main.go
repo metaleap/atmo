@@ -5,19 +5,25 @@ import (
 	"path/filepath"
 
 	"atmo/lsp"
+	"atmo/repl"
 	"atmo/session"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		panic("expected command, one of: lsp, build")
+		panic("expected command, one of: lsp, repl, run")
 	}
 
-	switch cmd_name_or_file_path := os.Args[1]; cmd_name_or_file_path {
+	switch cmd_name := os.Args[1]; cmd_name {
 	case "lsp":
 		lsp.Main()
-	default:
-		src_file_path, err := filepath.Abs(cmd_name_or_file_path)
+	case "repl":
+		repl.Main()
+	case "run":
+		if len(os.Args) <= 2 {
+			panic("no source-file path specified")
+		}
+		src_file_path, err := filepath.Abs(os.Args[2])
 		if err != nil {
 			panic(err)
 		}

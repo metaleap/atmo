@@ -47,7 +47,7 @@ func ReflField(obj any, fieldName string) *reflect.Value {
 		do_fields := func(rt reflect.Type, rv reflect.Value) *reflect.Value {
 			for i, l := 0, rt.NumField(); i < l; i++ {
 				if field := rt.Field(i); field.Name == fieldName {
-					return ToPtr(rv.Field(i))
+					return Ptr(rv.Field(i))
 				} else if field.Anonymous {
 					embeds[&field] = rv.Field(i)
 				}

@@ -3,18 +3,10 @@ package util
 import (
 	"cmp"
 	"encoding/json"
+	"io"
 	"strings"
 
 	"atmo/util/str"
-)
-
-type (
-	None                     struct{}
-	Return[T any]            struct{ Result T }
-	Pair[TLhs any, TRhs any] struct {
-		Key TLhs
-		It  TRhs
-	}
 )
 
 func Ptr[T any](it T) *T { return &it }
@@ -37,11 +29,6 @@ func Assert(alwaysTrue bool, show any) {
 		}
 		panic(str.FmtV(err))
 	}
-}
-
-func Never[T any](alwaysFalse bool, show func() any) (ret T) {
-	Assert(!alwaysFalse, show)
-	return
 }
 
 func If[T any](b bool, t T, f T) T {
@@ -82,16 +69,20 @@ func Max[T cmp.Ordered](values ...T) (ret T) {
 	return
 }
 
-func ToPtr[T any](v T) *T { return &v }
-
-func Either[T comparable](try ...T) T {
-	var none T
-	for i := range try {
-		if try[i] != none {
-			return try[i]
+func ReadUntil(r io.Reader, until byte, initialBufCapacity int) ([]byte, error) {
+	buf := make([]byte, 0, initialBufCapacity)
+	var b [1]byte
+	for {
+		_, err := r.Read(b[0:1])
+		if err != nil {
+			return nil, err
+		} else if b[0] == until {
+			break
+		} else {
+			buf = append(buf, b[0])
 		}
 	}
-	return none
+	return buf, nil
 }
 
 func ToIdent(s string) string { return ToIdentWith(s, '_') }

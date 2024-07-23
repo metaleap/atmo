@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-type SpecialForm = func(*Env, []Expr) (*Env, Expr, error)
-
 type Env struct {
 	Parent *Env
 	Map    map[ExprIdent]Expr

@@ -381,11 +381,7 @@ func stdListAt(args []Expr) (Expr, error) {
 	is_range := (len(args) == 3)
 	err_out_of_range = err_out_of_range || ((!is_range) && (int(idx_start) == len(list)))
 	if err_out_of_range {
-		if malCompat {
-			return exprNil, nil
-		} else {
-			return nil, fmt.Errorf("index %d out of range with list of length %d", idx_start, len(list))
-		}
+		return nil, fmt.Errorf("index %d out of range with list of length %d", idx_start, len(list))
 	}
 	if !is_range {
 		return list[idx_start], nil
@@ -400,11 +396,7 @@ func stdListAt(args []Expr) (Expr, error) {
 		idx_end = ExprNum(len(list))
 	}
 	if (int(idx_end) > len(list)) || (idx_end < idx_start) {
-		if malCompat {
-			return exprNil, nil
-		} else {
-			return nil, fmt.Errorf("incorrect end index %d with list of length %d and start index %d", idx_end, len(list), idx_start)
-		}
+		return nil, fmt.Errorf("incorrect end index %d with list of length %d and start index %d", idx_end, len(list), idx_start)
 	}
 
 	return ExprList(list[idx_start:idx_end]), nil

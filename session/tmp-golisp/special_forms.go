@@ -4,6 +4,8 @@ import (
 	"fmt"
 )
 
+type SpecialForm = func(*Env, []Expr) (*Env, Expr, error)
+
 var (
 	exprIdentDo            = ExprIdent("do")
 	exprIdentQuote         = ExprIdent("quote")
@@ -56,7 +58,7 @@ func defOrSet(isDef bool, env *Env, args []Expr) (*Env, Expr, error) {
 		if _, err := env.get(name); err != nil {
 			return nil, nil, err
 		}
-	} else if env.hasOwn(name) && !malCompat { // cannot re`def` locals
+	} else if env.hasOwn(name) { // cannot re`def` locals
 		return nil, nil, fmt.Errorf("cannot redefine `%s` (use `set` here instead of `def`)", name)
 	}
 
@@ -270,9 +272,6 @@ func stdTryCatch(env *Env, args []Expr) (*Env, Expr, error) {
 	if err != nil {
 		return nil, nil, err
 	} else if !ok {
-		if malCompat {
-			catch, ok, _ = isListStartingWithIdent(args[1], "catch*", 3) // MAL compat for testing `./self-hosted-mal/*.mal`s
-		}
 		if !ok {
 			return nil, nil, fmt.Errorf("expected `(catch theErr exprHandlingIt)` as the last form in `try` , instead of `%s`", str(true, args[1]))
 		}

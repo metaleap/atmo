@@ -1,11 +1,12 @@
 package session
 
 import (
+	"cmp"
+	"slices"
+
 	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
-	"cmp"
-	"slices"
 )
 
 type SrcFileNoticeKind int
@@ -69,7 +70,8 @@ func (me *SrcFileNotice) equals(it *SrcFileNotice) bool {
 		(me.Code == it.Code) && (me.Kind == it.Kind) && (me.Message == it.Message))
 }
 
-func (me *SrcFileNotice) String() string { return me.Message }
+func (me *SrcFileNotice) Error() string  { return me.String() }
+func (me *SrcFileNotice) String() string { return util.JsonFrom(me) }
 
 func errMsg(code SrcFileNoticeCode, args ...any) string {
 	return str.Trim(str.Fmt(errMsgs[code], args...))

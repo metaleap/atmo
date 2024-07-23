@@ -51,14 +51,22 @@ func FromFloat(f float64, prec int) string { return strconv.FormatFloat(f, 'f', 
 func Base36(i int) string                  { return FromI64(int64(i), 36) }
 
 func Replace(s string, repl Dict) string {
-	if len(repl) == 0 {
+	replacer := Replacer(s, repl)
+	if replacer == nil {
 		return s
+	}
+	return replacer.Replace(s)
+}
+
+func Replacer(s string, repl Dict) *strings.Replacer {
+	if len(repl) == 0 {
+		return nil
 	}
 	repl_old_new := make([]string, 0, len(repl)*2)
 	for k, v := range repl {
 		repl_old_new = append(repl_old_new, k, v)
 	}
-	return strings.NewReplacer(repl_old_new...).Replace(s)
+	return strings.NewReplacer(repl_old_new...)
 }
 
 func RePrefix(s string, oldPrefix string, newPrefix string) string {
@@ -103,7 +111,7 @@ func IsPrtAscii(s string) bool {
 
 // ascii only
 func Lo0(s string) string {
-	if (s == "") || !((s[0] >= 'A') && (s[0] <= 'Z')) {
+	if (s == "") || (s[0] < 'A' || s[0] > 'Z') {
 		return s
 	}
 	return Lo(s[:1]) + s[1:]
