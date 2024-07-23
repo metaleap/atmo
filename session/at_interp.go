@@ -68,7 +68,7 @@ func (me *Interp) Parse(src string) (*AtExpr, error) {
 func (me *SrcFile) NodeToExpr(topNode *AstNode) (*AtExpr, error) {
 	util.Assert((topNode.Kind == AstNodeKindGroup) && (len(topNode.Nodes) > 0), nil)
 	if len(topNode.Nodes) > 1 {
-		topNode.Nodes = []*AstNode{topNode.Nodes.group(me, topNode, true, false)}
+		topNode.Nodes = []*AstNode{topNode.Nodes.toGroupNode(me, topNode, true, false)}
 	}
 	return me.nodeToExpr(topNode.Nodes[0])
 }
@@ -77,6 +77,9 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 	var val AtVal
 	switch node.Kind {
 	case AstNodeKindIdent:
+		if node.Toks[0].isSep() {
+			return nil, node.newDiagErr(false, NoticeCodeExpectedFooHere, "no `"+node.Src+"`", "")
+		}
 		val = atValIdent(node.Src)
 	case AstNodeKindLit:
 		switch it := node.Lit.(type) {
@@ -95,11 +98,12 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 		}
 	case AstNodeKindGroup:
 		switch {
-		case node.isBrackets():
+		case node.IsSquareBrackets():
 			items := node.Nodes.splitByIdentWithGrouping(me, node, ",")
 			arr := make(atValArr, 0, len(items))
 			err_node := node
 			for _, expr_node := range items {
+				println(node.Toks.Span().String(), expr_node.Toks.Span().String())
 				if expr_node == nil {
 					return nil, err_node.newDiagErr(err_node != node, NoticeCodeExpectedFooHere, "expression", "before the superfluous comma")
 				}
@@ -111,7 +115,7 @@ func (me *SrcFile) nodeToExpr(node *AstNode) (*AtExpr, error) {
 				arr = append(arr, expr)
 			}
 			val = arr
-		case node.isBraces():
+		case node.IsCurlyBraces():
 			items := node.Nodes.splitByIdentWithGrouping(me, node, ",")
 			rec := make(atValRec, len(items))
 			err_node := node

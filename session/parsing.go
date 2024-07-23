@@ -12,7 +12,7 @@ import (
 	"atmo/util/str"
 )
 
-type AstNodes []*AstNode
+type AstNodes sl.Of[*AstNode]
 
 type AstNode struct {
 	parent        *AstNode
@@ -238,11 +238,11 @@ func (me *AstNode) ident() string {
 	return util.If(me.Kind == AstNodeKindIdent, me.Src, "")
 }
 
-func (me *AstNode) isBraces() bool {
+func (me *AstNode) IsCurlyBraces() bool {
 	return me.Src[0] == '{'
 }
 
-func (me *AstNode) isBrackets() bool {
+func (me *AstNode) IsSquareBrackets() bool {
 	return me.Src[0] == '['
 }
 
@@ -345,15 +345,6 @@ func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
 
 func (me AstNodes) first() *AstNode { return me[0] }
 
-func (me AstNodes) group(srcFile *SrcFile, parent *AstNode, onlyIfMultiple bool, nilIfEmpty bool) *AstNode {
-	if nilIfEmpty && (len(me) == 0) {
-		return nil
-	} else if onlyIfMultiple && (len(me) == 1) {
-		return me[0]
-	}
-	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(srcFile), parent: parent, Nodes: me, Src: me.src(srcFile)}
-}
-
 func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
 	if !recurse {
 		ret = sl.HasWhere(me, where)
@@ -381,14 +372,14 @@ func (me AstNodes) huddled(srcFile *SrcFile, parent *AstNode) (ret AstNodes) {
 			huddle = append(huddle, cur)
 		} else {
 			all_huddled = false
-			ret = append(ret, huddle.group(srcFile, parent, true, true))
+			ret = append(ret, huddle.toGroupNode(srcFile, parent, true, true))
 			huddle = AstNodes{cur}
 		}
 	}
 	if all_huddled {
 		ret = me
 	} else {
-		ret = append(ret, huddle.group(srcFile, parent, true, true))
+		ret = append(ret, huddle.toGroupNode(srcFile, parent, true, true))
 	}
 	return
 }
@@ -411,26 +402,34 @@ func (me AstNodes) newDiagErr(srcFile *SrcFile, code SrcFileNoticeCode, args ...
 	return me.newDiag(srcFile, NoticeKindErr, code, args...)
 }
 
-func (me AstNodes) splitByIdentWithGrouping(srcFile *SrcFile, parent *AstNode, ident string) (ret AstNodes) {
-	to_node := func(nodes AstNodes) *AstNode {
-		return nodes.group(srcFile, parent, true, true)
-	}
-
-	var idx_last int
+func (me AstNodes) splitByIdentWithGrouping(srcFile *SrcFile, parent *AstNode, ident string) AstNodes {
+	var idx int
+	var ret []AstNodes
 	for i, node := range me {
 		if (node.Kind == AstNodeKindIdent) && (node.Src == ident) {
-			ret = append(ret, to_node(me[idx_last:i]))
-			idx_last = i + 1
+			ret = append(ret, me[idx:i])
+			idx = i
 		}
 	}
-	if sub := me[idx_last:]; len(sub) > 0 {
-		ret = append(ret, to_node(sub))
+	if sub := me[idx:]; len(sub) > 0 {
+		ret = append(ret, sub)
 	}
-	return
+	return AstNodes(sl.As(ret, func(nodes AstNodes) *AstNode {
+		return nodes.toGroupNode(srcFile, parent, true, true)
+	}))
 }
 
 func (me AstNodes) src(srcFile *SrcFile) string {
 	return me.toks(srcFile).src(srcFile.Src.Text)
+}
+
+func (me AstNodes) toGroupNode(srcFile *SrcFile, parent *AstNode, onlyIfMultiple bool, nilIfEmpty bool) *AstNode {
+	if nilIfEmpty && (len(me) == 0) {
+		return nil
+	} else if onlyIfMultiple && (len(me) == 1) {
+		return me[0]
+	}
+	return &AstNode{Kind: AstNodeKindGroup, Toks: me.toks(srcFile), parent: parent, Nodes: me, Src: me.src(srcFile)}
 }
 
 func (me AstNodes) toks(srcFile *SrcFile) Toks {

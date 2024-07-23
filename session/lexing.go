@@ -31,7 +31,7 @@ func (me *SrcFilePos) before(it *SrcFilePos) bool {
 func (me *SrcFilePos) beforeOrAt(it *SrcFilePos) bool {
 	return util.If(me.Line == it.Line, me.Char <= it.Char, me.Line < it.Line)
 }
-
+func (me *SrcFilePos) String() string { return str.Fmt("%d,%d", me.Line, me.Char) }
 func (me SrcFilePos) ToSpan() (ret SrcFileSpan) {
 	ret.Start, ret.End = me, me
 	return
@@ -45,8 +45,8 @@ type SrcFileSpan struct {
 func (me SrcFileSpan) contains(it *SrcFilePos) bool {
 	return it.afterOrAt(&me.Start) && it.beforeOrAt(&me.End)
 }
-
 func (me *SrcFileSpan) isSinglePos() bool { return me.Start == me.End }
+func (me SrcFileSpan) String() string     { return str.Fmt("%s-%s", me.Start.String(), me.End.String()) }
 
 type Toks []*Tok
 type Tok struct {
@@ -253,7 +253,7 @@ func (me *Tok) isBraceMatch(it *Tok) bool {
 }
 
 func (me *Tok) isSep() bool {
-	return (len(me.Src) == 1) && ((me.Src[0] == ',') || (me.Src[0] == ';') || (me.Src[0] == ':'))
+	return (len(me.Src) == 1) && ((me.Src[0] == ',') || (me.Src[0] == ':'))
 }
 
 func (me *Tok) isWhitespacelesslyRightAfter(it *Tok) bool {
