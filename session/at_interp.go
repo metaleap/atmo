@@ -48,7 +48,7 @@ func (me *interp) Parse(src string) (*AtExpr, error) {
 	}
 
 	me.SrcFile.Src.Ast = ast
-	for _, diag := range me.SrcFile.allNotices(me.SrcFile.Src.Ast) {
+	for _, diag := range me.SrcFile.allNotices() {
 		if diag.Kind == NoticeKindErr {
 			return nil, diag
 		}
