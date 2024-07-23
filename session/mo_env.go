@@ -4,6 +4,11 @@ import (
 	"atmo/util"
 )
 
+var (
+	moStdLazy  = map[moValIdent]moFnLazy{}
+	moStdEager = map[moValIdent]moFnEager{}
+)
+
 type MoEnv struct {
 	Outer *MoEnv
 	Own   map[moValIdent]*MoExpr
@@ -34,4 +39,9 @@ func (me *MoEnv) lookup(name moValIdent) *MoExpr {
 		return me.Outer.lookup(name)
 	}
 	return found
+}
+
+func (me *moValFunc) envWith([]*MoExpr) (*MoEnv, *SrcFileNotice) {
+	// TODO
+	return me.env, nil
 }

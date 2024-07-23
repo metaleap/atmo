@@ -63,12 +63,12 @@ func Main() {
 			panic(err)
 		}
 
-		expr, err := interp.Parse(string(line))
-		if (err == nil) && (expr != nil) {
-			expr, err = interp.Eval(expr)
+		expr, diag := interp.Parse(string(line))
+		if (diag == nil) && (expr != nil) {
+			expr, diag = interp.Eval(expr)
 		}
-		if err != nil {
-			os.Stderr.WriteString(errMsg(err) + "\n")
+		if diag != nil {
+			os.Stderr.WriteString(errMsg(diag) + "\n")
 		} else if expr != nil {
 			expr.WriteTo(os.Stdout)
 		}

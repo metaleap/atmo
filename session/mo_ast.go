@@ -3,12 +3,13 @@ package session
 import (
 	"io"
 	"strconv"
+	"strings"
 
 	"atmo/util/str"
 )
 
-type moFnEager = func(...*MoExpr) (*MoExpr, *SrcFileNotice)
-type moFnLazy = func(*MoEnv, []*MoExpr) (*MoEnv, *MoExpr, error)
+type moFnEager = func(args ...*MoExpr) (*MoExpr, *SrcFileNotice)
+type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice)
 
 type MoValType int
 
@@ -67,6 +68,12 @@ func (*moValFunc) valType() MoValType { return MoValTypeFunc }
 type MoExpr struct {
 	SrcNode *AstNode `json:"-"`
 	Val     MoVal
+}
+
+func (me *MoExpr) String() string {
+	var buf strings.Builder
+	me.WriteTo(&buf)
+	return buf.String()
 }
 
 func (me *MoExpr) WriteTo(w io.StringWriter) {

@@ -1,15 +1,13 @@
 package session
 
 import (
-	"errors"
-
 	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
 
 type Evaler interface {
-	eval(ctx *Interp, expr *MoExpr) (*MoExpr, error)
+	eval(ctx *Interp, expr *MoExpr) (*MoExpr, *SrcFileNotice)
 }
 
 type Interp struct {
@@ -20,6 +18,7 @@ type Interp struct {
 
 type DefaultEvaler struct {
 	LastStackTrace []string
+	ctx            *Interp
 }
 
 func newInterp(srcFile *SrcFile, evaler Evaler) *Interp {
@@ -30,31 +29,111 @@ func newInterp(srcFile *SrcFile, evaler Evaler) *Interp {
 	return interp
 }
 
-func (me *Interp) Eval(expr *MoExpr) (*MoExpr, error) {
+func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	return me.evaler.eval(me, expr)
 }
 
-func (me *DefaultEvaler) eval(ctx *Interp, expr *MoExpr) (*MoExpr, error) {
+func (me *DefaultEvaler) eval(ctx *Interp, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+	me.ctx = ctx
 	me.LastStackTrace = nil
 	return me.evalAndApply(ctx.Env, expr)
 }
 
-func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, error) {
-	return me.evalExpr(env, expr)
+func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+	var err *SrcFileNotice
+	for (err == nil) && (env != nil) {
+		if _, is_call := expr.Val.(moValCall); !is_call {
+			expr, err = me.evalExpr(env, expr)
+			env = nil
+		} else if expr, err = me.macroExpand(env, expr); err != nil {
+			return nil, err
+		} else if call, _ := expr.Val.(moValCall); len(call) > 0 {
+			callee, call_args := call[0], ([]*MoExpr)(call[1:])
+			var special_form moFnLazy
+			if ident, _ := callee.Val.(moValIdent); ident != "" {
+				special_form = moStdLazy[ident]
+			}
+			if special_form != nil {
+				if env, expr, err = special_form(me.ctx, env, call_args...); err != nil {
+					return nil, err
+				}
+			} else {
+				if expr, err = me.evalExpr(env, expr); err != nil {
+					return nil, err
+				}
+				call = expr.Val.(moValCall)
+				callee, call_args = call[0], ([]*MoExpr)(call[1:])
+				switch fn := callee.Val.(type) {
+				default:
+					return nil, callee.SrcNode.newDiagErr(false, NoticeCodeUncallable, callee.String())
+				case moValFn:
+					if expr, err = fn(call_args...); err != nil {
+						return nil, err
+					}
+					env = nil
+				case *moValFunc:
+					expr = fn.body
+					env, err = fn.envWith(call_args)
+					if err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+	}
+	return expr, err
 }
 
-func (me *DefaultEvaler) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, error) {
+func (me *DefaultEvaler) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	switch val := expr.Val.(type) {
 	case moValIdent:
 		found := env.lookup(val)
 		if found == nil {
 			return nil, expr.SrcNode.newDiagErr(false, NoticeCodeUndefined, val)
 		}
+	case moValArr:
+		arr := make(moValArr, len(val))
+		for i, item := range val {
+			it, err := me.evalAndApply(env, item)
+			if err != nil {
+				return nil, err
+			}
+			arr[i] = it
+		}
+		return &MoExpr{Val: arr, SrcNode: expr.SrcNode}, nil
+	case moValRec:
+		rec := make(moValRec, len(val))
+		for k, v := range val {
+			key, err := me.evalAndApply(env, k)
+			if err != nil {
+				return nil, err
+			}
+			val, err := me.evalAndApply(env, v)
+			if err != nil {
+				return nil, err
+			}
+			rec[key] = val
+		}
+		return &MoExpr{Val: rec, SrcNode: expr.SrcNode}, nil
+	case moValCall:
+		call := make(moValCall, len(val))
+		for i, item := range val {
+			it, err := me.evalAndApply(env, item)
+			if err != nil {
+				return nil, err
+			}
+			call[i] = it
+		}
+		return &MoExpr{Val: call, SrcNode: expr.SrcNode}, nil
 	}
-	return nil, nil
+	return expr, nil
 }
 
-func (me *Interp) Parse(src string) (*MoExpr, error) {
+func (me *DefaultEvaler) macroExpand(_ *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+	return expr, nil
+}
+
+func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 	me.SrcFile.Src.Ast, me.SrcFile.Src.Toks, me.SrcFile.Src.Text = nil, nil, src
 	toks, errs := tokenize(me.SrcFile.FilePath, src)
 	if len(errs) > 0 {
@@ -74,7 +153,7 @@ func (me *Interp) Parse(src string) (*MoExpr, error) {
 		return true
 	}, nil)
 	if len(me.SrcFile.Src.Ast) > 1 {
-		return nil, errors.New("one at a time, please")
+		return nil, me.SrcFile.Src.Ast.newDiagErr(me.SrcFile, NoticeCodeAtmoTodo, "odd case, please report exact input, namely: `"+src+"`")
 	} else if (len(me.SrcFile.Src.Ast) == 0) || (len(me.SrcFile.Src.Ast[0].Nodes) == 0) {
 		return nil, nil
 	}
@@ -82,7 +161,7 @@ func (me *Interp) Parse(src string) (*MoExpr, error) {
 	return me.SrcFile.ExprFromAstNode(me.SrcFile.Src.Ast[0])
 }
 
-func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, error) {
+func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
 	util.Assert((topNode.Kind == AstNodeKindGroup) && (len(topNode.Nodes) > 0), nil)
 	if len(topNode.Nodes) > 1 {
 		topNode.Nodes = []*AstNode{topNode.Nodes.toGroupNode(me, topNode, true, false)}
@@ -90,7 +169,7 @@ func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, error) {
 	return me.exprFromAstNode(topNode.Nodes[0])
 }
 
-func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, error) {
+func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	var val MoVal
 	switch node.Kind {
 	case AstNodeKindIdent:

@@ -39,6 +39,7 @@ const (
 	// semantic
 	NoticeCodeExpectedFoo SrcFileNoticeCode = "Unexpected"
 	NoticeCodeUndefined   SrcFileNoticeCode = "Undefined"
+	NoticeCodeUncallable  SrcFileNoticeCode = "NotCallable"
 )
 
 var (
@@ -46,7 +47,7 @@ var (
 	OnNoticesChanged = func() {}
 	OnDbgMsg         = func(showIf bool, fmt string, args ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
-		NoticeCodeAtmoTodo:      "TODO by Atmo team, please report: %s",
+		NoticeCodeAtmoTodo:      "TODO by Atmo team, please report: \"%s\"",
 		NoticeCodeFileReadError: "%s", // actual error msg in %s
 
 		NoticeCodeWhitespace:  "unsupported white-space; ensure both: no line-leading tabs, and LF-only line endings (no CR or CRLF)",
@@ -58,6 +59,7 @@ var (
 
 		NoticeCodeExpectedFoo: "expected %s",
 		NoticeCodeUndefined:   "`%s` is undefined or not in scope",
+		NoticeCodeUncallable:  "`%s` is not callable",
 	}
 )
 
