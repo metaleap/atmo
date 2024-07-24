@@ -105,8 +105,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			return found, nil
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
-	case moValSlice:
-		list := make(moValSlice, len(val))
+	case moValList:
+		list := make(moValList, len(val))
 		for i, item := range val {
 			it, err := me.evalAndApply(env, item)
 			if err != nil {
@@ -219,15 +219,20 @@ func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
 }
 
 func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr) *SrcFileNotice {
-	diag_src_span := me.diagSpan(false, false, have...)
+	return me.checkCountWithSrcSpan(wantAtLeast, wantAtMost, have, false)
+}
+
+func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have []*MoExpr, preferSrcSpan bool) *SrcFileNotice {
+	diag_src_span := me.diagSpan(false, preferSrcSpan, have...)
+	moniker := util.If(preferSrcSpan, "item", "arg")
 	if wantAtLeast < 0 {
 		return nil
 	} else if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d arg(s), not %d", wantAtLeast, len(have)))
+		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d %s(s), not %d", wantAtLeast, moniker, len(have)))
 	} else if len(have) < wantAtLeast {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("at least %d arg(s), not %d", wantAtLeast, len(have)))
+		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("at least %d %s(s), not %d", wantAtLeast, moniker, len(have)))
 	} else if (wantAtMost > wantAtLeast) && (len(have) > wantAtMost) {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d to %d arg(s), not %d", wantAtLeast, wantAtMost, len(have)))
+		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d to %d %s(s), not %d", wantAtLeast, wantAtMost, moniker, len(have)))
 	}
 	return nil
 }
@@ -239,12 +244,12 @@ func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *SrcFileNotice {
 	return nil
 }
 
-func (me *Interp) checkIsList(of MoValPrimType, expr *MoExpr) *SrcFileNotice {
-	if err := me.checkIs(MoPrimTypeSlice, expr); err != nil {
+func (me *Interp) checkIsListOf(of MoValPrimType, expr *MoExpr) *SrcFileNotice {
+	if err := me.checkIs(MoPrimTypeList, expr); err != nil {
 		return err
 	}
 	if of >= 0 {
-		return me.check(of, -1, -1, expr.Val.(moValSlice)...)
+		return me.check(of, -1, -1, expr.Val.(moValList)...)
 	}
 	return nil
 }

@@ -40,6 +40,7 @@ const (
 	NoticeCodeUndefined   SrcFileNoticeCode = "Unresolved"
 	NoticeCodeUncallable  SrcFileNoticeCode = "NotCallable"
 	NoticeCodeReserved    SrcFileNoticeCode = "Reserved"
+	NoticeCodeNoElseCase  SrcFileNoticeCode = "ElseCaseMissing"
 )
 
 var (
@@ -61,6 +62,7 @@ var (
 		NoticeCodeUndefined:   "`%s` is not defined, not in scope, or not a value",
 		NoticeCodeUncallable:  "`%s` is not callable",
 		NoticeCodeReserved:    "cannot assign to `%s` or any other `%s`-prefixed identifier",
+		NoticeCodeNoElseCase:  "missing a fallback case",
 	}
 )
 

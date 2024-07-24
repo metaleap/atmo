@@ -45,6 +45,7 @@ func init() {
 	for k, v := range map[moValIdent]moFnLazy{
 		"@set":         (*Interp).primOpSet,
 		"@fn":          (*Interp).primOpFn,
+		"@caseOf":      (*Interp).primOpCaseOf,
 		"@macro":       (*Interp).primOpMacro,
 		"@expand":      (*Interp).primOpMacroExpand,
 		moPrimOpDo:     (*Interp).primOpDo,
@@ -153,7 +154,7 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 	if err := me.checkCount(2, -1, args); err != nil {
 		return nil, nil, err
 	}
-	if err := me.checkIsList(MoPrimTypeIdent, args[0]); err != nil {
+	if err := me.checkIsListOf(MoPrimTypeIdent, args[0]); err != nil {
 		return nil, nil, err
 	}
 	body := args[1]
@@ -166,7 +167,7 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 	}
 	expr := &MoExpr{
 		SrcSpan: srcFileSpanFrom(args...),
-		Val:     &moValFnLam{params: args[0].Val.(moValSlice), body: body, env: env},
+		Val:     &moValFnLam{params: args[0].Val.(moValList), body: body, env: env},
 	}
 	return nil, expr, nil
 }
@@ -218,12 +219,12 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 
 	// must be list or call then: we handle them the same, per item iteration
 
-	is_list := (args[0].Val.primType() == MoPrimTypeSlice)
+	is_list := (args[0].Val.primType() == MoPrimTypeList)
 	var call_or_arr []*MoExpr
 	if call, is := args[0].Val.(moValCall); is {
 		call_or_arr = call
 	} else if is_list {
-		call_or_arr = args[0].Val.(moValSlice)
+		call_or_arr = args[0].Val.(moValList)
 	} else {
 		return nil, nil, args[0].SrcSpan.newDiagErr(NoticeCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote")
 	}
@@ -245,10 +246,10 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			if err != nil {
 				return nil, nil, err
 			}
-			if err = me.checkIsList(-1, evaled); err != nil {
+			if err = me.checkIsListOf(-1, evaled); err != nil {
 				return nil, nil, err
 			}
-			for _, splicee := range evaled.Val.(moValSlice) {
+			for _, splicee := range evaled.Val.(moValList) {
 				if evaled, err := me.evalAndApply(env, splicee); err != nil {
 					return nil, nil, err
 				} else {
@@ -263,7 +264,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			ret = append(ret, evaled)
 		}
 	}
-	return nil, &MoExpr{Val: util.If[MoVal](is_list, moValSlice(ret), moValCall(ret)), SrcSpan: args[0].SrcSpan}, nil
+	return nil, &MoExpr{Val: util.If[MoVal](is_list, moValList(ret), moValCall(ret)), SrcSpan: args[0].SrcSpan}, nil
 }
 
 func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
@@ -275,6 +276,32 @@ func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExp
 	}
 	ret, err := me.macroExpand(env, args[0])
 	return nil, ret, err
+}
+
+func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+	if err := me.check(MoPrimTypeList, 1, 1, args...); err != nil {
+		return nil, nil, err
+	}
+	pairs := args[0].Val.(moValList)
+	for _, pair := range pairs {
+		if err := me.checkIs(MoPrimTypeList, pair); err != nil {
+			return nil, nil, err
+		}
+		if err := me.checkCountWithSrcSpan(2, 2, pair.Val.(moValList), true); err != nil {
+			return nil, nil, err
+		}
+		pred := pair.Val.(moValList)[0]
+		evaled, err := me.evalAndApply(env, pred)
+		if err != nil {
+			return nil, nil, err
+		}
+		if evaled.eqTrue() {
+			return env, pair.Val.(moValList)[1], nil
+		} else if !evaled.isFalsy() {
+			return nil, nil, me.diagSpan(false, true, pred).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression")
+		}
+	}
+	return nil, nil, me.diagSpan(true, false, args...).newDiagErr(NoticeCodeNoElseCase)
 }
 
 // eager prim-ops below, lazy ones above
