@@ -31,8 +31,12 @@ func newInterp(srcFile *SrcFile, evaler Evaler) *Interp {
 	return interp
 }
 
-func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) ClearStackTrace() {
 	me.LastStackTrace = me.LastStackTrace[:0] // keeps currently-already-alloc'd capacity, for reduced GC churn and reduced alloc times
+}
+
+func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+	me.ClearStackTrace()
 	return me.evaler.eval(me, expr)
 }
 
@@ -43,6 +47,7 @@ func (me *DefaultEvaler) eval(ctx *Interp, expr *MoExpr) (*MoExpr, *SrcFileNotic
 
 func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	var err *SrcFileNotice
+	diag_ctx_orig := me.diagCtxCall
 	for (err == nil) && (env != nil) {
 		if _, is_call := expr.Val.(moValCall); !is_call {
 			expr, err = me.evalExpr(env, expr)
@@ -58,20 +63,22 @@ func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFi
 			}
 
 			if prim_op_lazy != nil {
+				diag_ctx_prev := me.diagCtxCall
 				me.diagCtxCall = expr
 				if env, expr, err = prim_op_lazy(me.ctx, env, call_args...); err != nil {
 					return nil, err
 				}
+				me.diagCtxCall = diag_ctx_prev
 			} else {
 				if me.ctx.StackTraces {
 					me.ctx.LastStackTrace = append(me.ctx.LastStackTrace, expr)
 				}
-				diag_ctx := expr
-				me.diagCtxCall = diag_ctx
+				diag_ctx_cur, diag_ctx_prev := expr, me.diagCtxCall
+				me.diagCtxCall = diag_ctx_cur
 				if expr, err = me.evalExpr(env, expr); err != nil {
 					return nil, err
 				}
-				me.diagCtxCall = diag_ctx
+				me.diagCtxCall = diag_ctx_cur
 				call = expr.Val.(moValCall)
 				callee, call_args = call[0], ([]*MoExpr)(call[1:])
 				switch fn := callee.Val.(type) {
@@ -81,7 +88,7 @@ func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFi
 					if expr, err = fn(call_args...); err != nil {
 						return nil, err
 					}
-					env = nil
+					env, me.diagCtxCall = nil, diag_ctx_prev
 				case *moValFnLam:
 					expr = fn.body
 					env, err = me.envWith(fn, call_args)
@@ -92,6 +99,7 @@ func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFi
 			}
 		}
 	}
+	me.diagCtxCall = diag_ctx_orig
 	return expr, err
 }
 
