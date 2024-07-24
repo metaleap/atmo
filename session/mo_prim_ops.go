@@ -45,6 +45,8 @@ func init() {
 	for k, v := range map[moValIdent]moFnLazy{
 		"@set":         (*Interp).primOpSet,
 		"@fn":          (*Interp).primOpFn,
+		"@macro":       (*Interp).primOpMacro,
+		"@expand":      (*Interp).primOpMacroExpand,
 		moPrimOpDo:     (*Interp).primOpDo,
 		moPrimOpQuote:  (*Interp).primOpQuote,
 		moPrimOpQQuote: (*Interp).primOpQuasiQuote,
@@ -107,9 +109,15 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	if is_reserved := ((name[0] == '@') || (name[0] == moPrimOpUnquote[0]) || moPrimOpsLazy[name] != nil); is_reserved {
 		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0])))
 	}
-	owner_env, _ := env.lookupOwner(name)
+	owner_env, found := env.lookupOwner(name)
 	if owner_env == nil {
 		owner_env = env
+	}
+	const can_set_macros = false
+	if (!can_set_macros) && (found != nil) {
+		if fn, _ := found.Val.(*moValFnLam); (fn != nil) && fn.isMacro {
+			return nil, nil, me.diagSpan(true, false, args...).newDiagErr(NoticeCodeAtmoTodo, "mutating macros currently disabled, let us know whether you disagree with that or not")
+		}
 	}
 	new_value, err := me.evalAndApply(env, args[1])
 	if err != nil {
@@ -130,6 +138,15 @@ func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (tailEnv *MoEnv, expr *M
 	}
 	tailEnv, expr = env, args[len(args)-1]
 	return
+}
+
+func (me *Interp) primOpMacro(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+	_, expr, err := me.primOpFn(env, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	expr.Val.(*moValFnLam).isMacro = true
+	return nil, expr, nil
 }
 
 func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
@@ -247,6 +264,17 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		}
 	}
 	return nil, &MoExpr{Val: util.If[MoVal](is_list, moValSlice(ret), moValCall(ret)), SrcSpan: args[0].SrcSpan}, nil
+}
+
+func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, nil, err
+	}
+	if err := me.checkIs(MoPrimTypeCall, args[0]); err != nil {
+		return nil, nil, err
+	}
+	ret, err := me.macroExpand(env, args[0])
+	return nil, ret, err
 }
 
 // eager prim-ops below, lazy ones above
