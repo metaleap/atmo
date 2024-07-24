@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -24,28 +25,29 @@ var (
 type moFnEager = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice)
 
-type MoValType int
+type MoValPrimType int
 
 const (
-	MoValTypeType MoValType = iota
-	MoValTypeIdent
-	MoValTypeInt
-	MoValTypeUint
-	MoValTypeFloat
-	MoValTypeChar
-	MoValTypeStr
-	MoValTypeErr
-	MoValTypeRec
-	MoValTypeArr
-	MoValTypeCall
-	MoValTypeFunc
+	MoPrimTypeType MoValPrimType = iota
+	MoPrimTypeIdent
+	MoPrimTypeInt
+	MoPrimTypeUint
+	MoPrimTypeFloat
+	MoPrimTypeChar
+	MoPrimTypeStr
+	MoPrimTypeErr
+	MoPrimTypeRec
+	MoPrimTypeArr
+	MoPrimTypeCall
+	MoPrimTypeFunc
 )
 
 type MoVal interface {
-	valType() MoValType
+	fmt.Stringer
+	primType() MoValPrimType
 }
 
-type moValType MoValType
+type moValType MoValPrimType
 type moValIdent string
 type moValInt int64
 type moValUint uint64
@@ -64,19 +66,32 @@ type moValFnLam struct {
 	isMacro bool
 }
 
-func (MoValType) valType() MoValType   { return MoValTypeType }
-func (moValIdent) valType() MoValType  { return MoValTypeIdent }
-func (moValInt) valType() MoValType    { return MoValTypeInt }
-func (moValUint) valType() MoValType   { return MoValTypeUint }
-func (moValFloat) valType() MoValType  { return MoValTypeFloat }
-func (moValChar) valType() MoValType   { return MoValTypeChar }
-func (moValStr) valType() MoValType    { return MoValTypeStr }
-func (moValErr) valType() MoValType    { return MoValTypeErr }
-func (moValRec) valType() MoValType    { return MoValTypeRec }
-func (moValArr) valType() MoValType    { return MoValTypeArr }
-func (moValCall) valType() MoValType   { return MoValTypeCall }
-func (moValFnPrim) valType() MoValType { return MoValTypeFunc }
-func (*moValFnLam) valType() MoValType { return MoValTypeFunc }
+func (moValType) primType() MoValPrimType   { return MoPrimTypeType }
+func (moValIdent) primType() MoValPrimType  { return MoPrimTypeIdent }
+func (moValInt) primType() MoValPrimType    { return MoPrimTypeInt }
+func (moValUint) primType() MoValPrimType   { return MoPrimTypeUint }
+func (moValFloat) primType() MoValPrimType  { return MoPrimTypeFloat }
+func (moValChar) primType() MoValPrimType   { return MoPrimTypeChar }
+func (moValStr) primType() MoValPrimType    { return MoPrimTypeStr }
+func (moValErr) primType() MoValPrimType    { return MoPrimTypeErr }
+func (moValRec) primType() MoValPrimType    { return MoPrimTypeRec }
+func (moValArr) primType() MoValPrimType    { return MoPrimTypeArr }
+func (moValCall) primType() MoValPrimType   { return MoPrimTypeCall }
+func (moValFnPrim) primType() MoValPrimType { return MoPrimTypeFunc }
+func (*moValFnLam) primType() MoValPrimType { return MoPrimTypeFunc }
+func (me moValType) String() string         { return moValToString(me) }
+func (me moValIdent) String() string        { return moValToString(me) }
+func (me moValInt) String() string          { return moValToString(me) }
+func (me moValUint) String() string         { return moValToString(me) }
+func (me moValFloat) String() string        { return moValToString(me) }
+func (me moValChar) String() string         { return moValToString(me) }
+func (me moValStr) String() string          { return moValToString(me) }
+func (me moValErr) String() string          { return moValToString(me) }
+func (me moValRec) String() string          { return moValToString(me) }
+func (me moValArr) String() string          { return moValToString(me) }
+func (me moValCall) String() string         { return moValToString(me) }
+func (me moValFnPrim) String() string       { return moValToString(me) }
+func (me *moValFnLam) String() string       { return moValToString(me) }
 
 type MoExpr struct {
 	SrcNode *AstNode `json:"-"`
@@ -96,10 +111,11 @@ func (me *MoExpr) String() string {
 	return buf.String()
 }
 
-func (me *MoExpr) WriteTo(w io.StringWriter) {
-	switch it := me.Val.(type) {
-	case MoValType:
-		w.WriteString(MoValType(it).String())
+func (me *MoExpr) WriteTo(w io.StringWriter) { moValWriteTo(me.Val, me.SrcNode, w) }
+func moValWriteTo(it MoVal, srcCtxMaybe *AstNode, w io.StringWriter) {
+	switch it := it.(type) {
+	case moValType:
+		w.WriteString(MoValPrimType(it).String())
 	case moValIdent:
 		w.WriteString(string(it))
 	case moValInt:
@@ -152,39 +168,48 @@ func (me *MoExpr) WriteTo(w io.StringWriter) {
 		}
 		w.WriteString(")")
 	case moValFnPrim:
-		w.WriteString("<primOpFunc>")
+		w.WriteString("<primFunc>")
 	case *moValFnLam:
-		w.WriteString(me.SrcNode.Src)
+		if srcCtxMaybe != nil {
+			w.WriteString(srcCtxMaybe.Src)
+		} else {
+			w.WriteString("<lambdaFunc>")
+		}
 	default:
 		panic(it)
 	}
 }
+func moValToString(it MoVal) string {
+	var buf strings.Builder
+	moValWriteTo(it, nil, &buf)
+	return buf.String()
+}
 
-func (me MoValType) String() string {
+func (me MoValPrimType) String() string {
 	switch me {
-	case MoValTypeType:
+	case MoPrimTypeType:
 		return "@Type"
-	case MoValTypeIdent:
+	case MoPrimTypeIdent:
 		return "@Ident"
-	case MoValTypeInt:
+	case MoPrimTypeInt:
 		return "@Int"
-	case MoValTypeUint:
+	case MoPrimTypeUint:
 		return "@Uint"
-	case MoValTypeFloat:
+	case MoPrimTypeFloat:
 		return "@Float"
-	case MoValTypeChar:
+	case MoPrimTypeChar:
 		return "@Char"
-	case MoValTypeStr:
+	case MoPrimTypeStr:
 		return "@Str"
-	case MoValTypeErr:
+	case MoPrimTypeErr:
 		return "@Err"
-	case MoValTypeRec:
+	case MoPrimTypeRec:
 		return "@Rec"
-	case MoValTypeArr:
+	case MoPrimTypeArr:
 		return "@Arr"
-	case MoValTypeCall:
+	case MoPrimTypeCall:
 		return "@Call"
-	case MoValTypeFunc:
+	case MoPrimTypeFunc:
 		return "@Func"
 	}
 	panic(me)

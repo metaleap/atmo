@@ -2,6 +2,8 @@ package session
 
 import (
 	"atmo/util"
+	"fmt"
+	"os"
 )
 
 var (
@@ -9,22 +11,25 @@ var (
 		// populated in `init()` below to avoid initialization-cycle error
 	}
 	moPrimOpsEager = map[moValIdent]moFnEager{ // "eager" prim-ops receive already-evaluated args like any other func. eg. prim-type intrinsics like arithmetics, list concat etc
-		"@numIntAdd":   makeArithPrimOp[moValInt](MoValTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) + opr.(moValInt) }),
-		"@numIntSub":   makeArithPrimOp[moValInt](MoValTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) - opr.(moValInt) }),
-		"@numIntMul":   makeArithPrimOp[moValInt](MoValTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) * opr.(moValInt) }),
-		"@numIntDiv":   makeArithPrimOp[moValInt](MoValTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) / opr.(moValInt) }),
-		"@numIntMod":   makeArithPrimOp[moValInt](MoValTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) % opr.(moValInt) }),
-		"@numUintAdd":  makeArithPrimOp[moValUint](MoValTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) + opr.(moValUint) }),
-		"@numUintSub":  makeArithPrimOp[moValUint](MoValTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) - opr.(moValUint) }),
-		"@numUintMul":  makeArithPrimOp[moValUint](MoValTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) * opr.(moValUint) }),
-		"@numUintDiv":  makeArithPrimOp[moValUint](MoValTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) / opr.(moValUint) }),
-		"@numUintMod":  makeArithPrimOp[moValUint](MoValTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) % opr.(moValUint) }),
-		"@numFloatAdd": makeArithPrimOp[moValFloat](MoValTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) + opr.(moValFloat) }),
-		"@numFloatSub": makeArithPrimOp[moValFloat](MoValTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) - opr.(moValFloat) }),
-		"@numFloatMul": makeArithPrimOp[moValFloat](MoValTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) * opr.(moValFloat) }),
-		"@numFloatDiv": makeArithPrimOp[moValFloat](MoValTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) / opr.(moValFloat) }),
+		"@numIntAdd":   makeArithPrimOp[moValInt](MoPrimTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) + opr.(moValInt) }),
+		"@numIntSub":   makeArithPrimOp[moValInt](MoPrimTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) - opr.(moValInt) }),
+		"@numIntMul":   makeArithPrimOp[moValInt](MoPrimTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) * opr.(moValInt) }),
+		"@numIntDiv":   makeArithPrimOp[moValInt](MoPrimTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) / opr.(moValInt) }),
+		"@numIntMod":   makeArithPrimOp[moValInt](MoPrimTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) % opr.(moValInt) }),
+		"@numUintAdd":  makeArithPrimOp[moValUint](MoPrimTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) + opr.(moValUint) }),
+		"@numUintSub":  makeArithPrimOp[moValUint](MoPrimTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) - opr.(moValUint) }),
+		"@numUintMul":  makeArithPrimOp[moValUint](MoPrimTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) * opr.(moValUint) }),
+		"@numUintDiv":  makeArithPrimOp[moValUint](MoPrimTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) / opr.(moValUint) }),
+		"@numUintMod":  makeArithPrimOp[moValUint](MoPrimTypeUint, func(opl MoVal, opr MoVal) MoVal { return opl.(moValUint) % opr.(moValUint) }),
+		"@numFloatAdd": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) + opr.(moValFloat) }),
+		"@numFloatSub": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) - opr.(moValFloat) }),
+		"@numFloatMul": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) * opr.(moValFloat) }),
+		"@numFloatDiv": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) / opr.(moValFloat) }),
 		"@call":        (*Interp).primFnCall,
 		"@env":         (*Interp).primFnEnv,
+		"@printf":      (*Interp).primFnPrintf,
+		"@print":       (*Interp).primFnPrint,
+		"@println":     (*Interp).primFnPrintln,
 	}
 )
 
@@ -83,7 +88,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, nil, err
 	}
-	if err := me.checkIs(MoValTypeIdent, args[0]); err != nil {
+	if err := me.checkIs(MoPrimTypeIdent, args[0]); err != nil {
 		return nil, nil, err
 	}
 	name := args[0].Val.(moValIdent)
@@ -104,7 +109,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 
 // eager prim-ops below, lazy ones above
 
-func makeArithPrimOp[T moValInt | moValUint | moValFloat](t MoValType, f func(opl MoVal, opr MoVal) MoVal) moFnEager {
+func makeArithPrimOp[T moValInt | moValUint | moValFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) moFnEager {
 	return func(me *Interp, _ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 		if err := me.check(t, 2, 2, args...); err != nil {
 			return nil, err
@@ -137,11 +142,48 @@ func (me *Interp) primFnCall(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNoti
 	if err := me.checkCount(1, -1, args); err != nil {
 		return nil, err
 	}
-	// if ident,_ := args[0].Val.(moValIdent);ident!="" {
-
-	// }
-	if err := me.checkIs(MoValTypeFunc, args[0]); err != nil {
+	if err := me.checkIs(MoPrimTypeFunc, args[0]); err != nil {
 		return nil, err
 	}
 	return me.callWithDiagCtxSet(env, args[0], args[1:]...)
+}
+
+func (me *Interp) primFnPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, -1, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
+		return nil, err
+	}
+	fmt_args := make([]any, 0, len(args)-1)
+	for _, arg := range args[1:] {
+		fmt_args = append(fmt_args, arg.Val)
+	}
+	fmt.Fprintf(os.Stdout, string(args[0].Val.(moValStr)), fmt_args...)
+	return moValNone, nil
+}
+
+func (me *Interp) primFnPrint(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if len(args) > 0 {
+		switch arg0 := args[0].Val; true {
+		case (arg0.primType() == MoPrimTypeStr) && (len(args) == 1):
+			os.Stdout.WriteString(string(arg0.(moValStr)))
+		default:
+			for i, arg := range args {
+				if i > 0 {
+					os.Stdout.WriteString(" ")
+				}
+				arg.WriteTo(os.Stdout)
+			}
+		}
+	}
+	return moValNone, nil
+}
+
+func (me *Interp) primFnPrintln(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	expr, err := me.primFnPrint(env, args...)
+	if err == nil {
+		os.Stdout.WriteString("\n")
+	}
+	return expr, err
 }

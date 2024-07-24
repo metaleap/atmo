@@ -228,14 +228,14 @@ func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr) *S
 	return nil
 }
 
-func (me *Interp) checkIs(want MoValType, have *MoExpr) *SrcFileNotice {
-	if have_type := have.Val.valType(); have_type != want {
+func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *SrcFileNotice {
+	if have_type := have.Val.primType(); have_type != want {
 		return me.diagNode(false, true, have).newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("`%s`, not `%s`", want, have_type))
 	}
 	return nil
 }
 
-func (me *Interp) check(want MoValType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *SrcFileNotice {
+func (me *Interp) check(want MoValPrimType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *SrcFileNotice {
 	if err := me.checkCount(wantAtLeast, wantAtMost, have); err != nil {
 		return err
 	}
