@@ -61,6 +61,17 @@ func init() {
 	}
 }
 
+var rootEnv = MoEnv{Own: map[moValIdent]*MoExpr{}}
+
+func init() {
+	for prim_op_fn_name, prim_op_fn_func := range moPrimOpsEager {
+		rootEnv.set(prim_op_fn_name, &MoExpr{Val: moValFnPrim(prim_op_fn_func)})
+	}
+	for prim_ident_name, prim_ident_expr := range moPrimIdents {
+		rootEnv.set(prim_ident_name, prim_ident_expr)
+	}
+}
+
 type MoEnv struct {
 	Outer *MoEnv
 	Own   map[moValIdent]*MoExpr

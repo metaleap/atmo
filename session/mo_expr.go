@@ -161,9 +161,6 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 	case moValCall:
 		other := to.Val.(moValCall)
 		return sl.Eq(it, other, (*MoExpr).eq)
-	case moValFnPrim:
-		other := to.Val.(moValFnPrim)
-		return (it == nil) && (other == nil)
 	case *moValFnLam:
 		other := to.Val.(*moValFnLam)
 		return it.body.eq(other.body) && (it.isMacro == other.isMacro) && sl.Eq(it.params, other.params, (*MoExpr).eq) && it.env.eq(other.env)

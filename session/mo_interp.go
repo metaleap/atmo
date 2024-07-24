@@ -5,6 +5,9 @@ import (
 	"atmo/util/str"
 )
 
+// TODO: signature-trigger-char "," (and similar `lsp` lang defaults)
+// TODO: lazies in env via adhoc/faux macros
+
 type Interp struct {
 	SrcFile        *SrcFile
 	Env            *MoEnv
@@ -14,14 +17,7 @@ type Interp struct {
 }
 
 func newInterp(srcFile *SrcFile) *Interp {
-	interp := &Interp{Env: newMoEnv(nil, nil, nil), SrcFile: srcFile}
-	for prim_op_fn_name, prim_op_fn_func := range moPrimOpsEager {
-		interp.Env.set(prim_op_fn_name, &MoExpr{Val: moValFnPrim(prim_op_fn_func)})
-	}
-	for prim_ident_name, prim_ident_expr := range moPrimIdents {
-		interp.Env.set(prim_ident_name, prim_ident_expr)
-	}
-	return interp
+	return &Interp{Env: newMoEnv(&rootEnv, nil, nil), SrcFile: srcFile}
 }
 
 func (me *Interp) ClearStackTrace() {
