@@ -6,6 +6,7 @@ import (
 
 var (
 	moPrimOpsLazy = map[moValIdent]moFnLazy{ // "lazy" prim-ops take unevaluated args to eval-or-not as needed. eg. `@match`, `@fn` etc
+		// populated in `init()` below to avoid initialization-cycle error
 	}
 	moPrimOpsEager = map[moValIdent]moFnEager{ // "eager" prim-ops receive already-evaluated args like any other func. eg. prim-type intrinsics like arithmetics, list concat etc
 		"@numIntAdd":   makeArithPrimOp[moValInt](MoValTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) + opr.(moValInt) }),
@@ -24,6 +25,14 @@ var (
 		"@numFloatDiv": makeArithPrimOp[moValFloat](MoValTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) / opr.(moValFloat) }),
 	}
 )
+
+func init() {
+	for k, v := range map[moValIdent]moFnLazy{
+		"@set": (*Interp).primSet,
+	} {
+		moPrimOpsLazy[k] = v
+	}
+}
 
 type MoEnv struct {
 	Outer *MoEnv
@@ -50,14 +59,46 @@ func (me *MoEnv) set(name moValIdent, value *MoExpr) {
 }
 
 func (me *MoEnv) lookup(name moValIdent) *MoExpr {
-	found := me.Own[name]
-	if (found == nil) && (me.Outer != nil) {
-		return me.Outer.lookup(name)
-	}
+	_, found := me.lookupOwner(name)
 	return found
 }
 
+func (me *MoEnv) lookupOwner(name moValIdent) (*MoEnv, *MoExpr) {
+	found := me.Own[name]
+	if found == nil {
+		if me.Outer != nil {
+			return me.Outer.lookupOwner(name)
+		} else {
+			return nil, nil
+		}
+	}
+	return me, found
+}
+
 // lazy prim-ops first, eager prim-ops afterwards
+
+func (me *Interp) primSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, nil, err
+	}
+	if err := me.checkIs(MoValTypeIdent, args[0]); err != nil {
+		return nil, nil, err
+	}
+	name := args[0].Val.(moValIdent)
+	if is_reserved := (name[0] == '@'); is_reserved {
+		return nil, nil, me.diagNode(false, true, args[0]).newDiagErr(false, NoticeCodeReserved, name, "@")
+	}
+	owner_env, _ := env.lookupOwner(name)
+	if owner_env == nil {
+		owner_env = env
+	}
+	new_value, err := me.evalAndApply(env, args[1])
+	if err != nil {
+		return nil, nil, err
+	}
+	owner_env.set(name, new_value)
+	return nil, new_value, nil
+}
 
 // eager prim-ops below, lazy ones above
 

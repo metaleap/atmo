@@ -10,6 +10,17 @@ import (
 	"atmo/util/str"
 )
 
+var (
+	moPrimIdents = map[moValIdent]*MoExpr{
+		moValNone:  {Val: moValNone},
+		moValTrue:  {Val: moValTrue},
+		moValFalse: {Val: moValFalse},
+	}
+	moValNone  = moValIdent("@none")
+	moValTrue  = moValIdent("@true")
+	moValFalse = moValIdent("@false")
+)
+
 type moFnEager = func(ctx *Interp, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice)
 
@@ -136,7 +147,9 @@ func (me *MoExpr) WriteTo(w io.StringWriter) {
 			item.WriteTo(w)
 		}
 		w.WriteString(")")
-	case moValFnPrim, *moValFnLam:
+	case moValFnPrim:
+		w.WriteString("<primOpFunc>")
+	case *moValFnLam:
 		w.WriteString(me.SrcNode.Src)
 	default:
 		panic(it)

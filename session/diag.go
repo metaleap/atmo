@@ -40,6 +40,7 @@ const (
 	NoticeCodeExpectedFoo SrcFileNoticeCode = "Unexpected"
 	NoticeCodeUndefined   SrcFileNoticeCode = "Undefined"
 	NoticeCodeUncallable  SrcFileNoticeCode = "NotCallable"
+	NoticeCodeReserved    SrcFileNoticeCode = "Reserved"
 )
 
 var (
@@ -58,8 +59,9 @@ var (
 		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
 
 		NoticeCodeExpectedFoo: "expected %s",
-		NoticeCodeUndefined:   "`%s` is not defined or not in scope",
+		NoticeCodeUndefined:   "`%s` is not defined, not in scope, or not a value",
 		NoticeCodeUncallable:  "`%s` is not callable",
+		NoticeCodeReserved:    "cannot assign to `%s` or any other `%s`-prefixed identifier",
 	}
 )
 
