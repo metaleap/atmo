@@ -5,29 +5,19 @@ import (
 	"atmo/util/str"
 )
 
-type Evaler interface {
-	eval(ctx *Interp, expr *MoExpr) (*MoExpr, *SrcFileNotice)
-}
-
 type Interp struct {
 	SrcFile        *SrcFile
 	Env            *MoEnv
-	evaler         Evaler
 	StackTraces    bool
 	LastStackTrace []*MoExpr
+	diagCtxCall    *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
 }
 
-type DefaultEvaler struct {
-	ctx         *Interp
-	diagCtxCall *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
-}
-
-func newInterp(srcFile *SrcFile, evaler Evaler) *Interp {
-	if evaler == nil {
-		evaler = &DefaultEvaler{}
+func newInterp(srcFile *SrcFile) *Interp {
+	interp := &Interp{Env: newMoEnv(nil, nil, nil), SrcFile: srcFile}
+	for prim_op_name, prim_op_func := range moPrimOpsEager {
+		interp.Env.set(prim_op_name, &MoExpr{Val: moValFnPrim(prim_op_func)})
 	}
-	interp := &Interp{Env: newMoEnv(nil, nil, nil), SrcFile: srcFile, evaler: evaler}
-
 	return interp
 }
 
@@ -37,15 +27,11 @@ func (me *Interp) ClearStackTrace() {
 
 func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	me.ClearStackTrace()
-	return me.evaler.eval(me, expr)
+	me.diagCtxCall = nil
+	return me.evalAndApply(me.Env, expr)
 }
 
-func (me *DefaultEvaler) eval(ctx *Interp, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
-	me.ctx, me.diagCtxCall = ctx, nil
-	return me.evalAndApply(ctx.Env, expr)
-}
-
-func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	var err *SrcFileNotice
 	diag_ctx_orig := me.diagCtxCall
 	for (err == nil) && (env != nil) {
@@ -65,13 +51,13 @@ func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFi
 			if prim_op_lazy != nil {
 				diag_ctx_prev := me.diagCtxCall
 				me.diagCtxCall = expr
-				if env, expr, err = prim_op_lazy(me.ctx, env, call_args...); err != nil {
+				if env, expr, err = prim_op_lazy(me, env, call_args...); err != nil {
 					return nil, err
 				}
 				me.diagCtxCall = diag_ctx_prev
 			} else {
-				if me.ctx.StackTraces {
-					me.ctx.LastStackTrace = append(me.ctx.LastStackTrace, expr)
+				if me.StackTraces {
+					me.LastStackTrace = append(me.LastStackTrace, expr)
 				}
 				diag_ctx_cur, diag_ctx_prev := expr, me.diagCtxCall
 				me.diagCtxCall = diag_ctx_cur
@@ -85,7 +71,7 @@ func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFi
 				default:
 					return nil, callee.SrcNode.newDiagErr(false, NoticeCodeUncallable, callee.String())
 				case moValFnPrim:
-					if expr, err = fn(call_args...); err != nil {
+					if expr, err = fn(me, call_args...); err != nil {
 						return nil, err
 					}
 					env, me.diagCtxCall = nil, diag_ctx_prev
@@ -103,13 +89,14 @@ func (me *DefaultEvaler) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFi
 	return expr, err
 }
 
-func (me *DefaultEvaler) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	switch val := expr.Val.(type) {
 	case moValIdent:
 		found := env.lookup(val)
 		if found == nil {
 			return nil, expr.SrcNode.newDiagErr(false, NoticeCodeUndefined, val)
 		}
+		return found, nil
 	case moValArr:
 		arr := make(moValArr, len(val))
 		for i, item := range val {
@@ -148,11 +135,11 @@ func (me *DefaultEvaler) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNo
 	return expr, nil
 }
 
-func (me *DefaultEvaler) callWithDiagCtxSet(fnOrFuncExpr *MoExpr, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) callWithDiagCtxSet(fnOrFuncExpr *MoExpr, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	util.Assert(me.diagCtxCall != nil, nil)
 	switch fn := fnOrFuncExpr.Val.(type) {
 	case moValFnPrim:
-		return fn(args...)
+		return fn(me, args...)
 	case *moValFnLam:
 		env, err := me.envWith(fn, args)
 		if err != nil {
@@ -164,7 +151,14 @@ func (me *DefaultEvaler) callWithDiagCtxSet(fnOrFuncExpr *MoExpr, args ...*MoExp
 	return nil, callee.SrcNode.newDiagErr(false, NoticeCodeUncallable, callee.String())
 }
 
-func (me *DefaultEvaler) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) envWith(fn *moValFnLam, args []*MoExpr) (*MoEnv, *SrcFileNotice) {
+	if err := me.checkCount(len(fn.params), len(fn.params), args); err != nil {
+		return nil, err
+	}
+	return newMoEnv(fn.env, fn.params, args), nil
+}
+
+func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	diag_ctx := me.diagCtxCall
 	for fn := expr.macroCallCallee(env); fn != nil; fn = expr.macroCallCallee(env) {
 		me.diagCtxCall = expr
@@ -191,44 +185,49 @@ func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
 	return nil
 }
 
-func (me *DefaultEvaler) checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr) *SrcFileNotice {
+func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr) *SrcFileNotice {
+	diag_src_node := me.diagCtxCall.SrcNode
+	if diag_src_node == nil {
+		for _, expr := range me.diagCtxCall.Val.(moValCall) {
+			if diag_src_node = expr.SrcNode; diag_src_node != nil {
+				break
+			}
+		}
+	}
+	if diag_src_node == nil {
+		for _, expr := range have {
+			if diag_src_node = expr.SrcNode; diag_src_node != nil {
+				break
+			}
+		}
+	}
 	if wantAtLeast < 0 {
 		return nil
 	} else if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
-		return me.diagCtxCall.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d arg(s), not %d", wantAtLeast, len(have)))
+		return diag_src_node.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d arg(s), not %d", wantAtLeast, len(have)))
 	} else if len(have) < wantAtLeast {
-		return me.diagCtxCall.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("at least %d arg(s), not %d", wantAtLeast, len(have)))
+		return diag_src_node.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("at least %d arg(s), not %d", wantAtLeast, len(have)))
 	} else if (wantAtMost > wantAtLeast) && (len(have) > wantAtMost) {
-		return me.diagCtxCall.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d to %d arg(s), not %d", wantAtLeast, wantAtMost, len(have)))
+		return diag_src_node.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%d to %d arg(s), not %d", wantAtLeast, wantAtMost, len(have)))
 	}
 	return nil
 }
 
-func (*DefaultEvaler) checkIs(want MoValType, have *MoExpr) *SrcFileNotice {
+func (*Interp) checkIs(want MoValType, have *MoExpr) *SrcFileNotice {
 	if have_type := have.Val.valType(); have_type != want {
 		return have.SrcNode.newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("`%s`, not `%s`", want, have_type))
 	}
 	return nil
 }
 
-func (me *DefaultEvaler) checkAre(want MoValType, have ...*MoExpr) *SrcFileNotice {
+func (me *Interp) checkAre(want MoValType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *SrcFileNotice {
+	if err := me.checkCount(wantAtLeast, wantAtMost, have); err != nil {
+		return err
+	}
 	for _, expr := range have {
 		if err := me.checkIs(want, expr); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func (me *DefaultEvaler) checkAreBoth(want MoValType, have []*MoExpr, exactArgsCount bool) (err *SrcFileNotice) {
-	max_args_count := -1
-	if exactArgsCount {
-		max_args_count = 2
-	}
-	if err = me.checkCount(2, max_args_count, have); err == nil {
-		if err = me.checkIs(want, have[0]); err == nil {
-			err = me.checkIs(want, have[1])
-		}
-	}
-	return
 }

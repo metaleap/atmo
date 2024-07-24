@@ -10,7 +10,7 @@ import (
 	"atmo/util/str"
 )
 
-type moFnEager = func(args ...*MoExpr) (*MoExpr, *SrcFileNotice)
+type moFnEager = func(ctx *Interp, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice)
 
 type MoValType int

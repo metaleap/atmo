@@ -58,7 +58,7 @@ var (
 		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
 
 		NoticeCodeExpectedFoo: "expected %s",
-		NoticeCodeUndefined:   "`%s` is undefined or not in scope",
+		NoticeCodeUndefined:   "`%s` is not defined or not in scope",
 		NoticeCodeUncallable:  "`%s` is not callable",
 	}
 )
