@@ -1,9 +1,11 @@
 package session
 
 import (
-	"atmo/util"
 	"fmt"
 	"os"
+
+	"atmo/util"
+	"atmo/util/kv"
 )
 
 var (
@@ -30,6 +32,7 @@ var (
 		"@printf":      (*Interp).primFnPrintf,
 		"@print":       (*Interp).primFnPrint,
 		"@println":     (*Interp).primFnPrintln,
+		"@str":         (*Interp).primFnStr,
 		"@listItemAt":  (*Interp).primFnListItemAt,
 		"@listSlice":   (*Interp).primFnListSlice,
 	}
@@ -70,6 +73,16 @@ func newMoEnv(outer *MoEnv, names []*MoExpr, values []*MoExpr) *MoEnv {
 		ret.Own[name.Val.(moValIdent)] = values[i]
 	}
 	return &ret
+}
+
+func (me *MoEnv) eq(to *MoEnv) bool {
+	if me == to {
+		return true
+	}
+	if (me == nil) || (to == nil) {
+		return false
+	}
+	return me.Outer.eq(to.Outer) && kv.Eq(me.Own, to.Own, (*MoExpr).eq)
 }
 
 func (me *MoEnv) hasOwn(name moValIdent) (ret bool) {
@@ -432,4 +445,11 @@ func (me *Interp) primFnListSlice(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFil
 	}
 
 	return &MoExpr{Val: list[idx_start:idx_end], SrcSpan: srcSpanFrom(util.If(idx_start == idx_end, args, list[idx_start:idx_end]))}, nil
+}
+
+func (me *Interp) primFnStr(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, err
+	}
+	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValStr(args[0].String())}, nil
 }

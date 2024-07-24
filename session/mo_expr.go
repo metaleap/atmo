@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"atmo/util"
+	"atmo/util/kv"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -44,6 +45,37 @@ const (
 
 func (me MoValPrimType) isAtomic() bool {
 	return (me != MoPrimTypeErr) && (me != MoPrimTypeList) && (me != MoPrimTypeCall) && (me != MoPrimTypeRec) && (me != MoPrimTypeFunc)
+}
+
+func (me MoValPrimType) String() string { return me.Str(false) }
+func (me MoValPrimType) Str(forDiag bool) string {
+	switch me {
+	case MoPrimTypeType:
+		return util.If(forDiag, "type", "@Type")
+	case MoPrimTypeIdent:
+		return util.If(forDiag, "identifier", "@Ident")
+	case MoPrimTypeInt:
+		return util.If(forDiag, "signed integer number", "@Int")
+	case MoPrimTypeUint:
+		return util.If(forDiag, "unsigned integer number", "@Uint")
+	case MoPrimTypeFloat:
+		return util.If(forDiag, "floating-point number", "@Float")
+	case MoPrimTypeChar:
+		return util.If(forDiag, "character", "@Char")
+	case MoPrimTypeStr:
+		return util.If(forDiag, "text string", "@Str")
+	case MoPrimTypeErr:
+		return util.If(forDiag, "error", "@Err")
+	case MoPrimTypeRec:
+		return util.If(forDiag, "record", "@Rec")
+	case MoPrimTypeList:
+		return util.If(forDiag, "list", "@List")
+	case MoPrimTypeCall:
+		return util.If(forDiag, "call", "@Call")
+	case MoPrimTypeFunc:
+		return util.If(forDiag, "function", "@Func")
+	}
+	panic(me)
 }
 
 type MoVal interface {
@@ -112,6 +144,45 @@ func (me *MoExpr) Callee() *MoExpr {
 func (me *MoExpr) eqTrue() bool  { return (me == moValTrue) || (me.Val == moValTrue.Val) }
 func (me *MoExpr) eqFalse() bool { return (me == moValFalse) || (me.Val == moValFalse.Val) }
 func (me *MoExpr) eqNone() bool  { return (me == moValNone) || (me.Val == moValNone.Val) }
+func (me *MoExpr) eq(to *MoExpr) bool {
+	if me == to {
+		return true
+	}
+	if (me == nil) || (to == nil) || me.Val.primType() != to.Val.primType() {
+		return false
+	}
+	switch it := me.Val.(type) {
+	case moValErr:
+		other := to.Val.(moValErr)
+		return it.Err.eq(other.Err)
+	case moValList:
+		other := to.Val.(moValList)
+		return sl.Eq(it, other, (*MoExpr).eq)
+	case moValCall:
+		other := to.Val.(moValCall)
+		return sl.Eq(it, other, (*MoExpr).eq)
+	case moValFnPrim:
+		other := to.Val.(moValFnPrim)
+		return (it == nil) && (other == nil)
+	case *moValFnLam:
+		other := to.Val.(*moValFnLam)
+		return it.body.eq(other.body) && (it.isMacro == other.isMacro) && sl.Eq(it.params, other.params, (*MoExpr).eq) && it.env.eq(other.env)
+	case moValRec:
+		other := to.Val.(moValRec)
+		if len(it) != len(other) {
+			return false
+		}
+		keys_other := kv.Keys(other)
+		for k, v := range it {
+			if key_other := sl.FirstWhere(keys_other, func(key *MoExpr) bool { return key.eq(k) }); key_other == nil {
+				return false
+			} else if !v.eq(other[key_other]) {
+				return false
+			}
+		}
+	}
+	return me.Val == to.Val
+}
 
 func (me *MoExpr) isFalsy() bool {
 	return me.eqFalse() || me.eqNone()
@@ -197,37 +268,6 @@ func moValToString(it MoVal) string {
 	var buf strings.Builder
 	moValWriteTo(it, &buf)
 	return buf.String()
-}
-
-func (me MoValPrimType) String() string { return me.Str(false) }
-func (me MoValPrimType) Str(forDiag bool) string {
-	switch me {
-	case MoPrimTypeType:
-		return util.If(forDiag, "type", "@Type")
-	case MoPrimTypeIdent:
-		return util.If(forDiag, "identifier", "@Ident")
-	case MoPrimTypeInt:
-		return util.If(forDiag, "signed integer number", "@Int")
-	case MoPrimTypeUint:
-		return util.If(forDiag, "unsigned integer number", "@Uint")
-	case MoPrimTypeFloat:
-		return util.If(forDiag, "floating-point number", "@Float")
-	case MoPrimTypeChar:
-		return util.If(forDiag, "character", "@Char")
-	case MoPrimTypeStr:
-		return util.If(forDiag, "text string", "@Str")
-	case MoPrimTypeErr:
-		return util.If(forDiag, "error", "@Err")
-	case MoPrimTypeRec:
-		return util.If(forDiag, "record", "@Rec")
-	case MoPrimTypeList:
-		return util.If(forDiag, "list", "@List")
-	case MoPrimTypeCall:
-		return util.If(forDiag, "call", "@Call")
-	case MoPrimTypeFunc:
-		return util.If(forDiag, "function", "@Func")
-	}
-	panic(me)
 }
 
 func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
