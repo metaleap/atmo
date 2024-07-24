@@ -201,7 +201,7 @@ func (me *AstNode) canHuddle() bool {
 	if me.Kind == AstNodeKindIdent {
 		return !me.Toks[0].isSep()
 	}
-	return (me.Kind == AstNodeKindLit)
+	return (me.Kind == AstNodeKindLit) || (me.Kind == AstNodeKindGroup)
 }
 
 func (me *AstNode) cmp(it *AstNode) int {

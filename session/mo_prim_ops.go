@@ -34,10 +34,11 @@ var (
 )
 
 const (
-	moPrimOpQuote   moValIdent = "#"
-	moPrimOpQQuote  moValIdent = "%"
-	moPrimOpUnquote moValIdent = "$"
-	moPrimOpDo      moValIdent = "@do"
+	moPrimOpQuote         moValIdent = "#"
+	moPrimOpQQuote        moValIdent = "%"
+	moPrimOpUnquote       moValIdent = "$"
+	moPrimOpSpliceUnquote moValIdent = "$$"
+	moPrimOpDo            moValIdent = "@do"
 )
 
 func init() {
@@ -103,7 +104,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 		return nil, nil, err
 	}
 	name := args[0].Val.(moValIdent)
-	if is_reserved := ((name[0] == '@') || moPrimOpsLazy[name] != nil); is_reserved {
+	if is_reserved := ((name[0] == '@') || (name[0] == moPrimOpUnquote[0]) || moPrimOpsLazy[name] != nil); is_reserved {
 		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0])))
 	}
 	owner_env, _ := env.lookupOwner(name)
@@ -194,7 +195,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		return nil, &MoExpr{Val: ret, SrcSpan: args[0].SrcSpan}, nil
 	}
 
-	// must be list or call then: we handle them the same
+	// must be list or call then: we handle them the same, per item iteration
 
 	is_list := (args[0].Val.primType() == MoPrimTypeSlice)
 	var call_or_arr []*MoExpr
@@ -206,43 +207,42 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		return nil, nil, args[0].SrcSpan.newDiagErr(NoticeCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote")
 	}
 
-	form := make(moValCall, 0, len(call_or_arr))
+	ret := make([]*MoExpr, 0, len(call_or_arr))
 	for _, item := range call_or_arr {
 		if is_unquote, err := me.checkIsCallOnIdent(item, moPrimOpUnquote, 1); err != nil {
 			return nil, nil, err
 		} else if is_unquote {
-			if unquoted, err := me.evalAndApply(env, item.Val.(moValCall)[1]); err != nil {
+			if evaled, err := me.evalAndApply(env, item.Val.(moValCall)[1]); err != nil {
 				return nil, nil, err
 			} else {
-				form = append(form, unquoted)
+				ret = append(ret, evaled)
 			}
-			// } else if splice_unquote, ok, err := isListStartingWithIdent(item, exprIdentSpliceUnquote, 2); err != nil {
-			// 	return nil, nil, err
-			// } else if ok {
-			// 	evaled, err := evalAndApply(env, splice_unquote[1])
-			// 	if err != nil {
-			// 		return nil, nil, err
-			// 	}
-			// 	splicees, err := checkIs[ExprList](evaled)
-			// 	if err != nil {
-			// 		return nil, nil, err
-			// 	}
-			// 	for _, splicee := range splicees {
-			// 		if unquoted, err := evalAndApply(env, splicee); err != nil {
-			// 			return nil, nil, err
-			// 		} else {
-			// 			expr = append(expr, unquoted)
-			// 		}
-			// 	}
+		} else if is_splice_unquote, err := me.checkIsCallOnIdent(item, moPrimOpSpliceUnquote, 1); err != nil {
+			return nil, nil, err
+		} else if is_splice_unquote {
+			evaled, err := me.evalAndApply(env, item.Val.(moValCall)[1])
+			if err != nil {
+				return nil, nil, err
+			}
+			if err = me.checkIsList(-1, evaled); err != nil {
+				return nil, nil, err
+			}
+			for _, splicee := range evaled.Val.(moValSlice) {
+				if evaled, err := me.evalAndApply(env, splicee); err != nil {
+					return nil, nil, err
+				} else {
+					ret = append(ret, evaled)
+				}
+			}
 		} else {
 			_, evaled, err := me.primOpQuasiQuote(env, item)
 			if err != nil {
 				return nil, nil, err
 			}
-			form = append(form, evaled)
+			ret = append(ret, evaled)
 		}
 	}
-	return nil, &MoExpr{Val: util.If[MoVal](is_list, (moValSlice)(form), form), SrcSpan: args[0].SrcSpan}, nil
+	return nil, &MoExpr{Val: util.If[MoVal](is_list, moValSlice(ret), moValCall(ret)), SrcSpan: args[0].SrcSpan}, nil
 }
 
 // eager prim-ops below, lazy ones above
