@@ -166,7 +166,12 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		return nil, nil, err
 	}
 
-	// is this call is directly quoting an unquote call?
+	// is atomic arg? then just like primOpQuote
+	if args[0].Val.primType().isAtomic() {
+		return nil, args[0], nil
+	}
+
+	// is this call directly quoting an unquote call?
 	if is_unquote, err := me.checkIsCallOnIdent(args[0], moPrimOpUnquote, 1); err != nil {
 		return nil, nil, err
 	} else if is_unquote {
@@ -175,11 +180,6 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			return nil, nil, err
 		}
 		return nil, ret, err
-	}
-
-	// is atomic arg? then just like primOpQuote
-	if args[0].Val.primType().isAtomic() {
-		return nil, args[0], nil
 	}
 
 	// hash-table? call ourselves on each key and value
