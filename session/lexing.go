@@ -312,6 +312,22 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 					"braces")))}
 }
 
+func (me Toks) newDiag(kind SrcFileNoticeKind, atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return &SrcFileNotice{Kind: kind, Code: code, Span: util.If(atEnd, Toks.SpanEnd, Toks.Span)(me), Message: errMsg(code, args...)}
+}
+func (me Toks) newDiagInfo(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindInfo, atEnd, code, args...)
+}
+func (me Toks) newDiagHint(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindHint, atEnd, code, args...)
+}
+func (me Toks) newDiagWarn(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindWarn, atEnd, code, args...)
+}
+func (me Toks) newDiagErr(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+	return me.newDiag(NoticeKindErr, atEnd, code, args...)
+}
+
 func (me Toks) Span() (ret SrcFileSpan) {
 	ret.Start, ret.End = me[0].Pos, me[len(me)-1].span().End
 	return

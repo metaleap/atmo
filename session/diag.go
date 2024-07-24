@@ -93,6 +93,7 @@ func (me SrcFileSpan) LocStr(srcFilePath string) string {
 	}
 	return fmt.Sprintf("%s:%s", srcFilePath, me.String())
 }
+func (me Toks) LocStr(srcFilePath string) string { return me.Span().LocStr(srcFilePath) }
 
 func errMsg(code SrcFileNoticeCode, args ...any) string {
 	return str.Trim(str.Fmt(errMsgs[code], args...))

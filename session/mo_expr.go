@@ -94,8 +94,8 @@ func (me moValFnPrim) String() string       { return moValToString(me) }
 func (me *moValFnLam) String() string       { return moValToString(me) }
 
 type MoExpr struct {
-	SrcNode *AstNode `json:"-"`
 	Val     MoVal
+	SrcSpan Toks `json:"-"`
 }
 
 func (me *MoExpr) Callee() *MoExpr {
@@ -111,11 +111,11 @@ func (me *MoExpr) String() string {
 	return buf.String()
 }
 
-func (me *MoExpr) WriteTo(w io.StringWriter) { moValWriteTo(me.Val, me.SrcNode, w) }
-func moValWriteTo(it MoVal, srcCtxMaybe *AstNode, w io.StringWriter) {
+func (me *MoExpr) WriteTo(w io.StringWriter) { moValWriteTo(me.Val, w) }
+func moValWriteTo(it MoVal, w io.StringWriter) {
 	switch it := it.(type) {
 	case moValType:
-		w.WriteString(MoValPrimType(it).String())
+		w.WriteString(MoValPrimType(it).Str(false))
 	case moValIdent:
 		w.WriteString(string(it))
 	case moValInt:
@@ -170,47 +170,44 @@ func moValWriteTo(it MoVal, srcCtxMaybe *AstNode, w io.StringWriter) {
 	case moValFnPrim:
 		w.WriteString("<primFunc>")
 	case *moValFnLam:
-		if srcCtxMaybe != nil {
-			w.WriteString(srcCtxMaybe.Src)
-		} else {
-			w.WriteString("<lambdaFunc>")
-		}
+		w.WriteString("<lambdaFunc>")
 	default:
 		panic(it)
 	}
 }
 func moValToString(it MoVal) string {
 	var buf strings.Builder
-	moValWriteTo(it, nil, &buf)
+	moValWriteTo(it, &buf)
 	return buf.String()
 }
 
-func (me MoValPrimType) String() string {
+func (me MoValPrimType) String() string { return me.Str(false) }
+func (me MoValPrimType) Str(forDiag bool) string {
 	switch me {
 	case MoPrimTypeType:
-		return "@Type"
+		return util.If(forDiag, "type", "@Type")
 	case MoPrimTypeIdent:
-		return "@Ident"
+		return util.If(forDiag, "identifier", "@Ident")
 	case MoPrimTypeInt:
-		return "@Int"
+		return util.If(forDiag, "integer", "@Int")
 	case MoPrimTypeUint:
-		return "@Uint"
+		return util.If(forDiag, "unsigned integer", "@Uint")
 	case MoPrimTypeFloat:
-		return "@Float"
+		return util.If(forDiag, "floating-point number", "@Float")
 	case MoPrimTypeChar:
-		return "@Char"
+		return util.If(forDiag, "character", "@Char")
 	case MoPrimTypeStr:
-		return "@Str"
+		return util.If(forDiag, "text string", "@Str")
 	case MoPrimTypeErr:
-		return "@Err"
+		return util.If(forDiag, "error", "@Err")
 	case MoPrimTypeRec:
-		return "@Rec"
+		return util.If(forDiag, "record", "@Rec")
 	case MoPrimTypeArr:
-		return "@Arr"
+		return util.If(forDiag, "list", "@Arr")
 	case MoPrimTypeCall:
-		return "@Call"
+		return util.If(forDiag, "call", "@Call")
 	case MoPrimTypeFunc:
-		return "@Func"
+		return util.If(forDiag, "function", "@Func")
 	}
 	panic(me)
 }
@@ -318,7 +315,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			val = call_form
 		}
 	}
-	ret := &MoExpr{SrcNode: node, Val: val}
+	ret := &MoExpr{SrcSpan: node.Toks, Val: val}
 	// if val != nil {
 	// 	os.Stdout.WriteString(">>>")
 	// 	ret.WriteTo(os.Stdout)

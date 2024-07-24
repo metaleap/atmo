@@ -72,7 +72,7 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 				callee, call_args = call[0], ([]*MoExpr)(call[1:])
 				switch fn := callee.Val.(type) {
 				default:
-					return nil, me.diagNode(true, false).newDiagErr(false, NoticeCodeUncallable, callee.String())
+					return nil, me.diagSpan(true, false).newDiagErr(false, NoticeCodeUncallable, callee.String())
 				case moValFnPrim:
 					if expr, err = fn(me, env, call_args...); err != nil {
 						return nil, err
@@ -98,7 +98,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 		if (val[0] != '@') || ((moPrimIdents[val] == nil) && (moPrimOpsLazy[val] == nil)) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
 			found := env.lookup(val)
 			if found == nil {
-				return nil, me.diagNode(false, true, expr).newDiagErr(false, NoticeCodeUndefined, val)
+				return nil, me.diagSpan(false, true, expr).newDiagErr(false, NoticeCodeUndefined, val)
 			}
 			return found, nil
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
@@ -111,7 +111,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			arr[i] = it
 		}
-		return &MoExpr{Val: arr, SrcNode: expr.SrcNode}, nil
+		return &MoExpr{Val: arr, SrcSpan: expr.SrcSpan}, nil
 	case moValRec:
 		rec := make(moValRec, len(val))
 		for k, v := range val {
@@ -125,7 +125,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			rec[key] = val
 		}
-		return &MoExpr{Val: rec, SrcNode: expr.SrcNode}, nil
+		return &MoExpr{Val: rec, SrcSpan: expr.SrcSpan}, nil
 	case moValCall:
 		call := make(moValCall, len(val))
 		for i, item := range val {
@@ -135,20 +135,20 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			call[i] = it
 		}
-		return &MoExpr{Val: call, SrcNode: expr.SrcNode}, nil
+		return &MoExpr{Val: call, SrcSpan: expr.SrcSpan}, nil
 	}
 	return expr, nil
 }
 
-func (me *Interp) diagNode(preferCalleeOverCall bool, preferTheseEvenMore bool, have ...*MoExpr) (ret *AstNode) {
+func (me *Interp) diagSpan(preferCalleeOverCall bool, preferTheseEvenMore bool, have ...*MoExpr) (ret Toks) {
 	if me.diagCtxCall != nil {
-		ret = me.diagCtxCall.SrcNode
-		if callee := me.diagCtxCall.Val.(moValCall)[0]; preferCalleeOverCall && (callee.SrcNode != nil) {
-			ret = callee.SrcNode
+		ret = me.diagCtxCall.SrcSpan
+		if callee := me.diagCtxCall.Val.(moValCall)[0]; preferCalleeOverCall && (callee.SrcSpan != nil) {
+			ret = callee.SrcSpan
 		}
 		if ret == nil {
 			for _, expr := range me.diagCtxCall.Val.(moValCall) {
-				if ret = expr.SrcNode; ret != nil {
+				if ret = expr.SrcSpan; ret != nil {
 					break
 				}
 			}
@@ -156,8 +156,8 @@ func (me *Interp) diagNode(preferCalleeOverCall bool, preferTheseEvenMore bool, 
 	}
 	if preferTheseEvenMore || (ret == nil) {
 		for _, expr := range have {
-			if expr.SrcNode != nil {
-				return expr.SrcNode
+			if expr.SrcSpan != nil {
+				return expr.SrcSpan
 			}
 		}
 	}
@@ -177,7 +177,7 @@ func (me *Interp) callWithDiagCtxSet(env *MoEnv, fnOrFuncExpr *MoExpr, args ...*
 		return me.evalAndApply(env, fn.body)
 	}
 	callee := me.diagCtxCall.Callee()
-	return nil, me.diagNode(true, false).newDiagErr(false, NoticeCodeUncallable, callee.String())
+	return nil, me.diagSpan(true, false).newDiagErr(false, NoticeCodeUncallable, callee.String())
 }
 
 func (me *Interp) envWith(fn *moValFnLam, args []*MoExpr) (*MoEnv, *SrcFileNotice) {
@@ -215,7 +215,7 @@ func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
 }
 
 func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr) *SrcFileNotice {
-	diag_src_node := me.diagNode(false, false, have...)
+	diag_src_node := me.diagSpan(false, false, have...)
 	if wantAtLeast < 0 {
 		return nil
 	} else if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
@@ -230,7 +230,17 @@ func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr) *S
 
 func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *SrcFileNotice {
 	if have_type := have.Val.primType(); have_type != want {
-		return me.diagNode(false, true, have).newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("`%s`, not `%s`", want, have_type))
+		return me.diagSpan(false, true, have).newDiagErr(false, NoticeCodeExpectedFoo, str.Fmt("%s instead of %s `%s`", want.Str(true), have_type.Str(true), have.String()))
+	}
+	return nil
+}
+
+func (me *Interp) checkIsList(of MoValPrimType, expr *MoExpr) *SrcFileNotice {
+	if err := me.checkIs(MoPrimTypeArr, expr); err != nil {
+		return err
+	}
+	if of >= 0 {
+		return me.check(of, -1, -1, expr.Val.(moValArr)...)
 	}
 	return nil
 }

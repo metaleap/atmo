@@ -294,7 +294,7 @@ func (me *AstNode) isWhitespacelesslyRightAfter(it *AstNode) bool {
 }
 
 func (me *AstNode) newDiag(kind SrcFileNoticeKind, atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return &SrcFileNotice{Kind: kind, Code: code, Span: util.If(atEnd, Toks.SpanEnd, Toks.Span)(me.Toks), Message: errMsg(code, args...)}
+	return me.Toks.newDiag(kind, atEnd, code, args...)
 }
 func (me *AstNode) newDiagInfo(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
 	return me.newDiag(NoticeKindInfo, atEnd, code, args...)

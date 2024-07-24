@@ -76,7 +76,7 @@ func Main() {
 		} else if diag != nil {
 			os.Stderr.WriteString(errMsg("", diag) + "\n")
 			for _, item := range interp.LastStackTrace {
-				os.Stderr.WriteString(str.Fmt("\t%s\t\t%s\n", item.SrcNode.Toks.Span().LocStr(""), item))
+				os.Stderr.WriteString(str.Fmt("\t%s\t\t%s\n", item.SrcSpan.LocStr(""), item))
 			}
 		}
 
