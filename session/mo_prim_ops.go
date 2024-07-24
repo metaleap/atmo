@@ -30,6 +30,8 @@ var (
 		"@printf":      (*Interp).primFnPrintf,
 		"@print":       (*Interp).primFnPrint,
 		"@println":     (*Interp).primFnPrintln,
+		"@listItemAt":  (*Interp).primFnListItemAt,
+		"@listSlice":   (*Interp).primFnListSlice,
 	}
 )
 
@@ -159,14 +161,14 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 	}
 	body := args[1]
 	if len(args) > 2 {
-		do := &MoExpr{SrcSpan: srcFileSpanFrom(args[1:]...), Val: moPrimOpDo}
+		do := &MoExpr{SrcSpan: srcSpanFrom(args[1:]), Val: moPrimOpDo}
 		body = &MoExpr{
 			SrcSpan: do.SrcSpan,
 			Val:     append(moValCall{do}, args[1:]...),
 		}
 	}
 	expr := &MoExpr{
-		SrcSpan: srcFileSpanFrom(args...),
+		SrcSpan: srcSpanFrom(args),
 		Val:     &moValFnLam{params: args[0].Val.(moValList), body: body, env: env},
 	}
 	return nil, expr, nil
@@ -383,4 +385,50 @@ func (me *Interp) primFnPrintln(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 		os.Stdout.WriteString("\n")
 	}
 	return expr, err
+}
+
+func (me *Interp) primFnListItemAt(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeUint, args[1]); err != nil {
+		return nil, err
+	}
+	list, idx := args[0].Val.(moValList), args[1].Val.(moValUint)
+	if idx_downcast := int(idx); (idx_downcast < 0) || (idx_downcast >= len(list)) {
+		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeListIndexOutOfBounds, idx_downcast, len(list))
+	}
+	return list[idx], nil
+}
+
+func (me *Interp) primFnListSlice(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 3, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeUint, args[1]); err != nil {
+		return nil, err
+	}
+	list, idx_start := args[0].Val.(moValList), args[1].Val.(moValUint)
+	if len(args) == 2 {
+		args = append(args, &MoExpr{Val: moValUint(len(list)), SrcSpan: srcSpanFrom(args)})
+	} else if err := me.checkIs(MoPrimTypeUint, args[2]); err != nil {
+		return nil, err
+	}
+	idx_end := args[2].Val.(moValUint)
+	if idx_end < idx_start {
+		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeListRangeNegative, idx_end, idx_start)
+	} else if idx_downcast := int(idx_start); (idx_downcast < 0) || (idx_downcast > len(list)) {
+		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeListIndexOutOfBounds, idx_downcast, len(list))
+	}
+	if idx_downcast := int(idx_end); (idx_downcast < 0) || (idx_downcast > len(list)) {
+		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeListIndexOutOfBounds, idx_downcast, len(list))
+	}
+
+	return &MoExpr{Val: list[idx_start:idx_end], SrcSpan: srcSpanFrom(util.If(idx_start == idx_end, args, list[idx_start:idx_end]))}, nil
 }

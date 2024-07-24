@@ -48,7 +48,7 @@ func (me SrcFileSpan) String() string {
 	return str.Fmt("%s-%s", me.Start.String(), me.End.String())
 }
 
-func srcFileSpanFrom(exprs ...*MoExpr) (ret *SrcFileSpan) {
+func srcSpanFrom(exprs []*MoExpr) (ret *SrcFileSpan) {
 	for _, expr := range exprs {
 		if expr.SrcSpan != nil {
 			if ret == nil {

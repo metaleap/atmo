@@ -157,7 +157,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			if n > 0 {
 				w.WriteString(", ")
 			}
-			if ident, _ := k.Val.(moValIdent); (ident != "") && (ident[0] == '@') {
+			if ident, is := k.Val.(moValIdent); is && ((ident == "") || (ident[0] == '@')) {
 				w.WriteString(str.Q(string(ident)))
 			} else {
 				k.WriteTo(w)
