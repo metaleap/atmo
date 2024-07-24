@@ -35,7 +35,9 @@ var (
 
 func init() {
 	for k, v := range map[moValIdent]moFnLazy{
-		"@set": (*Interp).primOpSet,
+		"@set":   (*Interp).primOpSet,
+		"@quote": (*Interp).primOpQuote,
+		"#":      (*Interp).primOpQuote,
 	} {
 		moPrimOpsLazy[k] = v
 	}
@@ -92,8 +94,8 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 		return nil, nil, err
 	}
 	name := args[0].Val.(moValIdent)
-	if is_reserved := (name[0] == '@'); is_reserved {
-		return nil, nil, me.diagNode(false, true, args[0]).newDiagErr(false, NoticeCodeReserved, name, "@")
+	if is_reserved := ((name[0] == '@') || moPrimOpsLazy[name] != nil); is_reserved {
+		return nil, nil, me.diagNode(false, true, args[0]).newDiagErr(false, NoticeCodeReserved, name, string(rune(name[0])))
 	}
 	owner_env, _ := env.lookupOwner(name)
 	if owner_env == nil {
@@ -105,6 +107,13 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	}
 	owner_env.set(name, new_value)
 	return nil, moValNone, nil
+}
+
+func (me *Interp) primOpQuote(_ *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, nil, err
+	}
+	return nil, args[0], nil
 }
 
 // eager prim-ops below, lazy ones above
