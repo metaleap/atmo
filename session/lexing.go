@@ -11,48 +11,6 @@ import (
 	"atmo/util/str"
 )
 
-// SrcFilePos Line and Char both start at 1
-type SrcFilePos struct {
-	// Line starts at 1
-	Line int
-	// Char starts at 1
-	Char int
-}
-
-func (me *SrcFilePos) after(it *SrcFilePos) bool {
-	return util.If(me.Line == it.Line, me.Char > it.Char, me.Line > it.Line)
-}
-func (me *SrcFilePos) afterOrAt(it *SrcFilePos) bool {
-	return util.If(me.Line == it.Line, me.Char >= it.Char, me.Line > it.Line)
-}
-func (me *SrcFilePos) before(it *SrcFilePos) bool {
-	return util.If(me.Line == it.Line, me.Char < it.Char, me.Line < it.Line)
-}
-func (me *SrcFilePos) beforeOrAt(it *SrcFilePos) bool {
-	return util.If(me.Line == it.Line, me.Char <= it.Char, me.Line < it.Line)
-}
-func (me *SrcFilePos) String() string { return str.Fmt("%d,%d", me.Line, me.Char) }
-func (me SrcFilePos) ToSpan() (ret SrcFileSpan) {
-	ret.Start, ret.End = me, me
-	return
-}
-
-type SrcFileSpan struct {
-	Start SrcFilePos
-	End   SrcFilePos
-}
-
-func (me SrcFileSpan) contains(it *SrcFilePos) bool {
-	return it.afterOrAt(&me.Start) && it.beforeOrAt(&me.End)
-}
-func (me *SrcFileSpan) isSinglePos() bool { return me.Start == me.End }
-func (me SrcFileSpan) String() string {
-	if me.isSinglePos() {
-		return me.Start.String()
-	}
-	return str.Fmt("%s-%s", me.Start.String(), me.End.String())
-}
-
 type Toks []*Tok
 type Tok struct {
 	byteOffset int

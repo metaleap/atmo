@@ -187,19 +187,6 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 	return
 }
 
-func (me *SrcFile) Span() (ret SrcFileSpan) {
-	ret.Start, ret.End = SrcFilePos{Line: 1, Char: 1}, SrcFilePos{Line: 1, Char: 1}
-	for i := 0; i < len(me.Src.Text); i++ {
-		if me.Src.Text[i] == '\n' {
-			ret.End.Line++
-		}
-	}
-	if (me.Src.Text != "") && (me.Src.Text[len(me.Src.Text)-1] != '\n') {
-		ret.End.Line++
-	}
-	return
-}
-
 func (me *SrcPack) srcFilePaths() []string {
 	return sl.As(me.Files, func(it *SrcFile) string { return it.FilePath })
 }

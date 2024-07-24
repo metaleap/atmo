@@ -95,7 +95,7 @@ func (me *moValFnLam) String() string       { return moValToString(me) }
 
 type MoExpr struct {
 	Val     MoVal
-	SrcSpan Toks `json:"-"`
+	SrcSpan *SrcFileSpan `json:"-"`
 }
 
 func (me *MoExpr) Callee() *MoExpr {
@@ -103,6 +103,12 @@ func (me *MoExpr) Callee() *MoExpr {
 		return call[0]
 	}
 	return nil
+}
+
+func (me *MoExpr) setSrcSpanIfNone(from *MoExpr) {
+	if me.SrcSpan == nil {
+		me.SrcSpan = from.SrcSpan
+	}
 }
 
 func (me *MoExpr) String() string {
@@ -315,7 +321,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			val = call_form
 		}
 	}
-	ret := &MoExpr{SrcSpan: node.Toks, Val: val}
+	ret := &MoExpr{SrcSpan: util.Ptr(node.Toks.Span()), Val: val}
 	// if val != nil {
 	// 	os.Stdout.WriteString(">>>")
 	// 	ret.WriteTo(os.Stdout)

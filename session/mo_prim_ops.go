@@ -97,7 +97,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	}
 	name := args[0].Val.(moValIdent)
 	if is_reserved := ((name[0] == '@') || moPrimOpsLazy[name] != nil); is_reserved {
-		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(false, NoticeCodeReserved, name, string(rune(name[0])))
+		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0])))
 	}
 	owner_env, _ := env.lookupOwner(name)
 	if owner_env == nil {
@@ -140,10 +140,15 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 	}
 	body := args[1]
 	if len(args) > 2 {
-		body = &MoExpr{SrcSpan: nil, Val: append(moValCall{{SrcSpan: body.SrcSpan, Val: moValIdent("@do")}}, args[1:]...)}
+		do := &MoExpr{SrcSpan: srcFileSpanFrom(args[1:]...), Val: moValIdent("@do")}
+		body = &MoExpr{
+			SrcSpan: do.SrcSpan,
+			Val:     append(moValCall{do}, args[1:]...),
+		}
 	}
 	expr := &MoExpr{
-		Val: &moValFnLam{params: args[0].Val.(moValArr), body: body, env: env},
+		SrcSpan: srcFileSpanFrom(args...),
+		Val:     &moValFnLam{params: args[0].Val.(moValArr), body: body, env: env},
 	}
 	return nil, expr, nil
 }
