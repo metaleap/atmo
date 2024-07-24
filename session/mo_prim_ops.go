@@ -5,8 +5,8 @@ import (
 )
 
 var (
-	moStdLazy  = map[moValIdent]moFnLazy{}
-	moStdEager = map[moValIdent]moFnEager{}
+	moPrimOpsLazy  = map[moValIdent]moFnLazy{}
+	moPrimOpsEager = map[moValIdent]moFnEager{}
 )
 
 type MoEnv struct {
@@ -41,9 +41,13 @@ func (me *MoEnv) lookup(name moValIdent) *MoExpr {
 	return found
 }
 
-func (me *moValFunc) envWith(args []*MoExpr, diagCtx *MoExpr) (*MoEnv, *SrcFileNotice) {
-	if err := checkCount(len(me.params), len(me.params), args, diagCtx); err != nil {
+func (me *DefaultEvaler) envWith(fn *moValFnLam, args []*MoExpr) (*MoEnv, *SrcFileNotice) {
+	if err := me.checkCount(len(fn.params), len(fn.params), args); err != nil {
 		return nil, err
 	}
-	return newMoEnv(me.env, me.params, args), nil
+	return newMoEnv(fn.env, fn.params, args), nil
+}
+
+func primNumAddInt(...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	return nil, nil
 }
