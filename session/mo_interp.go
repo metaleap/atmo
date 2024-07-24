@@ -74,7 +74,7 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 				default:
 					return nil, me.diagNode(true, false).newDiagErr(false, NoticeCodeUncallable, callee.String())
 				case moValFnPrim:
-					if expr, err = fn(me, call_args...); err != nil {
+					if expr, err = fn(me, env, call_args...); err != nil {
 						return nil, err
 					}
 					env, me.diagCtxCall = nil, diag_ctx_prev
@@ -95,11 +95,13 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	switch val := expr.Val.(type) {
 	case moValIdent:
-		found := env.lookup(val)
-		if found == nil {
-			return nil, me.diagNode(false, true, expr).newDiagErr(false, NoticeCodeUndefined, val)
-		}
-		return found, nil
+		if (val[0] != '@') || ((moPrimIdents[val] == nil) && (moPrimOpsLazy[val] == nil)) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
+			found := env.lookup(val)
+			if found == nil {
+				return nil, me.diagNode(false, true, expr).newDiagErr(false, NoticeCodeUndefined, val)
+			}
+			return found, nil
+		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
 	case moValArr:
 		arr := make(moValArr, len(val))
 		for i, item := range val {
@@ -162,11 +164,11 @@ func (me *Interp) diagNode(preferCalleeOverCall bool, preferTheseEvenMore bool, 
 	return
 }
 
-func (me *Interp) callWithDiagCtxSet(fnOrFuncExpr *MoExpr, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) callWithDiagCtxSet(env *MoEnv, fnOrFuncExpr *MoExpr, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	util.Assert(me.diagCtxCall != nil, nil)
 	switch fn := fnOrFuncExpr.Val.(type) {
 	case moValFnPrim:
-		return fn(me, args...)
+		return fn(me, env, args...)
 	case *moValFnLam:
 		env, err := me.envWith(fn, args)
 		if err != nil {
@@ -189,7 +191,7 @@ func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice
 	diag_ctx := me.diagCtxCall
 	for fn := expr.macroCallCallee(env); fn != nil; fn = expr.macroCallCallee(env) {
 		me.diagCtxCall = expr
-		it, err := me.callWithDiagCtxSet(fn, expr.Val.(moValCall)[1:]...)
+		it, err := me.callWithDiagCtxSet(env, fn, expr.Val.(moValCall)[1:]...)
 		if err != nil {
 			return nil, err
 		}
@@ -233,7 +235,7 @@ func (me *Interp) checkIs(want MoValType, have *MoExpr) *SrcFileNotice {
 	return nil
 }
 
-func (me *Interp) checkAre(want MoValType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *SrcFileNotice {
+func (me *Interp) check(want MoValType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *SrcFileNotice {
 	if err := me.checkCount(wantAtLeast, wantAtMost, have); err != nil {
 		return err
 	}

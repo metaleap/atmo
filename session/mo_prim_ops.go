@@ -23,12 +23,14 @@ var (
 		"@numFloatSub": makeArithPrimOp[moValFloat](MoValTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) - opr.(moValFloat) }),
 		"@numFloatMul": makeArithPrimOp[moValFloat](MoValTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) * opr.(moValFloat) }),
 		"@numFloatDiv": makeArithPrimOp[moValFloat](MoValTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) / opr.(moValFloat) }),
+		"@call":        (*Interp).primFnCall,
+		"@env":         (*Interp).primFnEnv,
 	}
 )
 
 func init() {
 	for k, v := range map[moValIdent]moFnLazy{
-		"@set": (*Interp).primSet,
+		"@set": (*Interp).primOpSet,
 	} {
 		moPrimOpsLazy[k] = v
 	}
@@ -77,7 +79,7 @@ func (me *MoEnv) lookupOwner(name moValIdent) (*MoEnv, *MoExpr) {
 
 // lazy prim-ops first, eager prim-ops afterwards
 
-func (me *Interp) primSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, nil, err
 	}
@@ -97,16 +99,49 @@ func (me *Interp) primSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFil
 		return nil, nil, err
 	}
 	owner_env.set(name, new_value)
-	return nil, new_value, nil
+	return nil, moValNone, nil
 }
 
 // eager prim-ops below, lazy ones above
 
 func makeArithPrimOp[T moValInt | moValUint | moValFloat](t MoValType, f func(opl MoVal, opr MoVal) MoVal) moFnEager {
-	return func(me *Interp, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-		if err := me.checkAre(t, 2, 2, args...); err != nil {
+	return func(me *Interp, _ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+		if err := me.check(t, 2, 2, args...); err != nil {
 			return nil, err
 		}
 		return &MoExpr{Val: f(args[0].Val, args[1].Val)}, nil
 	}
+}
+
+func (me *Interp) primFnEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(0, 0, args); err != nil {
+		return nil, err
+	}
+	ret := &MoExpr{Val: make(moValRec, len(me.Env.Own)+len(env.Own))}
+	var populate func(it *MoEnv, into *MoExpr) *MoExpr
+	populate = func(it *MoEnv, into *MoExpr) *MoExpr {
+		for k, v := range it.Own {
+			into.Val.(moValRec)[&MoExpr{Val: k}] = v
+		}
+		if it.Outer != nil {
+			rec := &MoExpr{Val: make(moValRec, len(env.Outer.Own))}
+			into.Val.(moValRec)[&MoExpr{Val: moValIdent("")}] = populate(it.Outer, rec)
+		}
+		return into
+	}
+	populate(env, ret)
+	return ret, nil
+}
+
+func (me *Interp) primFnCall(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, -1, args); err != nil {
+		return nil, err
+	}
+	// if ident,_ := args[0].Val.(moValIdent);ident!="" {
+
+	// }
+	if err := me.checkIs(MoValTypeFunc, args[0]); err != nil {
+		return nil, err
+	}
+	return me.callWithDiagCtxSet(env, args[0], args[1:]...)
 }

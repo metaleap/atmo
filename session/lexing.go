@@ -109,14 +109,14 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 		tok := &Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
 		tok.Src = curFullSrcFileContent[tok.byteOffset : tok.byteOffset+len(scan.TokenText())] // to avoid all those string copies we'd have if we just did tok.Src=scan.TokenText()
 		switch lexeme {
-		case scanner.Char:
-			tok.Kind = TokKindLitRune
-		case scanner.Comment:
-			tok.Kind = TokKindComment
 		case scanner.Int:
 			tok.Kind = TokKindLitInt
 		case scanner.Float:
 			tok.Kind = TokKindLitFloat
+		case scanner.Char:
+			tok.Kind = TokKindLitRune
+		case scanner.Comment:
+			tok.Kind = TokKindComment
 		case scanner.String, scanner.RawString:
 			tok.Kind = TokKindLitStr
 		case scanner.Ident:
@@ -192,6 +192,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 			tok.Kind, tok.Src = TokKindLitInt, tok.Src[:len(tok.Src)-1]
 			ret = append(ret, tok, dot)
 			tok = dot // so that `prev` will be correct
+			// case (prev != nil) && ((tok.Kind == TokKindLitInt) || (tok.Kind == TokKindLitFloat)) && (prev.Src == "-") && tok.isWhitespacelesslyRightAfter(prev):
 		}
 
 		prev = tok

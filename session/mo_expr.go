@@ -12,16 +12,16 @@ import (
 
 var (
 	moPrimIdents = map[moValIdent]*MoExpr{
-		moValNone:  {Val: moValNone},
-		moValTrue:  {Val: moValTrue},
-		moValFalse: {Val: moValFalse},
+		moValNone.Val.(moValIdent):  moValNone,
+		moValTrue.Val.(moValIdent):  moValTrue,
+		moValFalse.Val.(moValIdent): moValFalse,
 	}
-	moValNone  = moValIdent("@none")
-	moValTrue  = moValIdent("@true")
-	moValFalse = moValIdent("@false")
+	moValNone  = &MoExpr{Val: moValIdent("@none")}
+	moValTrue  = &MoExpr{Val: moValIdent("@true")}
+	moValFalse = &MoExpr{Val: moValIdent("@false")}
 )
 
-type moFnEager = func(ctx *Interp, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
+type moFnEager = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice)
 
 type MoValType int
@@ -123,7 +123,11 @@ func (me *MoExpr) WriteTo(w io.StringWriter) {
 			if n > 0 {
 				w.WriteString(", ")
 			}
-			k.WriteTo(w)
+			if ident, _ := k.Val.(moValIdent); (ident != "") && (ident[0] == '@') {
+				w.WriteString(str.Q(string(ident)))
+			} else {
+				k.WriteTo(w)
+			}
 			w.WriteString(": ")
 			v.WriteTo(w)
 			n++
