@@ -37,7 +37,7 @@ const (
 
 	// semantic
 	NoticeCodeExpectedFoo SrcFileNoticeCode = "Unexpected"
-	NoticeCodeUndefined   SrcFileNoticeCode = "Undefined"
+	NoticeCodeUndefined   SrcFileNoticeCode = "Unresolved"
 	NoticeCodeUncallable  SrcFileNoticeCode = "NotCallable"
 	NoticeCodeReserved    SrcFileNoticeCode = "Reserved"
 )
