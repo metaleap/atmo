@@ -116,6 +116,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	if owner_env == nil {
 		owner_env = env
 	}
+
 	const can_set_macros = false
 	if (!can_set_macros) && (found != nil) {
 		if fn, _ := found.Val.(*moValFnLam); (fn != nil) && fn.isMacro {
