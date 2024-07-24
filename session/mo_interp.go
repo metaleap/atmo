@@ -37,6 +37,7 @@ func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	var err *SrcFileNotice
 	diag_ctx_orig := me.diagCtxCall
+	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
 	for (err == nil) && (env != nil) {
 		if _, is_call := expr.Val.(moValCall); !is_call {
 			expr, err = me.evalExpr(env, expr)
@@ -104,16 +105,16 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			return found, nil
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
-	case moValArr:
-		arr := make(moValArr, len(val))
+	case moValSlice:
+		list := make(moValSlice, len(val))
 		for i, item := range val {
 			it, err := me.evalAndApply(env, item)
 			if err != nil {
 				return nil, err
 			}
-			arr[i] = it
+			list[i] = it
 		}
-		return &MoExpr{Val: arr, SrcSpan: expr.SrcSpan}, nil
+		return &MoExpr{Val: list, SrcSpan: expr.SrcSpan}, nil
 	case moValRec:
 		rec := make(moValRec, len(val))
 		for k, v := range val {
@@ -239,13 +240,22 @@ func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *SrcFileNotice {
 }
 
 func (me *Interp) checkIsList(of MoValPrimType, expr *MoExpr) *SrcFileNotice {
-	if err := me.checkIs(MoPrimTypeArr, expr); err != nil {
+	if err := me.checkIs(MoPrimTypeSlice, expr); err != nil {
 		return err
 	}
 	if of >= 0 {
-		return me.check(of, -1, -1, expr.Val.(moValArr)...)
+		return me.check(of, -1, -1, expr.Val.(moValSlice)...)
 	}
 	return nil
+}
+
+func (me *Interp) checkIsCallOnIdent(call *MoExpr, ident moValIdent, errIfNumArgsNot int) (bool, *SrcFileNotice) {
+	if call, is := call.Val.(moValCall); is {
+		if callee, _ := call[0].Val.(moValIdent); callee == ident {
+			return true, me.checkCount(errIfNumArgsNot, errIfNumArgsNot, call[1:])
+		}
+	}
+	return false, nil
 }
 
 func (me *Interp) check(want MoValPrimType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *SrcFileNotice {

@@ -37,10 +37,14 @@ const (
 	MoPrimTypeStr
 	MoPrimTypeErr
 	MoPrimTypeRec
-	MoPrimTypeArr
+	MoPrimTypeSlice
 	MoPrimTypeCall
 	MoPrimTypeFunc
 )
+
+func (me MoValPrimType) isAtomic() bool {
+	return (me != MoPrimTypeErr) && (me != MoPrimTypeSlice) && (me != MoPrimTypeCall) && (me != MoPrimTypeRec) && (me != MoPrimTypeFunc)
+}
 
 type MoVal interface {
 	fmt.Stringer
@@ -56,7 +60,7 @@ type moValChar rune
 type moValStr string
 type moValErr struct{ Err *MoExpr }
 type moValRec map[*MoExpr]*MoExpr
-type moValArr []*MoExpr
+type moValSlice []*MoExpr
 type moValCall []*MoExpr
 type moValFnPrim moFnEager
 type moValFnLam struct {
@@ -75,7 +79,7 @@ func (moValChar) primType() MoValPrimType   { return MoPrimTypeChar }
 func (moValStr) primType() MoValPrimType    { return MoPrimTypeStr }
 func (moValErr) primType() MoValPrimType    { return MoPrimTypeErr }
 func (moValRec) primType() MoValPrimType    { return MoPrimTypeRec }
-func (moValArr) primType() MoValPrimType    { return MoPrimTypeArr }
+func (moValSlice) primType() MoValPrimType  { return MoPrimTypeSlice }
 func (moValCall) primType() MoValPrimType   { return MoPrimTypeCall }
 func (moValFnPrim) primType() MoValPrimType { return MoPrimTypeFunc }
 func (*moValFnLam) primType() MoValPrimType { return MoPrimTypeFunc }
@@ -88,7 +92,7 @@ func (me moValChar) String() string         { return moValToString(me) }
 func (me moValStr) String() string          { return moValToString(me) }
 func (me moValErr) String() string          { return moValToString(me) }
 func (me moValRec) String() string          { return moValToString(me) }
-func (me moValArr) String() string          { return moValToString(me) }
+func (me moValSlice) String() string        { return moValToString(me) }
 func (me moValCall) String() string         { return moValToString(me) }
 func (me moValFnPrim) String() string       { return moValToString(me) }
 func (me *moValFnLam) String() string       { return moValToString(me) }
@@ -155,7 +159,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			n++
 		}
 		w.WriteString("}")
-	case moValArr:
+	case moValSlice:
 		w.WriteString("[")
 		for i, item := range it {
 			if i > 0 {
@@ -208,8 +212,8 @@ func (me MoValPrimType) Str(forDiag bool) string {
 		return util.If(forDiag, "error", "@Err")
 	case MoPrimTypeRec:
 		return util.If(forDiag, "record", "@Rec")
-	case MoPrimTypeArr:
-		return util.If(forDiag, "list", "@Arr")
+	case MoPrimTypeSlice:
+		return util.If(forDiag, "list", "@List")
 	case MoPrimTypeCall:
 		return util.If(forDiag, "call", "@Call")
 	case MoPrimTypeFunc:
@@ -280,15 +284,15 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	case AstNodeKindGroup:
 		switch {
 		case node.IsSquareBrackets():
-			arr := make(moValArr, 0, len(node.Nodes))
+			list := make(moValSlice, 0, len(node.Nodes))
 			for _, node := range node.Nodes {
 				expr, err := me.exprFromAstNode(node)
 				if err != nil {
 					return nil, err
 				}
-				arr = append(arr, expr)
+				list = append(list, expr)
 			}
-			val = arr
+			val = list
 		case node.IsCurlyBraces():
 			rec := make(moValRec, len(node.Nodes))
 			for _, node := range node.Nodes {
