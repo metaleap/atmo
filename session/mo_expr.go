@@ -91,7 +91,7 @@ type moValFloat float64
 type moValChar rune
 type moValStr string
 type moValErr struct{ Err *MoExpr }
-type moValRec map[*MoExpr]*MoExpr
+type moValRec map[*MoExpr]*MoExpr // [][2]*MoExpr
 type moValList []*MoExpr
 type moValCall []*MoExpr
 type moValFnPrim moFnEager

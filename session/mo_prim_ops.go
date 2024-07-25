@@ -13,6 +13,10 @@ var (
 		// populated in `init()` below to avoid initialization-cycle error
 	}
 	moPrimOpsEager = map[moValIdent]moFnEager{ // "eager" prim-ops receive already-evaluated args like any other func. eg. prim-type intrinsics like arithmetics, list concat etc
+		"@sessEnv":     (*Interp).primFnSessEnv,
+		"@sessPrintf":  (*Interp).primFnSessPrintf,
+		"@sessPrint":   (*Interp).primFnSessPrint,
+		"@sessPrintln": (*Interp).primFnSessPrintln,
 		"@numIntAdd":   makeArithPrimOp[moValInt](MoPrimTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) + opr.(moValInt) }),
 		"@numIntSub":   makeArithPrimOp[moValInt](MoPrimTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) - opr.(moValInt) }),
 		"@numIntMul":   makeArithPrimOp[moValInt](MoPrimTypeInt, func(opl MoVal, opr MoVal) MoVal { return opl.(moValInt) * opr.(moValInt) }),
@@ -28,14 +32,14 @@ var (
 		"@numFloatMul": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) * opr.(moValFloat) }),
 		"@numFloatDiv": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) / opr.(moValFloat) }),
 		"@fnCall":      (*Interp).primFnFuncCall,
-		"@sessEnv":     (*Interp).primFnSessEnv,
-		"@sessPrintf":  (*Interp).primFnSessPrintf,
-		"@sessPrint":   (*Interp).primFnSessPrint,
-		"@sessPrintln": (*Interp).primFnSessPrintln,
 		"@listItemAt":  (*Interp).primFnListItemAt,
 		"@listRange":   (*Interp).primFnListRange,
 		"@listLen":     (*Interp).primFnListLen,
 		"@listConcat":  (*Interp).primFnListConcat,
+		"@recHas":      (*Interp).primFnRecHas,
+		"@recGet":      (*Interp).primFnRecGet,
+		"@recSet":      (*Interp).primFnRecSet,
+		"@recSans":     (*Interp).primFnRecSans,
 		"@strConcat":   (*Interp).primFnStrConcat,
 		"@strLen":      (*Interp).primFnStrLen,
 		"@strCharAt":   (*Interp).primFnStrCharAt,
@@ -539,4 +543,47 @@ func (me *Interp) primFnExprParse(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 		return nil, err
 	}
 	return me.Parse(string(args[0].Val.(moValStr)))
+}
+
+func (me *Interp) primFnRecHas(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeRec, args[0]); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (me *Interp) primFnRecGet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeRec, args[0]); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (me *Interp) primFnRecSet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(3, 3, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeRec, args[0]); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func (me *Interp) primFnRecSans(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, -1, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeRec, args[0]); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }
