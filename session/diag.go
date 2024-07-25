@@ -110,7 +110,7 @@ func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNo
 	return &SrcFileNotice{Kind: NoticeKindErr, Message: err_msg, Code: code, Span: span}
 }
 
-func (me *SrcFile) allNotices() (ret sl.Of[*SrcFileNotice]) {
+func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 	has_brace_err := me.Src.Ast.has(true, func(node *AstNode) bool {
 		return (node.errParsing != nil) && (node.errParsing.Code == NoticeCodeBracesMismatch)
 	})

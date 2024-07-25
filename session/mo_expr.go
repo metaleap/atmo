@@ -188,6 +188,13 @@ type MoExpr struct {
 	SrcFile *SrcFile     `json:"-"` // dito
 }
 
+func (me *MoExpr) srcNode() *AstNode {
+	if (me.SrcFile != nil) && (me.SrcSpan != nil) {
+		me.SrcFile.NodeAtPos(me.SrcSpan.Start, false)
+	}
+	return nil
+}
+
 func (me *MoExpr) Callee() *MoExpr {
 	if call, is := me.Val.(moValCall); is {
 		return call[0]
@@ -390,7 +397,7 @@ func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
 	util.Assert((topNode.Kind == AstNodeKindGroup) && (len(topNode.Nodes) > 0), nil)
 	if len(topNode.Nodes) > 1 {
-		topNode.Nodes = []*AstNode{topNode.Nodes.toGroupNode(me, topNode, true, false)}
+		topNode.Nodes = AstNodes{topNode.Nodes.toGroupNode(me, topNode, true, false)}
 	}
 	return me.exprFromAstNode(topNode.Nodes[0])
 }

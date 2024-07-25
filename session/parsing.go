@@ -182,7 +182,7 @@ func parseLit[T cmp.Ordered](toks Toks, kind AstNodeKind, parseFunc func(string)
 	return &AstNode{Kind: kind, Toks: toks[:1], Src: tok.Src, Lit: lit}
 }
 
-func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
+func (me *SrcFile) NodeAtPos(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 	for _, node := range me.Src.Ast {
 		if node.Toks.Span().contains(&pos) {
 			ret = node.find(func(it *AstNode) bool {
@@ -192,6 +192,19 @@ func (me *SrcFile) NodeAt(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 				ret = node
 			}
 			break
+		}
+	}
+	return
+}
+
+func (me *SrcFile) NodeAtSpan(span *SrcFileSpan) (ret *AstNode) {
+	for _, node := range me.Src.Ast {
+		if span := node.Toks.Span(); span.contains(&span.Start) || span.contains(&span.End) {
+			if ret = node.find(func(it *AstNode) bool {
+				return it.Toks.Span() == span
+			}); ret != nil {
+				break
+			}
 		}
 	}
 	return
@@ -249,7 +262,7 @@ func (me *AstNode) equals(it *AstNode, withoutComments bool) bool {
 	}
 }
 
-func (me *AstNode) find(where func(*AstNode) bool) (ret *AstNode) {
+func (me *AstNode) find(where func(node *AstNode) bool) (ret *AstNode) {
 	me.walk(func(node *AstNode) bool {
 		if ret == nil && where(node) {
 			ret = node

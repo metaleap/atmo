@@ -156,7 +156,7 @@ func init() {
 			session.LockedDo(func(sess session.StateAccess) {
 				if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 					for _, pos := range params.Positions {
-						if node := src_file.NodeAt(lsp.LspPosToPos(&pos), true); node == nil {
+						if node := src_file.NodeAtPos(lsp.LspPosToPos(&pos), true); node == nil {
 							ret = nil
 							break
 						} else {

@@ -14,9 +14,8 @@ type SrcPack struct {
 	Files   []*SrcFile
 	Sema    struct {
 		Eval *Interp
-		Top  []*MoExpr
+		Top  MoExprs
 	}
-	Est EstNodes
 }
 
 type SrcFile struct {
@@ -30,6 +29,7 @@ type SrcFile struct {
 	notices struct {
 		LastReadErr *SrcFileNotice
 		LexErrs     SrcFileNotices
+		Sema        SrcFileNotices
 	}
 }
 
@@ -91,7 +91,7 @@ func removeSrcFiles(srcFilePaths ...string) {
 	}
 	for _, src_pack := range packs_encountered {
 		pack_file_paths = append(pack_file_paths, src_pack.srcFilePaths()...)
-		src_pack.refreshEst()
+		src_pack.refreshSema()
 	}
 	refreshAndPublishNotices(append(pack_file_paths, srcFilePaths...)...)
 }
@@ -184,7 +184,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 	}
 
 	for src_pack := range packs_to_refresh {
-		if src_pack.refreshEst() {
+		if src_pack.refreshSema() {
 			encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_pack.srcFilePaths()...)
 		}
 	}

@@ -153,7 +153,7 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 	list := args[1].Val.(moValList)
 	body := list[0]
 	if len(list) > 1 {
-		do := me.expr(moPrimOpDo, body.SrcFile, srcSpanFrom(list))
+		do := me.expr(moPrimOpDo, body.SrcFile, srcSpanFrom(MoExprs(list)))
 		body = me.expr(moValCall{do, me.expr(list, do.SrcFile, do.SrcSpan)}, do.SrcFile, do.SrcSpan)
 	}
 	expr := me.expr(

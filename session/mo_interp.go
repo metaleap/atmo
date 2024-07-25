@@ -29,10 +29,12 @@ type Interp struct {
 }
 
 func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
-	ret := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, replFauxFile: replFauxFile}
-	ret.StdIo.In, ret.StdIo.Out, ret.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
-	ret.ensureRootEnvPopulated()
-	return &ret
+	me := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, replFauxFile: replFauxFile}
+	me.StdIo.In, me.StdIo.Out, me.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
+	me.ensureRootEnvPopulated()
+	me.Pack.Sema.Eval = &me
+	me.Pack.refreshSema()
+	return &me
 }
 
 func (me *Interp) ClearStackTrace() {
