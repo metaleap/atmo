@@ -44,6 +44,11 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 		type moNode struct {
 			PrimTypeTag session.MoValPrimType
 			Nodes       []*moNode
+			ClientInfo  struct {
+				SrcFilePath string               `json:",omitempty"`
+				SrcFileSpan *session.SrcFileSpan `json:",omitempty"`
+				SrcFileText string               `json:",omitempty"`
+			}
 		}
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
@@ -70,6 +75,17 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							case session.MoValList:
 								for _, item := range it {
 									ret.Nodes = append(ret.Nodes, convert(item))
+								}
+							}
+							if expr.SrcSpan != nil {
+								ret.ClientInfo.SrcFileSpan = expr.SrcSpan
+							}
+							if expr.SrcFile != nil {
+								ret.ClientInfo.SrcFilePath = expr.SrcFile.FilePath
+							}
+							if (expr.SrcFile != nil) && (expr.SrcSpan != nil) {
+								if node := expr.SrcFile.NodeAtSpan(expr.SrcSpan); node != nil {
+									ret.ClientInfo.SrcFileText = node.Src
 								}
 							}
 							return &ret

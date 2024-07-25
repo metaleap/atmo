@@ -196,9 +196,9 @@ func (me *SrcFile) NodeAtPos(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 
 func (me *SrcFile) NodeAtSpan(span *SrcFileSpan) (ret *AstNode) {
 	for _, node := range me.Src.Ast {
-		if span := node.Toks.Span(); span.contains(&span.Start) || span.contains(&span.End) {
+		if node_span := node.Toks.Span(); node_span.contains(&span.Start) || node_span.contains(&span.End) {
 			if ret = node.find(func(it *AstNode) bool {
-				return it.Toks.Span() == span
+				return it.Toks.Span() == *span
 			}); ret != nil {
 				break
 			}
