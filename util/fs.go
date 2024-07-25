@@ -40,10 +40,14 @@ func FsIsNewerThan(file1Path string, file2Path string) bool {
 }
 
 func FsDirWalk(dirPath string, onDirEntry func(fsPath string, fsEntry fs.DirEntry)) error {
-	return fs.WalkDir(os.DirFS(dirPath), ".", func(path string, dirEntry fs.DirEntry, err error) error {
+	dir_path, err := filepath.Abs(dirPath)
+	if err != nil {
+		return err
+	}
+	return fs.WalkDir(os.DirFS(dir_path), ".", func(path string, dirEntry fs.DirEntry, err error) error {
 		if err == nil {
-			fs_path := filepath.Join(dirPath, path)
-			if fs_path != dirPath { // dont want that DirEntry with Name()=="." in *our* walks
+			fs_path := filepath.Join(dir_path, path)
+			if fs_path != dir_path { // dont want that DirEntry with Name()=="." in *our* walks
 				onDirEntry(fs_path, dirEntry)
 			}
 		}

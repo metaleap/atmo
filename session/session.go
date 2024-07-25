@@ -3,6 +3,7 @@ package session
 import (
 	"cmp"
 	"io/fs"
+	"path/filepath"
 	"sync"
 
 	"atmo/util"
@@ -66,11 +67,12 @@ func (*stateAccess) PacksFsRefresh() {
 	packsFsRefresh()
 }
 
-func (*stateAccess) GetSrcPack(dirPath string, loadIfMissing bool) (ret *SrcPack) {
-	ret = state.srcPacks[dirPath]
+func (*stateAccess) GetSrcPack(packDirPath string, loadIfMissing bool) (ret *SrcPack) {
+	util.Assert(filepath.IsAbs(packDirPath), nil)
+	ret = state.srcPacks[packDirPath]
 	if (ret == nil) && loadIfMissing {
 		var src_file_paths []string
-		util.FsDirWalk(dirPath, func(fsPath string, fsEntry fs.DirEntry) {
+		util.FsDirWalk(packDirPath, func(fsPath string, fsEntry fs.DirEntry) {
 			if IsSrcFilePath(fsPath) {
 				src_file_paths = append(src_file_paths, fsPath)
 			}
@@ -78,16 +80,21 @@ func (*stateAccess) GetSrcPack(dirPath string, loadIfMissing bool) (ret *SrcPack
 		if refr_diags_for := ensureSrcFiles(nil, true, src_file_paths...); len(refr_diags_for) > 0 {
 			refreshAndPublishNotices(refr_diags_for...)
 		}
+		ret = state.srcPacks[packDirPath]
 	}
 	return
 }
 
-func (me *stateAccess) Interpreter(dirPath string) *Interp {
-	src_file_path := newSrcFilePathFakeAndReplish(dirPath)
+func (me *stateAccess) Interpreter(packDirPath string) *Interp {
+	util.Assert(filepath.IsAbs(packDirPath), nil)
+	src_pack := me.GetSrcPack(packDirPath, true)
+	src_file_path := newSrcFilePathFakeAndReplish(packDirPath)
 	me.SrcFile(src_file_path, true)
 	src_file := state.srcFiles[src_file_path]
 	util.Assert(src_file != nil, nil)
-	return newInterp(src_file.pack, src_file)
+	util.Assert(src_pack != nil, nil)
+	util.Assert(src_file.pack == src_pack, nil)
+	return newInterp(src_pack, src_file)
 }
 
 func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {

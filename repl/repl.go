@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"atmo/session"
@@ -41,7 +42,11 @@ func Main() {
 	}
 
 	session.LockedDo(func(sess session.StateAccess) {
-		interp = sess.Interpreter(".")
+		dir_path, err := filepath.Abs(".")
+		if err != nil {
+			panic(err)
+		}
+		interp = sess.Interpreter(dir_path)
 		interp.StackTraces = true
 	})
 
