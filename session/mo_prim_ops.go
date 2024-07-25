@@ -2,7 +2,6 @@ package session
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"atmo/util"
@@ -31,6 +30,7 @@ var (
 		"@numFloatSub": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) - opr.(moValFloat) }),
 		"@numFloatMul": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) * opr.(moValFloat) }),
 		"@numFloatDiv": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) / opr.(moValFloat) }),
+		"@primTypeTag": (*Interp).primFnPrimTypeTag,
 		"@fnCall":      (*Interp).primFnFuncCall,
 		"@listItemAt":  (*Interp).primFnListItemAt,
 		"@listRange":   (*Interp).primFnListRange,
@@ -109,15 +109,19 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 }
 
 func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (tailEnv *MoEnv, expr *MoExpr, err *SrcFileNotice) {
-	if err = me.checkCount(1, -1, args); err != nil {
+	if err = me.checkCount(1, 1, args); err != nil {
 		return
 	}
-	for _, arg := range args[:len(args)-1] {
-		if expr, err = me.evalAndApply(env, arg); err != nil {
+	if err = me.checkIs(MoPrimTypeList, args[0]); err != nil {
+		return
+	}
+	list := args[0].Val.(moValList)
+	for _, item := range list[:len(list)-1] {
+		if expr, err = me.evalAndApply(env, item); err != nil {
 			return
 		}
 	}
-	tailEnv, expr = env, args[len(args)-1]
+	tailEnv, expr = env, list[len(list)-1]
 	return
 }
 
@@ -131,18 +135,22 @@ func (me *Interp) primOpMacro(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *Sr
 }
 
 func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
-	if err := me.checkCount(2, -1, args); err != nil {
+	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, nil, err
 	}
 	if err := me.checkIsListOf(MoPrimTypeIdent, args[0]); err != nil {
 		return nil, nil, err
 	}
-	body := args[1]
-	if len(args) > 2 {
-		do := &MoExpr{SrcSpan: srcSpanFrom(args[1:]), Val: moPrimOpDo}
+	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
+		return nil, nil, err
+	}
+	list := args[1].Val.(moValList)
+	body := list[0]
+	if len(list) > 1 {
+		do := &MoExpr{SrcSpan: srcSpanFrom(list), Val: moPrimOpDo}
 		body = &MoExpr{
+			Val:     moValCall{do, &MoExpr{Val: list, SrcSpan: do.SrcSpan}},
 			SrcSpan: do.SrcSpan,
-			Val:     append(moValCall{do}, args[1:]...),
 		}
 	}
 	expr := &MoExpr{
@@ -345,7 +353,7 @@ func (me *Interp) primFnSessPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFile
 	for _, arg := range args[1:] {
 		fmt_args = append(fmt_args, arg.Val)
 	}
-	fmt.Fprintf(os.Stdout, string(args[0].Val.(moValStr)), fmt_args...)
+	fmt.Fprintf(me.StdIo.Out, string(args[0].Val.(moValStr)), fmt_args...)
 	return moValNone, nil
 }
 
@@ -353,13 +361,13 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if len(args) > 0 {
 		switch arg0 := args[0].Val; true {
 		case (arg0.primType() == MoPrimTypeStr) && (len(args) == 1):
-			os.Stdout.WriteString(string(arg0.(moValStr)))
+			me.StdIo.Out.WriteString(string(arg0.(moValStr)))
 		default:
 			for i, arg := range args {
 				if i > 0 {
-					os.Stdout.WriteString(" ")
+					me.StdIo.Out.WriteString(" ")
 				}
-				arg.WriteTo(os.Stdout)
+				arg.WriteTo(me.StdIo.Out)
 			}
 		}
 	}
@@ -369,7 +377,7 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	expr, err := me.primFnSessPrint(env, args...)
 	if err == nil {
-		os.Stdout.WriteString("\n")
+		me.StdIo.Out.WriteString("\n")
 	}
 	return expr, err
 }
@@ -596,4 +604,12 @@ func (me *Interp) primFnDictWithout(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFil
 	ret := me.withSrcSpan(args[0], args...)
 	ret.Val = ret.Val.(moValDict).Without(args[1:]...)
 	return ret, nil
+}
+
+func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
 }

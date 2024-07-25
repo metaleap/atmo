@@ -1,20 +1,35 @@
 package session
 
 import (
+	"io"
+	"os"
+
 	"atmo/util"
 	"atmo/util/str"
 )
+
+type Writer interface {
+	io.Writer
+	io.StringWriter
+}
 
 type Interp struct {
 	SrcFile        *SrcFile
 	Env            *MoEnv
 	StackTraces    bool
 	LastStackTrace []*MoExpr
-	diagCtxCall    *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
+	StdIo          struct {
+		In  io.Reader
+		Out Writer
+		Err Writer
+	}
+	diagCtxCall *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
 }
 
 func newInterp(srcFile *SrcFile) *Interp {
-	return &Interp{Env: newMoEnv(&rootEnv, nil, nil), SrcFile: srcFile}
+	ret := Interp{Env: newMoEnv(&rootEnv, nil, nil), SrcFile: srcFile}
+	ret.StdIo.In, ret.StdIo.Out, ret.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
+	return &ret
 }
 
 func (me *Interp) ClearStackTrace() {

@@ -50,7 +50,7 @@ func (me MoValPrimType) String() string { return me.Str(false) }
 func (me MoValPrimType) Str(forDiag bool) string {
 	switch me {
 	case MoPrimTypeType:
-		return util.If(forDiag, "type tag", "@TypeTag")
+		return util.If(forDiag, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
 		return util.If(forDiag, "quoted-identifier", "@Ident")
 	case MoPrimTypeInt:
