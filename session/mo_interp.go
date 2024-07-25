@@ -111,8 +111,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			list[i] = it
 		}
 		return &MoExpr{Val: list, SrcSpan: expr.SrcSpan}, nil
-	case moValRec:
-		rec := make(moValRec, 0, len(val))
+	case moValDict:
+		dict := make(moValDict, 0, len(val))
 		for _, pair := range val {
 			k, v := pair[0], pair[1]
 			key, err := me.evalAndApply(env, k)
@@ -123,9 +123,12 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			if err != nil {
 				return nil, err
 			}
-			rec = append(rec, [2]*MoExpr{key, val})
+			if dict.Has(key) {
+				return nil, k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key)
+			}
+			dict.Set(key, val)
 		}
-		return &MoExpr{Val: rec, SrcSpan: expr.SrcSpan}, nil
+		return &MoExpr{Val: dict, SrcSpan: expr.SrcSpan}, nil
 	case moValCall:
 		call := make(moValCall, len(val))
 		for i, item := range val {

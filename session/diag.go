@@ -43,6 +43,7 @@ const (
 	NoticeCodeNoElseCase       SrcFileNoticeCode = "ElseCaseMissing"
 	NoticeCodeIndexOutOfBounds SrcFileNoticeCode = "IndexOutOfBounds"
 	NoticeCodeRangeNegative    SrcFileNoticeCode = "RangeNegative"
+	NoticeCodeDictDuplKey      SrcFileNoticeCode = "DictDuplKey"
 )
 
 var (
@@ -67,6 +68,7 @@ var (
 		NoticeCodeNoElseCase:       "missing a fallback case",
 		NoticeCodeIndexOutOfBounds: "index %d out of bounds, given length %d",
 		NoticeCodeRangeNegative:    "range end %d is smaller than range start %d",
+		NoticeCodeDictDuplKey:      "duplicate key `%s` in dict constructor",
 	}
 )
 

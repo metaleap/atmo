@@ -36,10 +36,10 @@ var (
 		"@listRange":   (*Interp).primFnListRange,
 		"@listLen":     (*Interp).primFnListLen,
 		"@listConcat":  (*Interp).primFnListConcat,
-		"@recHas":      (*Interp).primFnRecHas,
-		"@recGet":      (*Interp).primFnRecGet,
-		"@recSet":      (*Interp).primFnRecSet,
-		"@recSans":     (*Interp).primFnRecSans,
+		"@dictHas":     (*Interp).primFnDictHas,
+		"@dictGet":     (*Interp).primFnDictGet,
+		"@dictSet":     (*Interp).primFnDictSet,
+		"@dictSans":    (*Interp).primFnDictSans,
 		"@strConcat":   (*Interp).primFnStrConcat,
 		"@strLen":      (*Interp).primFnStrLen,
 		"@strCharAt":   (*Interp).primFnStrCharAt,
@@ -180,10 +180,10 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		return nil, ret, err
 	}
 
-	// record? call ourselves on each key and value
-	if rec, is := args[0].Val.(moValRec); is {
-		ret := make(moValRec, 0, len(rec))
-		for _, pair := range rec {
+	// dict? call ourselves on each key and value
+	if dict, is := args[0].Val.(moValDict); is {
+		ret := make(moValDict, 0, len(dict))
+		for _, pair := range dict {
 			k, v := pair[0], pair[1]
 			_, key, err := me.primOpQuasiQuote(env, k)
 			if err != nil {
@@ -193,9 +193,12 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			if err != nil {
 				return nil, nil, err
 			}
-			ret = append(ret, [2]*MoExpr{key, val})
+			if dict.Has(key) {
+				return nil, nil, k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key)
+			}
+			ret.Set(key, val)
 		}
-		return nil, &MoExpr{Val: ret, SrcSpan: args[0].SrcSpan}, nil
+		return nil, &MoExpr{Val: ret, SrcSpan: me.diagSpan(false, true, args[0])}, nil
 	}
 
 	// must be list or call then: we handle them the same, per item iteration
@@ -207,7 +210,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 	} else if is_list {
 		call_or_arr = args[0].Val.(moValList)
 	} else {
-		return nil, nil, args[0].SrcSpan.newDiagErr(NoticeCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote")
+		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote")
 	}
 
 	ret := make([]*MoExpr, 0, len(call_or_arr))
@@ -245,7 +248,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			ret = append(ret, evaled)
 		}
 	}
-	return nil, &MoExpr{Val: util.If[MoVal](is_list, moValList(ret), moValCall(ret)), SrcSpan: args[0].SrcSpan}, nil
+	return nil, &MoExpr{Val: util.If[MoVal](is_list, moValList(ret), moValCall(ret)), SrcSpan: me.diagSpan(false, true, args[0])}, nil
 }
 
 func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
@@ -300,18 +303,18 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if err := me.checkCount(0, 0, args); err != nil {
 		return nil, err
 	}
-	ret := &MoExpr{Val: make(moValRec, 0, len(me.Env.Own)+len(env.Own))}
+	ret := &MoExpr{Val: make(moValDict, 0, len(me.Env.Own)+len(env.Own))}
 	var populate func(it *MoEnv, into *MoExpr) *MoExpr
 	populate = func(it *MoEnv, into *MoExpr) *MoExpr {
-		rec := into.Val.(moValRec)
+		dict := into.Val.(moValDict)
 		for k, v := range it.Own {
-			rec.Set(&MoExpr{Val: k}, v)
+			dict.Set(&MoExpr{Val: k}, v)
 		}
 		if it.Parent != nil {
-			rec_parent := &MoExpr{Val: make(moValRec, 0, len(env.Parent.Own))}
-			rec.Set(&MoExpr{Val: moValIdent("")}, populate(it.Parent, rec_parent))
+			dict_parent := &MoExpr{Val: make(moValDict, 0, len(env.Parent.Own))}
+			dict.Set(&MoExpr{Val: moValIdent("")}, populate(it.Parent, dict_parent))
 		}
-		into.Val = rec
+		into.Val = dict
 		return into
 	}
 	populate(env, ret)
@@ -378,7 +381,7 @@ func (me *Interp) primFnListLen(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNot
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return nil, err
 	}
-	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValUint(len(args[0].Val.(moValList)))}, nil
+	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValUint(len(args[0].Val.(moValList)))}, nil
 }
 
 func (me *Interp) primFnListItemAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -410,7 +413,7 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	}
 	list, idx_start := args[0].Val.(moValList), args[1].Val.(moValUint)
 	if len(args) == 2 {
-		args = append(args, &MoExpr{Val: moValUint(len(list)), SrcSpan: srcSpanFrom(args)})
+		args = append(args, &MoExpr{Val: moValUint(len(list)), SrcSpan: me.diagSpan(false, true, args[1])})
 	} else if err := me.checkIs(MoPrimTypeUint, args[2]); err != nil {
 		return nil, err
 	}
@@ -423,8 +426,7 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if idx_downcast := int(idx_end); (idx_downcast < 0) || (idx_downcast > len(list)) {
 		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_downcast, len(list))
 	}
-
-	return &MoExpr{Val: list[idx_start:idx_end], SrcSpan: srcSpanFrom(util.If(idx_start == idx_end, args, list[idx_start:idx_end]))}, nil
+	return &MoExpr{Val: list[idx_start:idx_end], SrcSpan: me.diagSpan(false, idx_start != idx_end, list[idx_start:idx_end]...)}, nil
 }
 
 func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -435,7 +437,7 @@ func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFile
 		}
 		ret = append(ret, arg.Val.(moValList)...)
 	}
-	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: ret}, nil
+	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: ret}, nil
 }
 
 func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -453,7 +455,7 @@ func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if (idx < 0) || (idx >= len(str)) {
 		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeIndexOutOfBounds, idx, len(str))
 	}
-	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValChar(str[idx])}, nil
+	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValChar(str[idx])}, nil
 }
 
 func (me *Interp) primFnStrRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -482,7 +484,7 @@ func (me *Interp) primFnStrRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNo
 	} else if idx_end < idx_start {
 		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeRangeNegative, idx_end, idx_start)
 	}
-	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValStr(str[idx_start:idx_end])}, nil
+	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValStr(str[idx_start:idx_end])}, nil
 }
 
 func (me *Interp) primFnStrLen(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -492,7 +494,7 @@ func (me *Interp) primFnStrLen(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNoti
 	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
 		return nil, err
 	}
-	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValUint(len(args[0].Val.(moValStr)))}, nil
+	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValUint(len(args[0].Val.(moValStr)))}, nil
 }
 
 func (me *Interp) primFnStrConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -503,7 +505,7 @@ func (me *Interp) primFnStrConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 		}
 		buf.WriteString(string(arg.Val.(moValStr)))
 	}
-	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValStr(buf.String())}, nil
+	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValStr(buf.String())}, nil
 }
 
 func (me *Interp) primFnStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -521,14 +523,14 @@ func (me *Interp) primFnStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 	default:
 		str = moValStr(it.String())
 	}
-	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: str}, nil
+	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: str}, nil
 }
 
 func (me *Interp) primFnExprStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}
-	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValStr(args[0].String())}, nil
+	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValStr(args[0].String())}, nil
 }
 
 func (me *Interp) primFnExprEval(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -548,43 +550,46 @@ func (me *Interp) primFnExprParse(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	return me.Parse(string(args[0].Val.(moValStr)))
 }
 
-func (me *Interp) primFnRecHas(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnDictHas(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
-	if err := me.checkIs(MoPrimTypeRec, args[0]); err != nil {
+	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return me.exprBool(args[0].Val.(moValDict).Has(args[1]), args...), nil
 }
 
-func (me *Interp) primFnRecGet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnDictGet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
-	if err := me.checkIs(MoPrimTypeRec, args[0]); err != nil {
+	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return nil, err
 	}
-
-	return nil, nil
+	found := args[0].Val.(moValDict).Get(args[0])
+	if found == nil {
+		return me.withSrcSpan(moValNone, args...), nil
+	}
+	return me.withSrcSpan(found, args...), nil
 }
 
-func (me *Interp) primFnRecSet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnDictSet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(3, 3, args); err != nil {
 		return nil, err
 	}
-	if err := me.checkIs(MoPrimTypeRec, args[0]); err != nil {
+	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return nil, err
 	}
 
 	return nil, nil
 }
 
-func (me *Interp) primFnRecSans(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnDictSans(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, -1, args); err != nil {
 		return nil, err
 	}
-	if err := me.checkIs(MoPrimTypeRec, args[0]); err != nil {
+	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return nil, err
 	}
 

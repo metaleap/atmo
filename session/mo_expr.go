@@ -36,14 +36,14 @@ const (
 	MoPrimTypeChar
 	MoPrimTypeStr
 	MoPrimTypeErr
-	MoPrimTypeRec
+	MoPrimTypeDict
 	MoPrimTypeList
 	MoPrimTypeCall
 	MoPrimTypeFunc
 )
 
 func (me MoValPrimType) isAtomic() bool {
-	return (me != MoPrimTypeErr) && (me != MoPrimTypeList) && (me != MoPrimTypeCall) && (me != MoPrimTypeRec) && (me != MoPrimTypeFunc)
+	return (me != MoPrimTypeErr) && (me != MoPrimTypeList) && (me != MoPrimTypeCall) && (me != MoPrimTypeDict) && (me != MoPrimTypeFunc)
 }
 
 func (me MoValPrimType) String() string { return me.Str(false) }
@@ -65,8 +65,8 @@ func (me MoValPrimType) Str(forDiag bool) string {
 		return util.If(forDiag, "text string", "@Str")
 	case MoPrimTypeErr:
 		return util.If(forDiag, "error", "@Err")
-	case MoPrimTypeRec:
-		return util.If(forDiag, "record", "@Rec")
+	case MoPrimTypeDict:
+		return util.If(forDiag, "dictionary", "@Dict")
 	case MoPrimTypeList:
 		return util.If(forDiag, "list", "@List")
 	case MoPrimTypeCall:
@@ -90,7 +90,7 @@ type moValFloat float64
 type moValChar rune
 type moValStr string
 type moValErr struct{ Err *MoExpr }
-type moValRec [][2]*MoExpr
+type moValDict [][2]*MoExpr
 type moValList []*MoExpr
 type moValCall []*MoExpr
 type moValFnPrim moFnEager
@@ -110,7 +110,7 @@ func (moValFloat) primType() MoValPrimType  { return MoPrimTypeFloat }
 func (moValChar) primType() MoValPrimType   { return MoPrimTypeChar }
 func (moValStr) primType() MoValPrimType    { return MoPrimTypeStr }
 func (moValErr) primType() MoValPrimType    { return MoPrimTypeErr }
-func (moValRec) primType() MoValPrimType    { return MoPrimTypeRec }
+func (moValDict) primType() MoValPrimType   { return MoPrimTypeDict }
 func (moValList) primType() MoValPrimType   { return MoPrimTypeList }
 func (moValCall) primType() MoValPrimType   { return MoPrimTypeCall }
 func (moValFnPrim) primType() MoValPrimType { return MoPrimTypeFunc }
@@ -123,13 +123,13 @@ func (me moValFloat) String() string        { return moValToString(me) }
 func (me moValChar) String() string         { return moValToString(me) }
 func (me moValStr) String() string          { return moValToString(me) }
 func (me moValErr) String() string          { return moValToString(me) }
-func (me moValRec) String() string          { return moValToString(me) }
+func (me moValDict) String() string         { return moValToString(me) }
 func (me moValList) String() string         { return moValToString(me) }
 func (me moValCall) String() string         { return moValToString(me) }
 func (me moValFnPrim) String() string       { return moValToString(me) }
 func (me *moValFnLam) String() string       { return moValToString(me) }
 
-func (me moValRec) Has(key *MoExpr) bool {
+func (me moValDict) Has(key *MoExpr) bool {
 	for _, pair := range me {
 		if found := pair[0].eq(key); found {
 			return true
@@ -138,7 +138,7 @@ func (me moValRec) Has(key *MoExpr) bool {
 	return false
 }
 
-func (me moValRec) Get(key *MoExpr) *MoExpr {
+func (me moValDict) Get(key *MoExpr) *MoExpr {
 	for _, pair := range me {
 		if found := pair[0].eq(key); found {
 			return pair[1]
@@ -147,7 +147,7 @@ func (me moValRec) Get(key *MoExpr) *MoExpr {
 	return nil
 }
 
-func (me moValRec) Without(keys ...*MoExpr) moValRec {
+func (me moValDict) Without(keys ...*MoExpr) moValDict {
 	if len(keys) == 0 {
 		return me
 	}
@@ -156,7 +156,7 @@ func (me moValRec) Without(keys ...*MoExpr) moValRec {
 	})
 }
 
-func (me *moValRec) Set(key *MoExpr, val *MoExpr) {
+func (me *moValDict) Set(key *MoExpr, val *MoExpr) {
 	this := *me
 	var found bool
 	for i, pair := range this {
@@ -206,8 +206,8 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 	case *moValFnLam:
 		other := to.Val.(*moValFnLam)
 		return it.body.eq(other.body) && (it.isMacro == other.isMacro) && sl.Eq(it.params, other.params, (*MoExpr).eq) && it.env.eq(other.env)
-	case moValRec:
-		other := to.Val.(moValRec)
+	case moValDict:
+		other := to.Val.(moValDict)
 		if len(it) != len(other) {
 			return false
 		}
@@ -219,6 +219,18 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 		return true
 	}
 	return me.Val == to.Val
+}
+
+func (me *Interp) withSrcSpan(expr *MoExpr, srcSpanCtx ...*MoExpr) *MoExpr {
+	src_span := me.diagSpan(false, false, srcSpanCtx...)
+	if src_span == nil {
+		return expr
+	}
+	return &MoExpr{SrcSpan: src_span, Val: expr.Val}
+}
+
+func (me *Interp) exprBool(b bool, srcSpanCtx ...*MoExpr) *MoExpr {
+	return me.withSrcSpan(util.If(b, moValTrue, moValFalse), srcSpanCtx...)
 }
 
 func (me *MoExpr) isFalsy() bool {
@@ -258,7 +270,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		w.WriteString("(@Err ")
 		it.Err.WriteTo(w)
 		w.WriteString(")")
-	case moValRec:
+	case moValDict:
 		w.WriteString("{")
 		for i, pair := range it {
 			if i > 0 {
@@ -378,7 +390,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			}
 			val = list
 		case node.IsCurlyBraces():
-			rec := make(moValRec, 0, len(node.Nodes))
+			dict := make(moValDict, 0, len(node.Nodes))
 			for _, node := range node.Nodes {
 				util.Assert(len(node.Nodes) == 2, len(node.Nodes))
 				expr_key, err := me.exprFromAstNode(node.Nodes[0])
@@ -389,9 +401,12 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 				if err != nil {
 					return nil, err
 				}
-				rec = append(rec, [2]*MoExpr{expr_key, expr_val})
+				if dict.Has(expr_key) {
+					return nil, expr_key.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, expr_key)
+				}
+				dict.Set(expr_key, expr_val)
 			}
-			val = rec
+			val = dict
 		default:
 			if len(node.Nodes) == 1 {
 				return me.exprFromAstNode(node.Nodes[0])
