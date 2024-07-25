@@ -12,7 +12,11 @@ import (
 type SrcPack struct {
 	DirPath string
 	Files   []*SrcFile
-	Est     EstNodes
+	Sema    struct {
+		Eval *Interp
+		Top  []*MoExpr
+	}
+	Est EstNodes
 }
 
 type SrcFile struct {

@@ -14,7 +14,8 @@ type Writer interface {
 }
 
 type Interp struct {
-	SrcFile        *SrcFile
+	Pack           *SrcPack
+	replFauxFile   *SrcFile
 	Env            *MoEnv
 	StackTraces    bool
 	LastStackTrace []*MoExpr
@@ -26,8 +27,8 @@ type Interp struct {
 	diagCtxCall *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
 }
 
-func newInterp(srcFile *SrcFile) *Interp {
-	ret := Interp{Env: newMoEnv(&rootEnv, nil, nil), SrcFile: srcFile}
+func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
+	ret := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, replFauxFile: replFauxFile}
 	ret.StdIo.In, ret.StdIo.Out, ret.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
 	return &ret
 }
@@ -254,7 +255,7 @@ func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have []
 
 func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *SrcFileNotice {
 	if have_type := have.Val.primType(); have_type != want {
-		have_str := util.If(have_type == MoPrimTypeFunc, me.SrcFile.srcAt(have.SrcSpan, '`'), "`"+have.String()+"`")
+		have_str := util.If(have_type == MoPrimTypeFunc, have.SrcFile.srcAt(have.SrcSpan, '`'), "`"+have.String()+"`")
 		return me.diagSpan(false, true, have).newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%s instead of %s %s", want.Str(true), have_type.Str(true), have_str))
 	}
 	return nil

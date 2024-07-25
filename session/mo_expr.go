@@ -185,6 +185,7 @@ func (me *moValDict) Set(key *MoExpr, val *MoExpr) {
 type MoExpr struct {
 	Val     MoVal
 	SrcSpan *SrcFileSpan `json:"-"`
+	SrcFile *SrcFile     `json:"-"`
 }
 
 func (me *MoExpr) Callee() *MoExpr {
@@ -351,31 +352,31 @@ func moValToString(it MoVal) string {
 }
 
 func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
-	me.SrcFile.Src.Ast, me.SrcFile.Src.Toks, me.SrcFile.Src.Text = nil, nil, src
-	toks, errs := tokenize(me.SrcFile.FilePath, src)
+	me.replFauxFile.Src.Ast, me.replFauxFile.Src.Toks, me.replFauxFile.Src.Text = nil, nil, src
+	toks, errs := tokenize(me.replFauxFile.FilePath, src)
 	if len(errs) > 0 {
 		return nil, errs[0]
 	}
-	me.SrcFile.Src.Toks = toks
-	me.SrcFile.Src.Ast = me.SrcFile.parse()
-	for _, diag := range me.SrcFile.allNotices() {
+	me.replFauxFile.Src.Toks = toks
+	me.replFauxFile.Src.Ast = me.replFauxFile.parse()
+	for _, diag := range me.replFauxFile.allNotices() {
 		if diag.Kind == NoticeKindErr {
 			return nil, diag
 		}
 	}
 	filter := func(it *AstNode) bool { return (it.Kind != AstNodeKindErr) && (it.Kind != AstNodeKindComment) }
-	me.SrcFile.Src.Ast = sl.Where(me.SrcFile.Src.Ast, filter)
-	me.SrcFile.Src.Ast.walk(func(node *AstNode) bool {
+	me.replFauxFile.Src.Ast = sl.Where(me.replFauxFile.Src.Ast, filter)
+	me.replFauxFile.Src.Ast.walk(func(node *AstNode) bool {
 		node.Nodes = sl.Where(node.Nodes, filter)
 		return true
 	}, nil)
-	if len(me.SrcFile.Src.Ast) > 1 {
-		return nil, me.SrcFile.Src.Ast.newDiagErr(me.SrcFile, NoticeCodeAtmoTodo, "odd case, please report exact input, namely: `"+src+"`")
-	} else if (len(me.SrcFile.Src.Ast) == 0) || (len(me.SrcFile.Src.Ast[0].Nodes) == 0) {
+	if len(me.replFauxFile.Src.Ast) > 1 {
+		return nil, me.replFauxFile.Src.Ast.newDiagErr(me.replFauxFile, NoticeCodeAtmoTodo, "odd case: please report, quoting exact input, namely: `"+src+"`")
+	} else if (len(me.replFauxFile.Src.Ast) == 0) || (len(me.replFauxFile.Src.Ast[0].Nodes) == 0) {
 		return nil, nil
 	}
 
-	return me.SrcFile.ExprFromAstNode(me.SrcFile.Src.Ast[0])
+	return me.replFauxFile.ExprFromAstNode(me.replFauxFile.Src.Ast[0])
 }
 
 func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
