@@ -38,8 +38,8 @@ var (
 		"@listConcat":  (*Interp).primFnListConcat,
 		"@dictHas":     (*Interp).primFnDictHas,
 		"@dictGet":     (*Interp).primFnDictGet,
-		"@dictSet":     (*Interp).primFnDictSet,
-		"@dictSans":    (*Interp).primFnDictSans,
+		"@dictWith":    (*Interp).primFnDictWith,
+		"@dictWithout": (*Interp).primFnDictWithout,
 		"@strConcat":   (*Interp).primFnStrConcat,
 		"@strLen":      (*Interp).primFnStrLen,
 		"@strCharAt":   (*Interp).primFnStrCharAt,
@@ -53,7 +53,7 @@ var (
 
 const (
 	moPrimOpQuote         moValIdent = "#"
-	moPrimOpQQuote        moValIdent = "%"
+	moPrimOpQQuote        moValIdent = "#$"
 	moPrimOpUnquote       moValIdent = "$"
 	moPrimOpSpliceUnquote moValIdent = "$$"
 	moPrimOpDo            moValIdent = "@do"
@@ -86,7 +86,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 		return nil, nil, err
 	}
 	name := args[0].Val.(moValIdent)
-	if is_reserved := ((name[0] == '@') || (name[0] == moPrimOpUnquote[0]) || moPrimOpsLazy[name] != nil); is_reserved {
+	if is_reserved := ((name[0] == '@') || (name[0] == moPrimOpQuote[0]) || (name[0] == moPrimOpUnquote[0]) || moPrimOpsLazy[name] != nil); is_reserved {
 		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0])))
 	}
 	owner_env, found := env.lookupOwner(name)
@@ -567,31 +567,33 @@ func (me *Interp) primFnDictGet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNot
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return nil, err
 	}
-	found := args[0].Val.(moValDict).Get(args[0])
+	found := args[0].Val.(moValDict).Get(args[1])
 	if found == nil {
 		return me.withSrcSpan(moValNone, args...), nil
 	}
 	return me.withSrcSpan(found, args...), nil
 }
 
-func (me *Interp) primFnDictSet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnDictWith(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(3, 3, args); err != nil {
 		return nil, err
 	}
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return nil, err
 	}
-
-	return nil, nil
+	ret := me.withSrcSpan(args[0], args...)
+	ret.Val = ret.Val.(moValDict).With(args[1], args[2])
+	return ret, nil
 }
 
-func (me *Interp) primFnDictSans(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnDictWithout(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, -1, args); err != nil {
 		return nil, err
 	}
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return nil, err
 	}
-
-	return nil, nil
+	ret := me.withSrcSpan(args[0], args...)
+	ret.Val = ret.Val.(moValDict).Without(args[1:]...)
+	return ret, nil
 }

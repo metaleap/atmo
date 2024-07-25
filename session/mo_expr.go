@@ -156,6 +156,16 @@ func (me moValDict) Without(keys ...*MoExpr) moValDict {
 	})
 }
 
+func (me moValDict) With(key *MoExpr, val *MoExpr) moValDict {
+	ret := make(moValDict, len(me))
+	for i, pair := range me {
+		k, v := *pair[0], *pair[1]
+		ret[i] = [2]*MoExpr{&k, &v}
+	}
+	ret.Set(key, val)
+	return ret
+}
+
 func (me *moValDict) Set(key *MoExpr, val *MoExpr) {
 	this := *me
 	var found bool
@@ -277,11 +287,11 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 				w.WriteString(", ")
 			}
 			k, v := pair[0], pair[1]
-			if ident, is := k.Val.(moValIdent); is && ((ident == "") || (ident[0] == '@')) {
-				w.WriteString(str.Q(string(ident)))
-			} else {
-				k.WriteTo(w)
-			}
+			// if ident, is_ident := k.Val.(moValIdent); is_ident && ((ident == "") || (ident[0] == '@')) {
+			// 	w.WriteString(str.Q(string(ident)))
+			// } else {
+			k.WriteTo(w)
+			// }
 			w.WriteString(": ")
 			v.WriteTo(w)
 		}
@@ -305,9 +315,9 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		}
 		w.WriteString(")")
 	case moValFnPrim:
-		w.WriteString("<primFunc>")
+		w.WriteString("<builtin>")
 	case *moValFnLam:
-		w.WriteString("<lambdaFunc>")
+		w.WriteString("<lambda>")
 	default:
 		panic(it)
 	}
