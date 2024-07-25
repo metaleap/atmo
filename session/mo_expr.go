@@ -384,9 +384,6 @@ func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 	if err != nil {
 		return nil, err
 	}
-	expr.walk(nil, func(it *MoExpr) {
-		it.SrcFile = me.replFauxFile
-	})
 	return expr, nil
 }
 

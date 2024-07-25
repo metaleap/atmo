@@ -111,7 +111,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 		return nil, nil, err
 	}
 	owner_env.set(name, new_value)
-	return nil, moValNone, nil
+	return nil, me.exprFrom(moValNone, args...), nil
 }
 
 func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (tailEnv *MoEnv, expr *MoExpr, err *SrcFileNotice) {
@@ -127,7 +127,7 @@ func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (tailEnv *MoEnv, expr *M
 			return
 		}
 	}
-	tailEnv, expr = env, list[len(list)-1]
+	tailEnv, expr = env, me.exprFrom(list[len(list)-1], args...)
 	return
 }
 
@@ -166,7 +166,7 @@ func (me *Interp) primOpQuote(_ *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, nil, err
 	}
-	return nil, args[0], nil
+	return nil, me.exprFrom(args[0], args...), nil
 }
 
 func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
@@ -176,7 +176,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 
 	// is atomic arg? then just like primOpQuote
 	if args[0].Val.primType().isAtomic() {
-		return nil, args[0], nil
+		return nil, me.exprFrom(args[0], args...), nil
 	}
 
 	// is this call directly quoting an unquote call?
@@ -187,7 +187,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		if err != nil {
 			return nil, nil, err
 		}
-		return nil, ret, err
+		return nil, me.exprFrom(ret, args...), err
 	}
 
 	// dict? call ourselves on each key and value
@@ -270,7 +270,10 @@ func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExp
 		return nil, nil, err
 	}
 	ret, err := me.macroExpand(env, args[0])
-	return nil, ret, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return nil, me.exprFrom(ret, args...), nil
 }
 
 func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
@@ -285,7 +288,7 @@ func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *S
 			return nil, nil, err
 		}
 		if pred.eqTrue() {
-			return env, val, nil
+			return env, me.exprFrom(val, val), nil
 		} else if !pred.eqFalse() {
 			return nil, nil, me.diagSpan(false, true, key).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression")
 		}
@@ -379,7 +382,11 @@ func (me *Interp) primFnFuncCall(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFile
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
 		return nil, err
 	}
-	return me.callWithDiagCtxSet(env, args[0], args[1].Val.(moValList)...)
+	ret, err := me.callWithDiagCtxSet(env, args[0], args[1].Val.(moValList)...)
+	if err != nil {
+		return nil, err
+	}
+	return me.exprFrom(ret, args...), err
 }
 
 func (me *Interp) primFnSessPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -398,24 +405,20 @@ func (me *Interp) primFnSessPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFile
 		fmt_args = append(fmt_args, arg.Val)
 	}
 	fmt.Fprintf(me.StdIo.Out, string(args[0].Val.(moValStr)), fmt_args...)
-	return moValNone, nil
+	return me.exprFrom(moValNone, args...), nil
 }
 
 func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	if len(args) > 0 {
-		switch arg0 := args[0].Val; true {
-		case (arg0.primType() == MoPrimTypeStr) && (len(args) == 1):
-			me.StdIo.Out.WriteString(string(arg0.(moValStr)))
-		default:
-			for i, arg := range args {
-				if i > 0 {
-					me.StdIo.Out.WriteString(" ")
-				}
-				arg.WriteTo(me.StdIo.Out)
-			}
-		}
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, err
 	}
-	return moValNone, nil
+	switch arg0 := args[0].Val.(type) {
+	case moValStr:
+		me.StdIo.Out.WriteString(string(arg0))
+	default:
+		args[0].WriteTo(me.StdIo.Out)
+	}
+	return me.exprFrom(moValNone, args...), nil
 }
 
 func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -450,7 +453,7 @@ func (me *Interp) primFnListItemAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFile
 	if idx_downcast := int(idx); (idx_downcast < 0) || (idx_downcast >= len(list)) {
 		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_downcast, len(list))
 	}
-	return list[idx], nil
+	return me.exprFrom(list[idx], args...), nil
 }
 
 func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -465,7 +468,7 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	}
 	list, idx_start := args[0].Val.(moValList), args[1].Val.(moValUint)
 	if len(args) == 2 {
-		args = append(args, &MoExpr{Val: moValUint(len(list)), SrcSpan: me.diagSpan(false, true, args[1]), SrcFile: args[1].SrcFile})
+		args = append(args, me.expr(moValUint(len(list)), me.srcFile(false, true, args[1]), me.diagSpan(false, true, args[1])))
 	} else if err := me.checkIs(MoPrimTypeUint, args[2]); err != nil {
 		return nil, err
 	}
@@ -478,7 +481,7 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if idx_downcast := int(idx_end); (idx_downcast < 0) || (idx_downcast > len(list)) {
 		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_downcast, len(list))
 	}
-	return &MoExpr{Val: list[idx_start:idx_end], SrcSpan: me.diagSpan(false, idx_start != idx_end, list[idx_start:idx_end]...), SrcFile: args[0].SrcFile}, nil
+	return me.expr(list[idx_start:idx_end], me.srcFile(false, idx_start != idx_end, list[idx_start:idx_end]...), me.diagSpan(false, idx_start != idx_end, list[idx_start:idx_end]...)), nil
 }
 
 func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -489,7 +492,7 @@ func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFile
 		}
 		ret = append(ret, arg.Val.(moValList)...)
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: ret}, nil
+	return me.expr(ret, nil, nil, args...), nil
 }
 
 func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -507,7 +510,7 @@ func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if (idx < 0) || (idx >= len(str)) {
 		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeIndexOutOfBounds, idx, len(str))
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValChar(str[idx])}, nil
+	return me.expr(moValChar(str[idx]), nil, nil, args...), nil
 }
 
 func (me *Interp) primFnStrRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -536,7 +539,7 @@ func (me *Interp) primFnStrRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNo
 	} else if idx_end < idx_start {
 		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeRangeNegative, idx_end, idx_start)
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValStr(str[idx_start:idx_end])}, nil
+	return me.expr(moValStr(str[idx_start:idx_end]), nil, nil, args...), nil
 }
 
 func (me *Interp) primFnStrLen(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -546,7 +549,7 @@ func (me *Interp) primFnStrLen(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNoti
 	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
 		return nil, err
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValUint(len(args[0].Val.(moValStr)))}, nil
+	return me.expr(moValUint(len(args[0].Val.(moValStr))), nil, nil, args...), nil
 }
 
 func (me *Interp) primFnStrConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -557,7 +560,7 @@ func (me *Interp) primFnStrConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 		}
 		buf.WriteString(string(arg.Val.(moValStr)))
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValStr(buf.String())}, nil
+	return me.expr(moValStr(buf.String()), nil, nil, args...), nil
 }
 
 func (me *Interp) primFnStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -575,21 +578,25 @@ func (me *Interp) primFnStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 	default:
 		str = moValStr(it.String())
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: str}, nil
+	return me.expr(str, nil, nil, args...), nil
 }
 
 func (me *Interp) primFnExprStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValStr(args[0].String())}, nil
+	return me.expr(moValStr(args[0].String()), nil, nil, args...), nil
 }
 
 func (me *Interp) primFnExprEval(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}
-	return me.evalAndApply(me.Env, args[0])
+	ret, err := me.evalAndApply(me.Env, args[0])
+	if err != nil {
+		return nil, err
+	}
+	return me.exprFrom(ret, args...), nil
 }
 
 func (me *Interp) primFnExprParse(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -657,7 +664,7 @@ func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFil
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValType(args[0].Val.primType())}, nil
+	return me.expr(moValType(args[0].Val.primType()), nil, nil, args...), nil
 }
 
 func (me *Interp) primFnEq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -680,7 +687,39 @@ func (me *Interp) primFnNeq(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotic
 	return me.exprBool(!args[0].eq(args[1]), args...), nil
 }
 
-func (me *Interp) primCmp(diagMoniker string, args ...*MoExpr) (int, *SrcFileNotice) {
+func (me *Interp) primFnLeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	cmp, err := me.primCmpHelper("less-or-equal", args...)
+	if err != nil {
+		return nil, err
+	}
+	return me.exprBool(cmp <= 0, args...), nil
+}
+
+func (me *Interp) primFnGeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	cmp, err := me.primCmpHelper("greater-or-equal", args...)
+	if err != nil {
+		return nil, err
+	}
+	return me.exprBool(cmp >= 0, args...), nil
+}
+
+func (me *Interp) primFnLt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	cmp, err := me.primCmpHelper("less-than", args...)
+	if err != nil {
+		return nil, err
+	}
+	return me.exprBool(cmp < 0, args...), nil
+}
+
+func (me *Interp) primFnGt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	cmp, err := me.primCmpHelper("greater-than", args...)
+	if err != nil {
+		return nil, err
+	}
+	return me.exprBool(cmp > 0, args...), nil
+}
+
+func (me *Interp) primCmpHelper(diagMoniker string, args ...*MoExpr) (int, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return 0, err
 	}
@@ -692,36 +731,4 @@ func (me *Interp) primCmp(diagMoniker string, args ...*MoExpr) (int, *SrcFileNot
 		return 0, err
 	}
 	return cmp, nil
-}
-
-func (me *Interp) primFnLeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	cmp, err := me.primCmp("less-or-equal", args...)
-	if err != nil {
-		return nil, err
-	}
-	return me.exprBool(cmp <= 0, args...), nil
-}
-
-func (me *Interp) primFnGeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	cmp, err := me.primCmp("greater-or-equal", args...)
-	if err != nil {
-		return nil, err
-	}
-	return me.exprBool(cmp >= 0, args...), nil
-}
-
-func (me *Interp) primFnLt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	cmp, err := me.primCmp("less-than", args...)
-	if err != nil {
-		return nil, err
-	}
-	return me.exprBool(cmp < 0, args...), nil
-}
-
-func (me *Interp) primFnGt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	cmp, err := me.primCmp("greater-than", args...)
-	if err != nil {
-		return nil, err
-	}
-	return me.exprBool(cmp > 0, args...), nil
 }
