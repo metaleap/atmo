@@ -29,7 +29,7 @@ func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 
 func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	var err *SrcFileNotice
-	diag_ctx_orig := me.diagCtxCall
+	diag_ctx_orig, src_span_orig := me.diagCtxCall, expr.SrcSpan
 	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
 	for (err == nil) && (env != nil) {
 		if _, is_call := expr.Val.(moValCall); !is_call {
@@ -85,6 +85,9 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 		}
 	}
 	me.diagCtxCall = diag_ctx_orig
+	if (expr != nil) && (expr.SrcSpan == nil) && (src_span_orig != nil) {
+		expr = &MoExpr{SrcSpan: src_span_orig, Val: expr.Val}
+	}
 	return expr, err
 }
 
@@ -95,10 +98,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			found := env.lookup(val)
 			if found == nil {
 				return nil, me.diagSpan(false, true, expr).newDiagErr(NoticeCodeUndefined, val)
-			} else if found.SrcSpan == nil {
-				return &MoExpr{Val: found.Val, SrcSpan: expr.SrcSpan}, nil
 			}
-			return found, nil
+			return &MoExpr{Val: found.Val, SrcSpan: expr.SrcSpan}, nil
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
 	case moValList:
 		list := make(moValList, len(val))

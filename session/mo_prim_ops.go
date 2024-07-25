@@ -26,16 +26,17 @@ var (
 		"@numFloatSub": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) - opr.(moValFloat) }),
 		"@numFloatMul": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) * opr.(moValFloat) }),
 		"@numFloatDiv": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) / opr.(moValFloat) }),
-		"@call":        (*Interp).primFnCall,
-		"@env":         (*Interp).primFnEnv,
-		"@printf":      (*Interp).primFnPrintf,
-		"@print":       (*Interp).primFnPrint,
-		"@println":     (*Interp).primFnPrintln,
-		"@str":         (*Interp).primFnStr,
+		"@fnCall":      (*Interp).primFnFuncCall,
+		"@sessEnv":     (*Interp).primFnSessEnv,
+		"@sessPrintf":  (*Interp).primFnSessPrintf,
+		"@sessPrint":   (*Interp).primFnSessPrint,
+		"@sessPrintln": (*Interp).primFnSessPrintln,
 		"@listItemAt":  (*Interp).primFnListItemAt,
-		"@listSlice":   (*Interp).primFnListSlice,
+		"@listRange":   (*Interp).primFnListRange,
+		"@exprStr":     (*Interp).primFnExprStr,
 		"@exprParse":   (*Interp).primFnExprParse,
 		"@exprEval":    (*Interp).primFnExprEval,
+		"@str":         (*Interp).primFnStr,
 	}
 )
 
@@ -283,7 +284,7 @@ func makeArithPrimOp[T moValInt | moValUint | moValFloat](t MoValPrimType, f fun
 	}
 }
 
-func (me *Interp) primFnEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(0, 0, args); err != nil {
 		return nil, err
 	}
@@ -303,7 +304,7 @@ func (me *Interp) primFnEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotic
 	return ret, nil
 }
 
-func (me *Interp) primFnCall(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnFuncCall(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
@@ -316,7 +317,7 @@ func (me *Interp) primFnCall(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNoti
 	return me.callWithDiagCtxSet(env, args[0], args[1].Val.(moValList)...)
 }
 
-func (me *Interp) primFnPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnSessPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, -1, args); err != nil {
 		return nil, err
 	}
@@ -331,7 +332,7 @@ func (me *Interp) primFnPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNoti
 	return moValNone, nil
 }
 
-func (me *Interp) primFnPrint(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if len(args) > 0 {
 		switch arg0 := args[0].Val; true {
 		case (arg0.primType() == MoPrimTypeStr) && (len(args) == 1):
@@ -348,8 +349,8 @@ func (me *Interp) primFnPrint(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotic
 	return moValNone, nil
 }
 
-func (me *Interp) primFnPrintln(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	expr, err := me.primFnPrint(env, args...)
+func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	expr, err := me.primFnSessPrint(env, args...)
 	if err == nil {
 		os.Stdout.WriteString("\n")
 	}
@@ -373,7 +374,7 @@ func (me *Interp) primFnListItemAt(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFi
 	return list[idx], nil
 }
 
-func (me *Interp) primFnListSlice(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnListRange(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 3, args); err != nil {
 		return nil, err
 	}
@@ -403,6 +404,24 @@ func (me *Interp) primFnListSlice(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFil
 }
 
 func (me *Interp) primFnStr(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, err
+	}
+	var str moValStr
+	switch it := args[0].Val.(type) {
+	case moValChar:
+		str = moValStr(string(it))
+	case moValStr:
+		str = moValStr(it)
+	case moValType:
+		str = moValStr(((MoValPrimType)(it)).Str(true))
+	default:
+		str = moValStr(it.String())
+	}
+	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: str}, nil
+}
+
+func (me *Interp) primFnExprStr(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}
