@@ -92,11 +92,11 @@ type moValChar rune
 type moValStr string
 type moValErr struct{ Err *MoExpr }
 type moValDict [][2]*MoExpr
-type moValList []*MoExpr
-type moValCall []*MoExpr
+type moValList MoExprs
+type moValCall MoExprs
 type moValFnPrim moFnEager
 type moValFnLam struct {
-	params              []*MoExpr // all are guaranteed to be ident before construction
+	params              MoExprs // all are guaranteed to be ident before construction
 	body                *MoExpr
 	env                 *MoEnv
 	isMacro             bool
@@ -376,7 +376,14 @@ func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 		return nil, nil
 	}
 
-	return me.replFauxFile.ExprFromAstNode(me.replFauxFile.Src.Ast[0])
+	expr, err := me.replFauxFile.ExprFromAstNode(me.replFauxFile.Src.Ast[0])
+	if err != nil {
+		return nil, err
+	}
+	expr.walk(nil, func(it *MoExpr) {
+		it.SrcFile = me.replFauxFile
+	})
+	return expr, nil
 }
 
 func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
@@ -459,4 +466,43 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 		}
 	}
 	return &MoExpr{SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
+}
+
+func (me *MoExpr) walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
+	if onBefore != nil && !onBefore(me) {
+		return
+	}
+	switch it := me.Val.(type) {
+	case moValCall:
+		for _, item := range it {
+			item.walk(onBefore, onAfter)
+		}
+	case moValDict:
+		for _, pair := range it {
+			pair[0].walk(onBefore, onAfter)
+			pair[1].walk(onBefore, onAfter)
+		}
+	case moValErr:
+		it.Err.walk(onBefore, onAfter)
+	case *moValFnLam:
+		for _, item := range it.params {
+			item.walk(onBefore, onAfter)
+		}
+		it.body.walk(onBefore, onAfter)
+	case moValList:
+		for _, item := range it {
+			item.walk(onBefore, onAfter)
+		}
+	}
+	if onAfter != nil {
+		onAfter(me)
+	}
+}
+
+type MoExprs []*MoExpr
+
+func (me MoExprs) walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
+	for _, expr := range me {
+		expr.walk(onBefore, onAfter)
+	}
 }

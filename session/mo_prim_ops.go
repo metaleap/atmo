@@ -163,7 +163,7 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 	}
 	expr := &MoExpr{
 		SrcSpan: srcSpanFrom(args),
-		Val:     &moValFnLam{params: args[0].Val.(moValList), body: body, env: env},
+		Val:     &moValFnLam{params: MoExprs(args[0].Val.(moValList)), body: body, env: env},
 	}
 	return nil, expr, nil
 }
@@ -220,16 +220,16 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 	// must be list or call then: we handle them the same, per item iteration
 
 	is_list := (args[0].Val.primType() == MoPrimTypeList)
-	var call_or_arr []*MoExpr
+	var call_or_arr MoExprs
 	if call, is := args[0].Val.(moValCall); is {
-		call_or_arr = call
+		call_or_arr = MoExprs(call)
 	} else if is_list {
-		call_or_arr = args[0].Val.(moValList)
+		call_or_arr = MoExprs(args[0].Val.(moValList))
 	} else {
 		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote")
 	}
 
-	ret := make([]*MoExpr, 0, len(call_or_arr))
+	ret := make(MoExprs, 0, len(call_or_arr))
 	for _, item := range call_or_arr {
 		if is_unquote, err := me.checkIsCallOnIdent(item, moPrimOpUnquote, 1); err != nil {
 			return nil, nil, err

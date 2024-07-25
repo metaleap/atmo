@@ -18,7 +18,7 @@ type Interp struct {
 	replFauxFile   *SrcFile
 	Env            *MoEnv
 	StackTraces    bool
-	LastStackTrace []*MoExpr
+	LastStackTrace MoExprs
 	StdIo          struct {
 		In  io.Reader
 		Out Writer
@@ -54,7 +54,7 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 		} else if expr, err = me.macroExpand(env, expr); err != nil {
 			return nil, err
 		} else if call, is_call := expr.Val.(moValCall); is_call {
-			callee, call_args := call[0], ([]*MoExpr)(call[1:])
+			callee, call_args := call[0], (MoExprs)(call[1:])
 
 			var prim_op_lazy moFnLazy
 			if ident, _ := callee.Val.(moValIdent); ident != "" {
@@ -80,7 +80,7 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 				}
 				me.diagCtxCall = diag_ctx_cur
 				call = expr.Val.(moValCall)
-				callee, call_args = call[0], ([]*MoExpr)(call[1:])
+				callee, call_args = call[0], (MoExprs)(call[1:])
 				switch fn := callee.Val.(type) {
 				default:
 					return nil, me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String())
@@ -199,7 +199,7 @@ func (me *Interp) callWithDiagCtxSet(env *MoEnv, fnOrFuncExpr *MoExpr, args ...*
 	return nil, me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String())
 }
 
-func (me *Interp) envWith(fn *moValFnLam, args []*MoExpr) (*MoEnv, *SrcFileNotice) {
+func (me *Interp) envWith(fn *moValFnLam, args MoExprs) (*MoEnv, *SrcFileNotice) {
 	if err := me.checkCount(len(fn.params), len(fn.params), args); err != nil {
 		return nil, err
 	}
@@ -234,11 +234,11 @@ func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
 	return nil
 }
 
-func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have []*MoExpr) *SrcFileNotice {
+func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have MoExprs) *SrcFileNotice {
 	return me.checkCountWithSrcSpan(wantAtLeast, wantAtMost, have, false)
 }
 
-func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have []*MoExpr, preferSrcSpan bool) *SrcFileNotice {
+func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have MoExprs, preferSrcSpan bool) *SrcFileNotice {
 	diag_src_span := me.diagSpan(false, preferSrcSpan, have...)
 	moniker := util.If(preferSrcSpan, "item", "arg")
 	if wantAtLeast < 0 {
@@ -274,7 +274,7 @@ func (me *Interp) checkIsListOf(of MoValPrimType, expr *MoExpr) *SrcFileNotice {
 func (me *Interp) checkIsCallOnIdent(call *MoExpr, ident moValIdent, errIfNumArgsNot int) (bool, *SrcFileNotice) {
 	if call, is := call.Val.(moValCall); is {
 		if callee, _ := call[0].Val.(moValIdent); callee == ident {
-			return true, me.checkCount(errIfNumArgsNot, errIfNumArgsNot, call[1:])
+			return true, me.checkCount(errIfNumArgsNot, errIfNumArgsNot, MoExprs(call[1:]))
 		}
 	}
 	return false, nil

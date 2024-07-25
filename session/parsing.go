@@ -357,7 +357,7 @@ func (me *AstNode) SelfAndAncestors() (ret AstNodes) {
 	return
 }
 
-func (me *AstNode) walk(onBefore func(*AstNode) bool, onAfter func(*AstNode)) {
+func (me *AstNode) walk(onBefore func(node *AstNode) bool, onAfter func(node *AstNode)) {
 	if onBefore != nil && !onBefore(me) {
 		return
 	}

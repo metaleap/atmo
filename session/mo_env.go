@@ -24,7 +24,7 @@ func (me *MoEnv) populateWithPrims() {
 	}
 }
 
-func newMoEnv(parent *MoEnv, names []*MoExpr, values []*MoExpr) *MoEnv {
+func newMoEnv(parent *MoEnv, names MoExprs, values MoExprs) *MoEnv {
 	util.Assert(len(names) == len(values), "newMoEnv: len(names) != len(values)")
 	ret := MoEnv{Parent: parent, Own: map[moValIdent]*MoExpr{}}
 	for i, name := range names {
