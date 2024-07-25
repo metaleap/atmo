@@ -5,11 +5,11 @@ import (
 	"atmo/util/kv"
 )
 
-var rootEnv = MoEnv{Own: map[moValIdent]*MoExpr{}}
+var rootEnv = MoEnv{Own: map[MoValIdent]*MoExpr{}}
 
 type MoEnv struct {
 	Parent *MoEnv
-	Own    map[moValIdent]*MoExpr
+	Own    map[MoValIdent]*MoExpr
 }
 
 func (me *Interp) ensureRootEnvPopulated() {
@@ -22,15 +22,15 @@ func (me *Interp) ensureRootEnvPopulated() {
 	}
 	// builtin eager prim-op funcs into rootEnv
 	for name, fn := range moPrimOpsEager {
-		rootEnv.set(name, me.expr(moValFnPrim(fn), nil, nil))
+		rootEnv.set(name, me.expr(MoValFnPrim(fn), nil, nil))
 	}
 }
 
 func newMoEnv(parent *MoEnv, names MoExprs, values MoExprs) *MoEnv {
 	util.Assert(len(names) == len(values), "newMoEnv: len(names) != len(values)")
-	ret := MoEnv{Parent: parent, Own: map[moValIdent]*MoExpr{}}
+	ret := MoEnv{Parent: parent, Own: map[MoValIdent]*MoExpr{}}
 	for i, name := range names {
-		ret.Own[name.Val.(moValIdent)] = values[i]
+		ret.Own[name.Val.(MoValIdent)] = values[i]
 	}
 	return &ret
 }
@@ -45,22 +45,22 @@ func (me *MoEnv) eq(to *MoEnv) bool {
 	return me.Parent.eq(to.Parent) && kv.Eq(me.Own, to.Own, (*MoExpr).eq)
 }
 
-func (me *MoEnv) hasOwn(name moValIdent) (ret bool) {
+func (me *MoEnv) hasOwn(name MoValIdent) (ret bool) {
 	_, ret = me.Own[name]
 	return
 }
 
-func (me *MoEnv) set(name moValIdent, value *MoExpr) {
+func (me *MoEnv) set(name MoValIdent, value *MoExpr) {
 	util.Assert(value != nil, "MoEnv.set(name, nil)")
 	me.Own[name] = value
 }
 
-func (me *MoEnv) lookup(name moValIdent) *MoExpr {
+func (me *MoEnv) lookup(name MoValIdent) *MoExpr {
 	_, found := me.lookupOwner(name)
 	return found
 }
 
-func (me *MoEnv) lookupOwner(name moValIdent) (*MoEnv, *MoExpr) {
+func (me *MoEnv) lookupOwner(name MoValIdent) (*MoEnv, *MoExpr) {
 	found := me.Own[name]
 	if found == nil {
 		if me.Parent != nil {

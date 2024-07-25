@@ -13,14 +13,15 @@ import (
 )
 
 var (
-	moPrimIdents = map[moValIdent]*MoExpr{
-		moValNone.Val.(moValIdent):  moValNone,
-		moValTrue.Val.(moValIdent):  moValTrue,
-		moValFalse.Val.(moValIdent): moValFalse,
+	moPrimIdents = map[MoValIdent]*MoExpr{
+		moValNone.Val.(MoValIdent):  moValNone,
+		moValTrue.Val.(MoValIdent):  moValTrue,
+		moValFalse.Val.(MoValIdent): moValFalse,
 	}
-	moValNone  = &MoExpr{Val: moValIdent("@none")}
-	moValTrue  = &MoExpr{Val: moValIdent("@true")}
-	moValFalse = &MoExpr{Val: moValIdent("@false")}
+	moValNone  = &MoExpr{Val: MoValIdent("@none")}
+	moValNever = &MoExpr{Val: MoValIdent("@never")}
+	moValTrue  = &MoExpr{Val: MoValIdent("@true")}
+	moValFalse = &MoExpr{Val: MoValIdent("@false")}
 )
 
 type moFnEager = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
@@ -31,9 +32,9 @@ type MoValPrimType int
 const (
 	MoPrimTypeType MoValPrimType = iota
 	MoPrimTypeIdent
-	MoPrimTypeInt
-	MoPrimTypeUint
-	MoPrimTypeFloat
+	MoPrimTypeNumInt
+	MoPrimTypeNumUint
+	MoPrimTypeNumFloat
 	MoPrimTypeChar
 	MoPrimTypeStr
 	MoPrimTypeErr
@@ -54,11 +55,11 @@ func (me MoValPrimType) Str(forDiag bool) string {
 		return util.If(forDiag, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
 		return util.If(forDiag, "quoted-identifier", "@Ident")
-	case MoPrimTypeInt:
+	case MoPrimTypeNumInt:
 		return util.If(forDiag, "signed integer number", "@Int")
-	case MoPrimTypeUint:
+	case MoPrimTypeNumUint:
 		return util.If(forDiag, "unsigned integer number", "@Uint")
-	case MoPrimTypeFloat:
+	case MoPrimTypeNumFloat:
 		return util.If(forDiag, "floating-point number", "@Float")
 	case MoPrimTypeChar:
 		return util.If(forDiag, "character", "@Char")
@@ -80,57 +81,56 @@ func (me MoValPrimType) Str(forDiag bool) string {
 
 type MoVal interface {
 	fmt.Stringer
-	primType() MoValPrimType
+	PrimType() MoValPrimType
 }
 
-type moValType MoValPrimType
-type moValIdent string
-type moValInt int64
-type moValUint uint64
-type moValFloat float64
-type moValChar rune
-type moValStr string
-type moValErr struct{ Err *MoExpr }
-type moValDict [][2]*MoExpr
-type moValList MoExprs
-type moValCall MoExprs
-type moValFnPrim moFnEager
-type moValFnLam struct {
-	params              MoExprs // all are guaranteed to be ident before construction
-	body                *MoExpr
-	env                 *MoEnv
-	isMacro             bool
-	isLazyPrimOpWrapper bool
+type MoValType MoValPrimType
+type MoValIdent string
+type MoValNumInt int64
+type MoValNumUint uint64
+type MoValNumFloat float64
+type MoValChar rune
+type MoValStr string
+type MoValErr struct{ Err *MoExpr }
+type MoValDict [][2]*MoExpr
+type MoValList MoExprs
+type MoValCall MoExprs
+type MoValFnPrim moFnEager
+type MoValFnLam struct {
+	Params  MoExprs // all are guaranteed to be ident before construction
+	Body    *MoExpr
+	Env     *MoEnv
+	IsMacro bool
 }
 
-func (moValType) primType() MoValPrimType   { return MoPrimTypeType }
-func (moValIdent) primType() MoValPrimType  { return MoPrimTypeIdent }
-func (moValInt) primType() MoValPrimType    { return MoPrimTypeInt }
-func (moValUint) primType() MoValPrimType   { return MoPrimTypeUint }
-func (moValFloat) primType() MoValPrimType  { return MoPrimTypeFloat }
-func (moValChar) primType() MoValPrimType   { return MoPrimTypeChar }
-func (moValStr) primType() MoValPrimType    { return MoPrimTypeStr }
-func (moValErr) primType() MoValPrimType    { return MoPrimTypeErr }
-func (moValDict) primType() MoValPrimType   { return MoPrimTypeDict }
-func (moValList) primType() MoValPrimType   { return MoPrimTypeList }
-func (moValCall) primType() MoValPrimType   { return MoPrimTypeCall }
-func (moValFnPrim) primType() MoValPrimType { return MoPrimTypeFunc }
-func (*moValFnLam) primType() MoValPrimType { return MoPrimTypeFunc }
-func (me moValType) String() string         { return moValToString(me) }
-func (me moValIdent) String() string        { return moValToString(me) }
-func (me moValInt) String() string          { return moValToString(me) }
-func (me moValUint) String() string         { return moValToString(me) }
-func (me moValFloat) String() string        { return moValToString(me) }
-func (me moValChar) String() string         { return moValToString(me) }
-func (me moValStr) String() string          { return moValToString(me) }
-func (me moValErr) String() string          { return moValToString(me) }
-func (me moValDict) String() string         { return moValToString(me) }
-func (me moValList) String() string         { return moValToString(me) }
-func (me moValCall) String() string         { return moValToString(me) }
-func (me moValFnPrim) String() string       { return moValToString(me) }
-func (me *moValFnLam) String() string       { return moValToString(me) }
+func (MoValType) PrimType() MoValPrimType     { return MoPrimTypeType }
+func (MoValIdent) PrimType() MoValPrimType    { return MoPrimTypeIdent }
+func (MoValNumInt) PrimType() MoValPrimType   { return MoPrimTypeNumInt }
+func (MoValNumUint) PrimType() MoValPrimType  { return MoPrimTypeNumUint }
+func (MoValNumFloat) PrimType() MoValPrimType { return MoPrimTypeNumFloat }
+func (MoValChar) PrimType() MoValPrimType     { return MoPrimTypeChar }
+func (MoValStr) PrimType() MoValPrimType      { return MoPrimTypeStr }
+func (MoValErr) PrimType() MoValPrimType      { return MoPrimTypeErr }
+func (MoValDict) PrimType() MoValPrimType     { return MoPrimTypeDict }
+func (MoValList) PrimType() MoValPrimType     { return MoPrimTypeList }
+func (MoValCall) PrimType() MoValPrimType     { return MoPrimTypeCall }
+func (MoValFnPrim) PrimType() MoValPrimType   { return MoPrimTypeFunc }
+func (*MoValFnLam) PrimType() MoValPrimType   { return MoPrimTypeFunc }
+func (me MoValType) String() string           { return moValToString(me) }
+func (me MoValIdent) String() string          { return moValToString(me) }
+func (me MoValNumInt) String() string         { return moValToString(me) }
+func (me MoValNumUint) String() string        { return moValToString(me) }
+func (me MoValNumFloat) String() string       { return moValToString(me) }
+func (me MoValChar) String() string           { return moValToString(me) }
+func (me MoValStr) String() string            { return moValToString(me) }
+func (me MoValErr) String() string            { return moValToString(me) }
+func (me MoValDict) String() string           { return moValToString(me) }
+func (me MoValList) String() string           { return moValToString(me) }
+func (me MoValCall) String() string           { return moValToString(me) }
+func (me MoValFnPrim) String() string         { return moValToString(me) }
+func (me *MoValFnLam) String() string         { return moValToString(me) }
 
-func (me moValDict) Has(key *MoExpr) bool {
+func (me MoValDict) Has(key *MoExpr) bool {
 	for _, pair := range me {
 		if found := pair[0].eq(key); found {
 			return true
@@ -139,7 +139,7 @@ func (me moValDict) Has(key *MoExpr) bool {
 	return false
 }
 
-func (me moValDict) Get(key *MoExpr) *MoExpr {
+func (me MoValDict) Get(key *MoExpr) *MoExpr {
 	for _, pair := range me {
 		if found := pair[0].eq(key); found {
 			return pair[1]
@@ -148,7 +148,7 @@ func (me moValDict) Get(key *MoExpr) *MoExpr {
 	return nil
 }
 
-func (me moValDict) Without(keys ...*MoExpr) moValDict {
+func (me MoValDict) Without(keys ...*MoExpr) MoValDict {
 	if len(keys) == 0 {
 		return me
 	}
@@ -157,8 +157,8 @@ func (me moValDict) Without(keys ...*MoExpr) moValDict {
 	})
 }
 
-func (me moValDict) With(key *MoExpr, val *MoExpr) moValDict {
-	ret := make(moValDict, len(me))
+func (me MoValDict) With(key *MoExpr, val *MoExpr) MoValDict {
+	ret := make(MoValDict, len(me))
 	for i, pair := range me {
 		k, v := *pair[0], *pair[1]
 		ret[i][0], ret[i][1] = &k, &v
@@ -167,7 +167,7 @@ func (me moValDict) With(key *MoExpr, val *MoExpr) moValDict {
 	return ret
 }
 
-func (me *moValDict) Set(key *MoExpr, val *MoExpr) {
+func (me *MoValDict) Set(key *MoExpr, val *MoExpr) {
 	this := *me
 	var found bool
 	for i, pair := range this {
@@ -184,8 +184,8 @@ func (me *moValDict) Set(key *MoExpr, val *MoExpr) {
 
 type MoExpr struct {
 	Val     MoVal
-	SrcSpan *SrcFileSpan `json:"-"` // caution: `nil` for prims / builtins
-	SrcFile *SrcFile     `json:"-"` // dito
+	SrcSpan *SrcFileSpan // caution: `nil` for prims / builtins
+	SrcFile *SrcFile     // dito
 }
 
 func (me *MoExpr) srcNode() *AstNode {
@@ -196,7 +196,7 @@ func (me *MoExpr) srcNode() *AstNode {
 }
 
 func (me *MoExpr) Callee() *MoExpr {
-	if call, is := me.Val.(moValCall); is {
+	if call, is := me.Val.(MoValCall); is {
 		return call[0]
 	}
 	return nil
@@ -209,27 +209,27 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 	if me == to {
 		return true
 	}
-	if (me == nil) || (to == nil) || me.Val.primType() != to.Val.primType() {
+	if (me == nil) || (to == nil) || me.Val.PrimType() != to.Val.PrimType() {
 		return false
 	}
 	switch it := me.Val.(type) {
-	case moValErr:
-		other := to.Val.(moValErr)
+	case MoValErr:
+		other := to.Val.(MoValErr)
 		return it.Err.eq(other.Err)
-	case moValList:
-		other := to.Val.(moValList)
+	case MoValList:
+		other := to.Val.(MoValList)
 		return sl.Eq(it, other, (*MoExpr).eq)
-	case moValCall:
-		other := to.Val.(moValCall)
+	case MoValCall:
+		other := to.Val.(MoValCall)
 		return sl.Eq(it, other, (*MoExpr).eq)
-	case *moValFnLam:
-		other := to.Val.(*moValFnLam)
-		return it.body.eq(other.body) && (it.isMacro == other.isMacro) && sl.Eq(it.params, other.params, (*MoExpr).eq) && it.env.eq(other.env)
-	case moValFnPrim:
-		other := to.Val.(moValFnPrim)
+	case *MoValFnLam:
+		other := to.Val.(*MoValFnLam)
+		return it.Body.eq(other.Body) && (it.IsMacro == other.IsMacro) && sl.Eq(it.Params, other.Params, (*MoExpr).eq) && it.Env.eq(other.Env)
+	case MoValFnPrim:
+		other := to.Val.(MoValFnPrim)
 		return (it == nil) && (other == nil)
-	case moValDict:
-		other := to.Val.(moValDict)
+	case MoValDict:
+		other := to.Val.(MoValDict)
 		if len(it) != len(other) {
 			return false
 		}
@@ -245,24 +245,24 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 
 func (me *Interp) cmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *SrcFileNotice) {
 	switch it := it.Val.(type) {
-	case moValChar:
-		if other, is := to.Val.(moValChar); is {
+	case MoValChar:
+		if other, is := to.Val.(MoValChar); is {
 			return cmp.Compare(it, other), nil
 		}
-	case moValStr:
-		if other, is := to.Val.(moValStr); is {
+	case MoValStr:
+		if other, is := to.Val.(MoValStr); is {
 			return cmp.Compare(it, other), nil
 		}
-	case moValFloat:
-		if other, is := to.Val.(moValFloat); is {
+	case MoValNumFloat:
+		if other, is := to.Val.(MoValNumFloat); is {
 			return cmp.Compare(it, other), nil
 		}
-	case moValInt:
-		if other, is := to.Val.(moValInt); is {
+	case MoValNumInt:
+		if other, is := to.Val.(MoValNumInt); is {
 			return cmp.Compare(it, other), nil
 		}
-	case moValUint:
-		if other, is := to.Val.(moValUint); is {
+	case MoValNumUint:
+		if other, is := to.Val.(MoValNumUint); is {
 			return cmp.Compare(it, other), nil
 		}
 	}
@@ -300,25 +300,25 @@ func (me *MoExpr) String() string {
 func (me *MoExpr) WriteTo(w io.StringWriter) { moValWriteTo(me.Val, w) }
 func moValWriteTo(it MoVal, w io.StringWriter) {
 	switch it := it.(type) {
-	case moValType:
+	case MoValType:
 		w.WriteString(MoValPrimType(it).Str(false))
-	case moValIdent:
+	case MoValIdent:
 		w.WriteString(string(it))
-	case moValInt:
+	case MoValNumInt:
 		w.WriteString(str.FromI64(int64(it), 10))
-	case moValUint:
+	case MoValNumUint:
 		w.WriteString(str.FromU64(uint64(it), 10))
-	case moValFloat:
+	case MoValNumFloat:
 		w.WriteString(str.FromFloat(float64(it), -1))
-	case moValChar:
+	case MoValChar:
 		w.WriteString(strconv.QuoteRune(rune(it)))
-	case moValStr:
+	case MoValStr:
 		w.WriteString(str.Q(string(it)))
-	case moValErr:
+	case MoValErr:
 		w.WriteString("(@Err ")
 		it.Err.WriteTo(w)
 		w.WriteString(")")
-	case moValDict:
+	case MoValDict:
 		w.WriteString("{")
 		for i, pair := range it {
 			if i > 0 {
@@ -330,7 +330,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			v.WriteTo(w)
 		}
 		w.WriteString("}")
-	case moValList:
+	case MoValList:
 		w.WriteString("[")
 		for i, item := range it {
 			if i > 0 {
@@ -339,7 +339,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			item.WriteTo(w)
 		}
 		w.WriteString("]")
-	case moValCall:
+	case MoValCall:
 		w.WriteString("(")
 		for i, item := range it {
 			if i > 0 {
@@ -348,9 +348,9 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			item.WriteTo(w)
 		}
 		w.WriteString(")")
-	case moValFnPrim:
+	case MoValFnPrim:
 		w.WriteString("<builtin>")
-	case *moValFnLam:
+	case *MoValFnLam:
 		w.WriteString("<lambda>")
 	default:
 		panic(it)
@@ -375,12 +375,6 @@ func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 			return nil, diag
 		}
 	}
-	filter := func(it *AstNode) bool { return (it.Kind != AstNodeKindErr) && (it.Kind != AstNodeKindComment) }
-	me.replFauxFile.Src.Ast = sl.Where(me.replFauxFile.Src.Ast, filter)
-	me.replFauxFile.Src.Ast.walk(func(node *AstNode) bool {
-		node.Nodes = sl.Where(node.Nodes, filter)
-		return true
-	}, nil)
 	if len(me.replFauxFile.Src.Ast) > 1 {
 		return nil, me.replFauxFile.Src.Ast.newDiagErr(me.replFauxFile, NoticeCodeAtmoTodo, "odd case: please report, quoting exact input, namely: `"+src+"`")
 	} else if (len(me.replFauxFile.Src.Ast) == 0) || (len(me.replFauxFile.Src.Ast[0].Nodes) == 0) {
@@ -395,41 +389,45 @@ func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 }
 
 func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
-	util.Assert((topNode.Kind == AstNodeKindGroup) && (len(topNode.Nodes) > 0), nil)
-	if len(topNode.Nodes) > 1 {
-		topNode.Nodes = AstNodes{topNode.Nodes.toGroupNode(me, topNode, true, false)}
+	util.Assert(topNode.Kind == AstNodeKindGroup, nil)
+	nodes := topNode.Nodes.withoutComments()
+	util.Assert(len(nodes) > 0, nil)
+	if len(nodes) > 1 {
+		nodes = AstNodes{nodes.toGroupNode(me, topNode, true, false)}
 	}
-	return me.exprFromAstNode(topNode.Nodes[0])
+	return me.exprFromAstNode(nodes[0])
 }
 
 func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	var val MoVal
 	switch node.Kind {
+	case AstNodeKindErr:
+		val = moValNever.Val
 	case AstNodeKindIdent:
 		if node.Toks[0].isSep() {
 			return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression instead of `"+node.Src+"` here")
 		}
-		val = moValIdent(node.Src)
+		val = MoValIdent(node.Src)
 	case AstNodeKindLit:
 		switch it := node.Lit.(type) {
 		case rune:
-			val = moValChar(it)
+			val = MoValChar(it)
 		case string:
-			val = moValStr(it)
+			val = MoValStr(it)
 		case float64:
-			val = moValFloat(it)
+			val = MoValNumFloat(it)
 		case int64:
-			val = moValInt(it)
+			val = MoValNumInt(it)
 		case uint64:
-			val = moValUint(it)
+			val = MoValNumUint(it)
 		default:
 			panic(str.Fmt("TODO: lit type %T", it))
 		}
 	case AstNodeKindGroup:
 		switch {
 		case node.IsSquareBrackets():
-			list := make(moValList, 0, len(node.Nodes))
-			for _, node := range node.Nodes {
+			list := make(MoValList, 0, len(node.Nodes))
+			for _, node := range node.Nodes.withoutComments() {
 				expr, err := me.exprFromAstNode(node)
 				if err != nil {
 					return nil, err
@@ -438,14 +436,15 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			}
 			val = list
 		case node.IsCurlyBraces():
-			dict := make(moValDict, 0, len(node.Nodes))
-			for _, node := range node.Nodes {
-				util.Assert(len(node.Nodes) == 2, len(node.Nodes))
-				expr_key, err := me.exprFromAstNode(node.Nodes[0])
+			dict := make(MoValDict, 0, len(node.Nodes))
+			for _, kv_node := range node.Nodes.withoutComments() {
+				kv_nodes := kv_node.Nodes.withoutComments()
+				util.Assert(len(kv_nodes) == 2, len(kv_nodes))
+				expr_key, err := me.exprFromAstNode(kv_nodes[0])
 				if err != nil {
 					return nil, err
 				}
-				expr_val, err := me.exprFromAstNode(node.Nodes[1])
+				expr_val, err := me.exprFromAstNode(kv_nodes[1])
 				if err != nil {
 					return nil, err
 				}
@@ -456,14 +455,15 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			}
 			val = dict
 		default:
-			if len(node.Nodes) == 1 {
-				return me.exprFromAstNode(node.Nodes[0])
-			} else if len(node.Nodes) == 0 {
+			nodes := node.Nodes.withoutComments()
+			if len(nodes) == 1 {
+				return me.exprFromAstNode(nodes[0])
+			} else if len(nodes) == 0 {
 				return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression inside these empty parens")
 			}
 
-			call_form := make(moValCall, 0, len(node.Nodes))
-			for _, node := range node.Nodes {
+			call_form := make(MoValCall, 0, len(nodes))
+			for _, node := range nodes {
 				expr, err := me.exprFromAstNode(node)
 				if err != nil {
 					return nil, err
@@ -476,30 +476,30 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	return &MoExpr{SrcFile: me, SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
 }
 
-func (me *MoExpr) walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
+func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
 	if onBefore != nil && !onBefore(me) {
 		return
 	}
 	switch it := me.Val.(type) {
-	case moValCall:
+	case MoValCall:
 		for _, item := range it {
-			item.walk(onBefore, onAfter)
+			item.Walk(onBefore, onAfter)
 		}
-	case moValDict:
+	case MoValDict:
 		for _, pair := range it {
-			pair[0].walk(onBefore, onAfter)
-			pair[1].walk(onBefore, onAfter)
+			pair[0].Walk(onBefore, onAfter)
+			pair[1].Walk(onBefore, onAfter)
 		}
-	case moValErr:
-		it.Err.walk(onBefore, onAfter)
-	case *moValFnLam:
-		for _, item := range it.params {
-			item.walk(onBefore, onAfter)
+	case MoValErr:
+		it.Err.Walk(onBefore, onAfter)
+	case *MoValFnLam:
+		for _, item := range it.Params {
+			item.Walk(onBefore, onAfter)
 		}
-		it.body.walk(onBefore, onAfter)
-	case moValList:
+		it.Body.Walk(onBefore, onAfter)
+	case MoValList:
 		for _, item := range it {
-			item.walk(onBefore, onAfter)
+			item.Walk(onBefore, onAfter)
 		}
 	}
 	if onAfter != nil {
@@ -509,8 +509,8 @@ func (me *MoExpr) walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 
 type MoExprs []*MoExpr
 
-func (me MoExprs) walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
+func (me MoExprs) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
 	for _, expr := range me {
-		expr.walk(onBefore, onAfter)
+		expr.Walk(onBefore, onAfter)
 	}
 }

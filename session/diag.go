@@ -126,6 +126,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 			ret.Add(node.errsExpansion...)
 		}
 	})
+	ret.Add(me.notices.Sema...)
 	return
 }
 

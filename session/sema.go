@@ -5,14 +5,18 @@ import (
 	"time"
 
 	"atmo/util/sl"
+	"atmo/util/str"
 )
 
 func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
-	defer func(timeStarted time.Time) { OnDbgMsg(true, "SEMA %s for %s", time.Since(timeStarted), me.DirPath) }(time.Now())
+	defer func(timeStarted time.Time) {
+		OnDbgMsg(true, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
+	}(time.Now())
 
 	var top_level MoExprs
 	for _, src_file := range me.Files {
 		if !src_file.isReplish() {
+			had_errs := (len(src_file.notices.Sema) > 0)
 			src_file.notices.Sema = nil
 			for _, top_node := range src_file.Src.Ast {
 				if (top_node.Kind == AstNodeKindComment) || (top_node.Kind == AstNodeKindErr) {
@@ -25,7 +29,7 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 					top_level = append(top_level, expr)
 				}
 			}
-			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.Sema) > 0)
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.Sema) > 0) || had_errs
 		}
 	}
 

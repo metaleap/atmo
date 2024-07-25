@@ -52,16 +52,16 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 	diag_ctx_orig, expr_orig := me.diagCtxCall, expr
 	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
 	for (err == nil) && (env != nil) {
-		if _, is_call := expr.Val.(moValCall); !is_call {
+		if _, is_call := expr.Val.(MoValCall); !is_call {
 			expr, err = me.evalExpr(env, expr)
 			env = nil
 		} else if expr, err = me.macroExpand(env, expr); err != nil {
 			return nil, err
-		} else if call, is_call := expr.Val.(moValCall); is_call {
+		} else if call, is_call := expr.Val.(MoValCall); is_call {
 			callee, call_args := call[0], (MoExprs)(call[1:])
 
 			var prim_op_lazy moFnLazy
-			if ident, _ := callee.Val.(moValIdent); ident != "" {
+			if ident, _ := callee.Val.(MoValIdent); ident != "" {
 				prim_op_lazy = moPrimOpsLazy[ident]
 			}
 
@@ -83,19 +83,19 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 					return nil, err
 				}
 				me.diagCtxCall = diag_ctx_cur
-				call = expr.Val.(moValCall)
+				call = expr.Val.(MoValCall)
 				callee, call_args = call[0], (MoExprs)(call[1:])
 				switch fn := callee.Val.(type) {
 				default:
 					return nil, me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String())
-				case moValFnPrim:
+				case MoValFnPrim:
 					if expr, err = fn(me, env, call_args...); err != nil {
 						return nil, err
 					}
 					expr.setSrcSpanIfNone(diag_ctx_cur)
 					env, me.diagCtxCall = nil, diag_ctx_prev
-				case *moValFnLam:
-					expr = fn.body
+				case *MoValFnLam:
+					expr = fn.Body
 					env, err = me.envWith(fn, call_args)
 					if err != nil {
 						return nil, err
@@ -113,7 +113,7 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 
 func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	switch val := expr.Val.(type) {
-	case moValIdent:
+	case MoValIdent:
 		if (val[0] != '@') || (moPrimIdents[val] == nil) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
 			found := env.lookup(val)
 			if found == nil {
@@ -121,8 +121,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan), nil
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
-	case moValList:
-		list := make(moValList, len(val))
+	case MoValList:
+		list := make(MoValList, len(val))
 		for i, item := range val {
 			it, err := me.evalAndApply(env, item)
 			if err != nil {
@@ -131,8 +131,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			list[i] = it
 		}
 		return me.expr(list, expr.SrcFile, expr.SrcSpan), nil
-	case moValDict:
-		dict := make(moValDict, 0, len(val))
+	case MoValDict:
+		dict := make(MoValDict, 0, len(val))
 		for _, pair := range val {
 			k, v := pair[0], pair[1]
 			key, err := me.evalAndApply(env, k)
@@ -149,8 +149,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			dict.Set(key, val)
 		}
 		return me.expr(dict, expr.SrcFile, expr.SrcSpan), nil
-	case moValCall:
-		call := make(moValCall, len(val))
+	case MoValCall:
+		call := make(MoValCall, len(val))
 		for i, item := range val {
 			it, err := me.evalAndApply(env, item)
 			if err != nil {
@@ -166,11 +166,11 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 func (me *Interp) diagSpan(preferCalleeOverCall bool, preferTheseEvenMore bool, have ...*MoExpr) (ret *SrcFileSpan) {
 	if me.diagCtxCall != nil {
 		ret = me.diagCtxCall.SrcSpan
-		if callee := me.diagCtxCall.Val.(moValCall)[0]; preferCalleeOverCall && (callee.SrcSpan != nil) {
+		if callee := me.diagCtxCall.Val.(MoValCall)[0]; preferCalleeOverCall && (callee.SrcSpan != nil) {
 			ret = callee.SrcSpan
 		}
 		if ret == nil {
-			for _, expr := range me.diagCtxCall.Val.(moValCall) {
+			for _, expr := range me.diagCtxCall.Val.(MoValCall) {
 				if ret = expr.SrcSpan; ret != nil {
 					break
 				}
@@ -189,11 +189,11 @@ func (me *Interp) diagSpan(preferCalleeOverCall bool, preferTheseEvenMore bool, 
 func (me *Interp) srcFile(preferCalleeOverCall bool, preferTheseEvenMore bool, have ...*MoExpr) (ret *SrcFile) {
 	if me.diagCtxCall != nil {
 		ret = me.diagCtxCall.SrcFile
-		if callee := me.diagCtxCall.Val.(moValCall)[0]; preferCalleeOverCall && (callee.SrcFile != nil) {
+		if callee := me.diagCtxCall.Val.(MoValCall)[0]; preferCalleeOverCall && (callee.SrcFile != nil) {
 			ret = callee.SrcFile
 		}
 		if ret == nil {
-			for _, expr := range me.diagCtxCall.Val.(moValCall) {
+			for _, expr := range me.diagCtxCall.Val.(MoValCall) {
 				if ret = expr.SrcFile; ret != nil {
 					break
 				}
@@ -213,31 +213,31 @@ func (me *Interp) srcFile(preferCalleeOverCall bool, preferTheseEvenMore bool, h
 func (me *Interp) callWithDiagCtxSet(env *MoEnv, fnOrFuncExpr *MoExpr, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	util.Assert(me.diagCtxCall != nil, nil)
 	switch fn := fnOrFuncExpr.Val.(type) {
-	case moValFnPrim:
+	case MoValFnPrim:
 		return fn(me, env, args...)
-	case *moValFnLam:
+	case *MoValFnLam:
 		env, err := me.envWith(fn, args)
 		if err != nil {
 			return nil, err
 		}
-		return me.evalAndApply(env, fn.body)
+		return me.evalAndApply(env, fn.Body)
 	}
 	callee := me.diagCtxCall.Callee()
 	return nil, me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String())
 }
 
-func (me *Interp) envWith(fn *moValFnLam, args MoExprs) (*MoEnv, *SrcFileNotice) {
-	if err := me.checkCount(len(fn.params), len(fn.params), args); err != nil {
+func (me *Interp) envWith(fn *MoValFnLam, args MoExprs) (*MoEnv, *SrcFileNotice) {
+	if err := me.checkCount(len(fn.Params), len(fn.Params), args); err != nil {
 		return nil, err
 	}
-	return newMoEnv(fn.env, fn.params, args), nil
+	return newMoEnv(fn.Env, fn.Params, args), nil
 }
 
 func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	diag_ctx := me.diagCtxCall
 	for fn := expr.macroCallCallee(env); fn != nil; fn = expr.macroCallCallee(env) {
 		me.diagCtxCall = expr
-		it, err := me.callWithDiagCtxSet(env, fn, expr.Val.(moValCall)[1:]...)
+		it, err := me.callWithDiagCtxSet(env, fn, expr.Val.(MoValCall)[1:]...)
 		if err != nil {
 			return nil, err
 		}
@@ -249,10 +249,10 @@ func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice
 }
 
 func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
-	if call, is := me.Val.(moValCall); is {
-		if ident, _ := call[0].Val.(moValIdent); ident != "" {
+	if call, is := me.Val.(MoValCall); is {
+		if ident, _ := call[0].Val.(MoValIdent); ident != "" {
 			if expr := env.lookup(ident); expr != nil {
-				if fn, _ := expr.Val.(*moValFnLam); fn != nil && fn.isMacro {
+				if fn, _ := expr.Val.(*MoValFnLam); fn != nil && fn.IsMacro {
 					return expr
 				}
 			}
@@ -281,7 +281,7 @@ func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have Mo
 }
 
 func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *SrcFileNotice {
-	if have_type := have.Val.primType(); have_type != want {
+	if have_type := have.Val.PrimType(); have_type != want {
 		have_str := util.If(have_type == MoPrimTypeFunc, have.SrcFile.srcAt(have.SrcSpan, '`'), "`"+have.String()+"`")
 		return me.diagSpan(false, true, have).newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%s instead of %s %s", want.Str(true), have_type.Str(true), have_str))
 	}
@@ -293,14 +293,14 @@ func (me *Interp) checkIsListOf(of MoValPrimType, expr *MoExpr) *SrcFileNotice {
 		return err
 	}
 	if of >= 0 {
-		return me.check(of, -1, -1, expr.Val.(moValList)...)
+		return me.check(of, -1, -1, expr.Val.(MoValList)...)
 	}
 	return nil
 }
 
-func (me *Interp) checkIsCallOnIdent(call *MoExpr, ident moValIdent, errIfNumArgsNot int) (bool, *SrcFileNotice) {
-	if call, is := call.Val.(moValCall); is {
-		if callee, _ := call[0].Val.(moValIdent); callee == ident {
+func (me *Interp) checkIsCallOnIdent(call *MoExpr, ident MoValIdent, errIfNumArgsNot int) (bool, *SrcFileNotice) {
+	if call, is := call.Val.(MoValCall); is {
+		if callee, _ := call[0].Val.(MoValIdent); callee == ident {
 			return true, me.checkCount(errIfNumArgsNot, errIfNumArgsNot, MoExprs(call[1:]))
 		}
 	}
@@ -309,7 +309,7 @@ func (me *Interp) checkIsCallOnIdent(call *MoExpr, ident moValIdent, errIfNumArg
 
 func (me *Interp) checkNoneArePrimFuncs(have ...*MoExpr) bool {
 	for _, arg := range have {
-		if _, is := arg.Val.(moValFnPrim); is {
+		if _, is := arg.Val.(MoValFnPrim); is {
 			return false
 		}
 	}
