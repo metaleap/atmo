@@ -624,12 +624,18 @@ func (me *Interp) primFnEq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) 
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
+	if !me.checkNoneArePrimFuncs(args...) {
+		return nil, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "equality")
+	}
 	return me.exprBool(args[0].eq(args[1]), args...), nil
 }
 
 func (me *Interp) primFnNeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
+	}
+	if !me.checkNoneArePrimFuncs(args...) {
+		return nil, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "not-equal")
 	}
 	return me.exprBool(!args[0].eq(args[1]), args...), nil
 }
@@ -638,7 +644,10 @@ func (me *Interp) primFnLeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
-	cmp, err := me.cmp(args[0], args[1])
+	if !me.checkNoneArePrimFuncs(args...) {
+		return nil, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "less-or-equal")
+	}
+	cmp, err := me.cmp(args[0], args[1], "less-or-equal")
 	if err != nil {
 		return nil, err
 	}
@@ -649,7 +658,10 @@ func (me *Interp) primFnGeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
-	cmp, err := me.cmp(args[0], args[1])
+	if !me.checkNoneArePrimFuncs(args...) {
+		return nil, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "greater-or-equal")
+	}
+	cmp, err := me.cmp(args[0], args[1], "greater-or-equal")
 	if err != nil {
 		return nil, err
 	}
@@ -660,7 +672,10 @@ func (me *Interp) primFnLt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) 
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
-	cmp, err := me.cmp(args[0], args[1])
+	if !me.checkNoneArePrimFuncs(args...) {
+		return nil, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "less-than")
+	}
+	cmp, err := me.cmp(args[0], args[1], "less-than")
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +686,10 @@ func (me *Interp) primFnGt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) 
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
-	cmp, err := me.cmp(args[0], args[1])
+	if !me.checkNoneArePrimFuncs(args...) {
+		return nil, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "greater-than")
+	}
+	cmp, err := me.cmp(args[0], args[1], "greater-than")
 	if err != nil {
 		return nil, err
 	}

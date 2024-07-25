@@ -279,6 +279,15 @@ func (me *Interp) checkIsCallOnIdent(call *MoExpr, ident moValIdent, errIfNumArg
 	return false, nil
 }
 
+func (me *Interp) checkNoneArePrimFuncs(have ...*MoExpr) bool {
+	for _, arg := range have {
+		if _, is := arg.Val.(moValFnPrim); is {
+			return false
+		}
+	}
+	return true
+}
+
 func (me *Interp) check(want MoValPrimType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *SrcFileNotice {
 	if err := me.checkCount(wantAtLeast, wantAtMost, have); err != nil {
 		return err

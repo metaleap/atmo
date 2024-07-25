@@ -217,6 +217,9 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 	case *moValFnLam:
 		other := to.Val.(*moValFnLam)
 		return it.body.eq(other.body) && (it.isMacro == other.isMacro) && sl.Eq(it.params, other.params, (*MoExpr).eq) && it.env.eq(other.env)
+	case moValFnPrim:
+		other := to.Val.(moValFnPrim)
+		return (it == nil) && (other == nil)
 	case moValDict:
 		other := to.Val.(moValDict)
 		if len(it) != len(other) {
@@ -232,7 +235,7 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 	return me.Val == to.Val
 }
 
-func (me *Interp) cmp(it *MoExpr, to *MoExpr) (int, *SrcFileNotice) {
+func (me *Interp) cmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *SrcFileNotice) {
 	switch it := it.Val.(type) {
 	case moValChar:
 		if other, is := to.Val.(moValChar); is {
@@ -255,7 +258,7 @@ func (me *Interp) cmp(it *MoExpr, to *MoExpr) (int, *SrcFileNotice) {
 			return cmp.Compare(it, other), nil
 		}
 	}
-	return 0, me.diagSpan(true, false, it, to).newDiagErr(NoticeCodeNotComparable, it, to)
+	return 0, me.diagSpan(true, false, it, to).newDiagErr(NoticeCodeNotComparable, it, to, diagMsgOpMoniker)
 }
 
 func (me *Interp) withSrcSpan(expr *MoExpr, srcSpanCtx ...*MoExpr) *MoExpr {
