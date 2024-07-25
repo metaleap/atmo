@@ -80,8 +80,6 @@ func init() {
 	} {
 		moPrimOpsLazy[k] = v
 	}
-
-	rootEnv.populateWithPrims()
 }
 
 // lazy prim-ops first, eager prim-ops afterwards
@@ -155,15 +153,15 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 	list := args[1].Val.(moValList)
 	body := list[0]
 	if len(list) > 1 {
-		do := &MoExpr{SrcSpan: srcSpanFrom(list), Val: moPrimOpDo}
+		do := &MoExpr{SrcSpan: srcSpanFrom(list), SrcFile: body.SrcFile, Val: moPrimOpDo}
 		body = &MoExpr{
-			Val:     moValCall{do, &MoExpr{Val: list, SrcSpan: do.SrcSpan}},
-			SrcSpan: do.SrcSpan,
+			Val:     moValCall{do, &MoExpr{Val: list, SrcSpan: do.SrcSpan, SrcFile: do.SrcFile}},
+			SrcSpan: do.SrcSpan, SrcFile: do.SrcFile,
 		}
 	}
 	expr := &MoExpr{
-		SrcSpan: srcSpanFrom(args),
-		Val:     &moValFnLam{params: MoExprs(args[0].Val.(moValList)), body: body, env: env},
+		SrcSpan: srcSpanFrom(args), SrcFile: body.SrcFile,
+		Val: &moValFnLam{params: MoExprs(args[0].Val.(moValList)), body: body, env: env},
 	}
 	return nil, expr, nil
 }
@@ -214,7 +212,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			}
 			ret.Set(key, val)
 		}
-		return nil, &MoExpr{Val: ret, SrcSpan: me.diagSpan(false, true, args[0])}, nil
+		return nil, &MoExpr{Val: ret, SrcSpan: me.diagSpan(false, true, args[0]), SrcFile: args[0].SrcFile}, nil
 	}
 
 	// must be list or call then: we handle them the same, per item iteration
@@ -264,7 +262,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			ret = append(ret, evaled)
 		}
 	}
-	return nil, &MoExpr{Val: util.If[MoVal](is_list, moValList(ret), moValCall(ret)), SrcSpan: me.diagSpan(false, true, args[0])}, nil
+	return nil, &MoExpr{Val: util.If[MoVal](is_list, moValList(ret), moValCall(ret)), SrcSpan: me.diagSpan(false, true, args[0]), SrcFile: args[0].SrcFile}, nil
 }
 
 func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
@@ -341,7 +339,7 @@ func makeArithPrimOp[T moValInt | moValUint | moValFloat](t MoValPrimType, f fun
 		if err := me.check(t, 2, 2, args...); err != nil {
 			return nil, err
 		}
-		return &MoExpr{Val: f(args[0].Val, args[1].Val)}, nil
+		return &MoExpr{Val: f(args[0].Val, args[1].Val), SrcSpan: me.diagSpan(false, false, args...), SrcFile: args[0].SrcFile}, nil
 	}
 }
 
@@ -349,16 +347,23 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if err := me.checkCount(0, 0, args); err != nil {
 		return nil, err
 	}
-	ret := &MoExpr{Val: make(moValDict, 0, len(me.Env.Own)+len(env.Own))}
+	src_file := me.replFauxFile
+	if (me.diagCtxCall != nil) && (me.diagCtxCall.SrcFile != nil) {
+		src_file = me.diagCtxCall.SrcFile
+	}
+	src_span := me.diagSpan(false, false, args...)
+
+	ret := &MoExpr{Val: make(moValDict, 0, len(me.Env.Own)+len(env.Own)), SrcSpan: src_span, SrcFile: src_file}
 	var populate func(it *MoEnv, into *MoExpr) *MoExpr
 	populate = func(it *MoEnv, into *MoExpr) *MoExpr {
 		dict := into.Val.(moValDict)
 		for k, v := range it.Own {
-			dict.Set(&MoExpr{Val: k}, v)
+			dict.Set(&MoExpr{Val: k, SrcSpan: src_span, SrcFile: src_file}, v)
 		}
 		if it.Parent != nil {
-			dict_parent := &MoExpr{Val: make(moValDict, 0, len(env.Parent.Own))}
-			dict.Set(&MoExpr{Val: moValIdent("")}, populate(it.Parent, dict_parent))
+			dict_parent := &MoExpr{Val: make(moValDict, 0, len(env.Parent.Own)), SrcSpan: src_span, SrcFile: src_file}
+			dict.Set(&MoExpr{Val: moValIdent(""), SrcSpan: src_span, SrcFile: src_file},
+				populate(it.Parent, dict_parent))
 		}
 		into.Val = dict
 		return into
@@ -431,7 +436,7 @@ func (me *Interp) primFnListLen(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNot
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return nil, err
 	}
-	return &MoExpr{SrcSpan: me.diagSpan(false, false, args...), Val: moValUint(len(args[0].Val.(moValList)))}, nil
+	return &MoExpr{Val: moValUint(len(args[0].Val.(moValList))), SrcSpan: me.diagSpan(false, false, args...), SrcFile: args[0].SrcFile}, nil
 }
 
 func (me *Interp) primFnListItemAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -463,7 +468,7 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	}
 	list, idx_start := args[0].Val.(moValList), args[1].Val.(moValUint)
 	if len(args) == 2 {
-		args = append(args, &MoExpr{Val: moValUint(len(list)), SrcSpan: me.diagSpan(false, true, args[1])})
+		args = append(args, &MoExpr{Val: moValUint(len(list)), SrcSpan: me.diagSpan(false, true, args[1]), SrcFile: args[1].SrcFile})
 	} else if err := me.checkIs(MoPrimTypeUint, args[2]); err != nil {
 		return nil, err
 	}
@@ -476,7 +481,7 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if idx_downcast := int(idx_end); (idx_downcast < 0) || (idx_downcast > len(list)) {
 		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_downcast, len(list))
 	}
-	return &MoExpr{Val: list[idx_start:idx_end], SrcSpan: me.diagSpan(false, idx_start != idx_end, list[idx_start:idx_end]...)}, nil
+	return &MoExpr{Val: list[idx_start:idx_end], SrcSpan: me.diagSpan(false, idx_start != idx_end, list[idx_start:idx_end]...), SrcFile: args[0].SrcFile}, nil
 }
 
 func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -619,9 +624,9 @@ func (me *Interp) primFnDictGet(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNot
 	}
 	found := args[0].Val.(moValDict).Get(args[1])
 	if found == nil {
-		return me.withSrcSpan(moValNone, args...), nil
+		return me.exprFrom(moValNone, args...), nil
 	}
-	return me.withSrcSpan(found, args...), nil
+	return me.exprFrom(found, args...), nil
 }
 
 func (me *Interp) primFnDictWith(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -631,7 +636,7 @@ func (me *Interp) primFnDictWith(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNo
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return nil, err
 	}
-	ret := me.withSrcSpan(args[0], args...)
+	ret := me.exprFrom(args[0], args...)
 	ret.Val = ret.Val.(moValDict).With(args[1], args[2])
 	return ret, nil
 }
@@ -646,7 +651,7 @@ func (me *Interp) primFnDictWithout(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFil
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
 		return nil, err
 	}
-	ret := me.withSrcSpan(args[0], args...)
+	ret := me.exprFrom(args[0], args...)
 	ret.Val = ret.Val.(moValDict).Without(args[1].Val.(moValList)...)
 	return ret, nil
 }

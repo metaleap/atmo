@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"atmo/util"
+	"atmo/util/sl"
 	"atmo/util/str"
 )
 
@@ -30,6 +31,7 @@ type Interp struct {
 func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 	ret := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, replFauxFile: replFauxFile}
 	ret.StdIo.In, ret.StdIo.Out, ret.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
+	ret.ensureRootEnvPopulated()
 	return &ret
 }
 
@@ -45,7 +47,7 @@ func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 
 func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	var err *SrcFileNotice
-	diag_ctx_orig, src_span_orig := me.diagCtxCall, expr.SrcSpan
+	diag_ctx_orig, expr_orig := me.diagCtxCall, expr
 	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
 	for (err == nil) && (env != nil) {
 		if _, is_call := expr.Val.(moValCall); !is_call {
@@ -101,8 +103,8 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 		}
 	}
 	me.diagCtxCall = diag_ctx_orig
-	if (expr != nil) && (expr.SrcSpan == nil) && (src_span_orig != nil) {
-		expr = &MoExpr{SrcSpan: src_span_orig, Val: expr.Val}
+	if expr != nil && ((expr.SrcFile == nil) || (expr.SrcSpan == nil)) {
+		expr = &MoExpr{Val: expr.Val, SrcSpan: sl.FirstNonNil(expr.SrcSpan, expr_orig.SrcSpan), SrcFile: sl.FirstNonNil(expr.SrcFile, expr_orig.SrcFile)}
 	}
 	return expr, err
 }
@@ -115,7 +117,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			if found == nil {
 				return nil, me.diagSpan(false, true, expr).newDiagErr(NoticeCodeUndefined, val)
 			}
-			return &MoExpr{Val: found.Val, SrcSpan: expr.SrcSpan}, nil
+			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan), nil
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
 	case moValList:
 		list := make(moValList, len(val))
@@ -126,7 +128,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			list[i] = it
 		}
-		return &MoExpr{Val: list, SrcSpan: expr.SrcSpan}, nil
+		return me.expr(list, expr.SrcFile, expr.SrcSpan), nil
 	case moValDict:
 		dict := make(moValDict, 0, len(val))
 		for _, pair := range val {
@@ -144,7 +146,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			dict.Set(key, val)
 		}
-		return &MoExpr{Val: dict, SrcSpan: expr.SrcSpan}, nil
+		return me.expr(dict, expr.SrcFile, expr.SrcSpan), nil
 	case moValCall:
 		call := make(moValCall, len(val))
 		for i, item := range val {
@@ -154,7 +156,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			}
 			call[i] = it
 		}
-		return &MoExpr{Val: call, SrcSpan: expr.SrcSpan}, nil
+		return me.expr(call, expr.SrcFile, expr.SrcSpan), nil
 	}
 	return expr, nil
 }
@@ -177,6 +179,29 @@ func (me *Interp) diagSpan(preferCalleeOverCall bool, preferTheseEvenMore bool, 
 		for _, expr := range have {
 			if expr.SrcSpan != nil {
 				return expr.SrcSpan
+			}
+		}
+	}
+	return
+}
+func (me *Interp) srcFile(preferCalleeOverCall bool, preferTheseEvenMore bool, have ...*MoExpr) (ret *SrcFile) {
+	if me.diagCtxCall != nil {
+		ret = me.diagCtxCall.SrcFile
+		if callee := me.diagCtxCall.Val.(moValCall)[0]; preferCalleeOverCall && (callee.SrcFile != nil) {
+			ret = callee.SrcFile
+		}
+		if ret == nil {
+			for _, expr := range me.diagCtxCall.Val.(moValCall) {
+				if ret = expr.SrcFile; ret != nil {
+					break
+				}
+			}
+		}
+	}
+	if preferTheseEvenMore || (ret == nil) {
+		for _, expr := range have {
+			if expr.SrcFile != nil {
+				return expr.SrcFile
 			}
 		}
 	}

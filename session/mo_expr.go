@@ -184,8 +184,8 @@ func (me *moValDict) Set(key *MoExpr, val *MoExpr) {
 
 type MoExpr struct {
 	Val     MoVal
-	SrcSpan *SrcFileSpan `json:"-"`
-	SrcFile *SrcFile     `json:"-"`
+	SrcSpan *SrcFileSpan `json:"-"` // caution: `nil` for prims / builtins
+	SrcFile *SrcFile     `json:"-"` // dito
 }
 
 func (me *MoExpr) Callee() *MoExpr {
@@ -262,16 +262,20 @@ func (me *Interp) cmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *Sr
 	return 0, me.diagSpan(true, false, it, to).newDiagErr(NoticeCodeNotComparable, it, to, diagMsgOpMoniker)
 }
 
-func (me *Interp) withSrcSpan(expr *MoExpr, srcSpanCtx ...*MoExpr) *MoExpr {
-	src_span := me.diagSpan(false, false, srcSpanCtx...)
-	if src_span == nil {
-		return expr
+func (me *Interp) expr(val MoVal, srcFile *SrcFile, srcSpan *SrcFileSpan, srcSpanCtx ...*MoExpr) *MoExpr {
+	if srcSpan == nil {
+		srcSpan = me.diagSpan(false, false, srcSpanCtx...)
 	}
-	return &MoExpr{SrcSpan: src_span, Val: expr.Val}
+	if srcFile == nil {
+		srcFile = me.srcFile(false, false, srcSpanCtx...)
+	}
+	return &MoExpr{Val: val, SrcSpan: srcSpan, SrcFile: srcFile}
 }
-
+func (me *Interp) exprFrom(expr *MoExpr, srcSpanCtx ...*MoExpr) *MoExpr {
+	return me.expr(expr.Val, expr.SrcFile, expr.SrcSpan, srcSpanCtx...)
+}
 func (me *Interp) exprBool(b bool, srcSpanCtx ...*MoExpr) *MoExpr {
-	return me.withSrcSpan(util.If(b, moValTrue, moValFalse), srcSpanCtx...)
+	return me.exprFrom(util.If(b, moValTrue, moValFalse), srcSpanCtx...)
 }
 
 func (me *MoExpr) setSrcSpanIfNone(from *MoExpr) {
@@ -465,7 +469,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			val = call_form
 		}
 	}
-	return &MoExpr{SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
+	return &MoExpr{SrcFile: me, SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
 }
 
 func (me *MoExpr) walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {

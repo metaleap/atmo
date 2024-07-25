@@ -12,15 +12,17 @@ type MoEnv struct {
 	Own    map[moValIdent]*MoExpr
 }
 
-// only called for rootEnv
-func (me *MoEnv) populateWithPrims() {
+func (me *Interp) ensureRootEnvPopulated() {
+	if len(rootEnv.Own) > 0 {
+		return
+	}
 	// prim idents (@true, @false, @nil) into rootEnv
 	for name, expr := range moPrimIdents {
-		me.set(name, expr)
+		rootEnv.set(name, expr)
 	}
 	// builtin eager prim-op funcs into rootEnv
 	for name, fn := range moPrimOpsEager {
-		me.set(name, &MoExpr{Val: moValFnPrim(fn)})
+		rootEnv.set(name, me.expr(moValFnPrim(fn), nil, nil))
 	}
 }
 
