@@ -389,10 +389,10 @@ func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 }
 
 func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
-	if topNode.Kind == AstNodeKindComment {
+	if topNode.Kind == AstNodeKindComment || topNode.Kind == AstNodeKindErr {
 		return nil, nil
 	}
-	util.Assert(topNode.Kind == AstNodeKindGroup, topNode.Kind)
+	util.Assert(topNode.Kind == AstNodeKindGroup, len(topNode.Nodes))
 	nodes := topNode.Nodes.withoutComments()
 	if len(nodes) == 0 {
 		return nil, nil
@@ -443,13 +443,17 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 		case node.IsCurlyBraces():
 			dict := make(MoValDict, 0, len(node.Nodes))
 			for _, kv_node := range node.Nodes.withoutComments() {
-				kv_nodes := kv_node.Nodes.withoutComments()
-				util.Assert(len(kv_nodes) == 2, len(kv_nodes))
-				expr_key, err := me.exprFromAstNode(kv_nodes[0])
+				nodes_of_pair := kv_node.Nodes.withoutComments()
+				if kv_node.Kind == AstNodeKindErr {
+					continue
+				} else if len(nodes_of_pair) != 2 {
+					return nil, kv_node.newDiagErr(false, NoticeCodeAtmoTodo, str.Fmt("new dict parsing bug: KV node has len %d with kind %d", len(nodes_of_pair), kv_node.Kind))
+				}
+				expr_key, err := me.exprFromAstNode(nodes_of_pair[0])
 				if err != nil {
 					return nil, err
 				}
-				expr_val, err := me.exprFromAstNode(kv_nodes[1])
+				expr_val, err := me.exprFromAstNode(nodes_of_pair[1])
 				if err != nil {
 					return nil, err
 				}

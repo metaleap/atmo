@@ -390,6 +390,12 @@ func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
 
 func (me AstNodes) first() *AstNode { return me[0] }
 
+func (me AstNodes) hasBraceErrors() bool {
+	return me.has(true, func(node *AstNode) bool {
+		return (node.errParsing != nil) && (node.errParsing.Code == NoticeCodeBracesMismatch)
+	})
+}
+
 func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
 	if !recurse {
 		ret = sl.HasWhere(me, where)

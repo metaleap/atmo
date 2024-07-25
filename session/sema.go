@@ -9,7 +9,6 @@ import (
 )
 
 func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
-	return
 	defer func(timeStarted time.Time) {
 		OnLogMsg(true, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
 	}(time.Now())
@@ -17,17 +16,19 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 	var top_level MoExprs
 	for _, src_file := range me.Files {
 		if !src_file.isReplish() {
-			had_errs := (len(src_file.notices.Sema) > 0)
+			has_brace_errs, had_errs := src_file.Src.Ast.hasBraceErrors(), (len(src_file.notices.Sema) > 0)
 			src_file.notices.Sema = nil
-			for _, top_node := range src_file.Src.Ast {
-				expr, err := src_file.ExprFromAstNode(top_node)
-				if err != nil {
-					src_file.notices.Sema = append(src_file.notices.Sema, err)
-				} else if expr != nil {
-					top_level = append(top_level, expr)
+			if !has_brace_errs {
+				for _, top_node := range src_file.Src.Ast {
+					expr, err := src_file.ExprFromAstNode(top_node)
+					if err != nil {
+						src_file.notices.Sema = append(src_file.notices.Sema, err)
+					} else if expr != nil {
+						top_level = append(top_level, expr)
+					}
 				}
 			}
-			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.Sema) > 0) || had_errs
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.Sema) > 0) || had_errs || has_brace_errs
 		}
 	}
 
