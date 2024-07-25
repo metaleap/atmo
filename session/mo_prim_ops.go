@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"atmo/util"
 )
@@ -33,10 +34,16 @@ var (
 		"@sessPrintln": (*Interp).primFnSessPrintln,
 		"@listItemAt":  (*Interp).primFnListItemAt,
 		"@listRange":   (*Interp).primFnListRange,
+		"@listLen":     (*Interp).primFnListLen,
+		"@listConcat":  (*Interp).primFnListConcat,
+		"@strConcat":   (*Interp).primFnStrConcat,
+		"@strLen":      (*Interp).primFnStrLen,
+		"@strCharAt":   (*Interp).primFnStrCharAt,
+		"@strRange":    (*Interp).primFnStrRange,
+		"@str":         (*Interp).primFnStr,
 		"@exprStr":     (*Interp).primFnExprStr,
 		"@exprParse":   (*Interp).primFnExprParse,
 		"@exprEval":    (*Interp).primFnExprEval,
-		"@str":         (*Interp).primFnStr,
 	}
 )
 
@@ -357,7 +364,17 @@ func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcF
 	return expr, err
 }
 
-func (me *Interp) primFnListItemAt(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnListLen(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
+		return nil, err
+	}
+	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValUint(len(args[0].Val.(moValList)))}, nil
+}
+
+func (me *Interp) primFnListItemAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
@@ -369,12 +386,12 @@ func (me *Interp) primFnListItemAt(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFi
 	}
 	list, idx := args[0].Val.(moValList), args[1].Val.(moValUint)
 	if idx_downcast := int(idx); (idx_downcast < 0) || (idx_downcast >= len(list)) {
-		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeListIndexOutOfBounds, idx_downcast, len(list))
+		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_downcast, len(list))
 	}
 	return list[idx], nil
 }
 
-func (me *Interp) primFnListRange(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 3, args); err != nil {
 		return nil, err
 	}
@@ -392,18 +409,97 @@ func (me *Interp) primFnListRange(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFil
 	}
 	idx_end := args[2].Val.(moValUint)
 	if idx_end < idx_start {
-		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeListRangeNegative, idx_end, idx_start)
+		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeRangeNegative, idx_end, idx_start)
 	} else if idx_downcast := int(idx_start); (idx_downcast < 0) || (idx_downcast > len(list)) {
-		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeListIndexOutOfBounds, idx_downcast, len(list))
+		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_downcast, len(list))
 	}
 	if idx_downcast := int(idx_end); (idx_downcast < 0) || (idx_downcast > len(list)) {
-		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeListIndexOutOfBounds, idx_downcast, len(list))
+		return nil, me.diagSpan(false, true, args[2]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_downcast, len(list))
 	}
 
 	return &MoExpr{Val: list[idx_start:idx_end], SrcSpan: srcSpanFrom(util.If(idx_start == idx_end, args, list[idx_start:idx_end]))}, nil
 }
 
-func (me *Interp) primFnStr(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	ret := make(moValList, 0, len(args)*3)
+	for _, arg := range args {
+		if err := me.checkIs(MoPrimTypeList, arg); err != nil {
+			return nil, err
+		}
+		ret = append(ret, arg.Val.(moValList)...)
+	}
+	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: ret}, nil
+}
+
+func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
+		return nil, err
+	}
+	str := args[0].Val.(moValStr)
+	if err := me.checkIs(MoPrimTypeUint, args[1]); err != nil {
+		return nil, err
+	}
+	idx := int(args[1].Val.(moValUint))
+	if (idx < 0) || (idx >= len(str)) {
+		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeIndexOutOfBounds, idx, len(str))
+	}
+	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValChar(str[idx])}, nil
+}
+
+func (me *Interp) primFnStrRange(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 3, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
+		return nil, err
+	}
+	str := args[0].Val.(moValStr)
+	if err := me.checkIs(MoPrimTypeUint, args[1]); err != nil {
+		return nil, err
+	}
+	idx_start, idx_end := int(args[1].Val.(moValUint)), len(str)
+	if (idx_start < 0) || (idx_start > len(str)) {
+		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_start, len(str))
+	}
+	if len(args) > 2 {
+		if err := me.checkIs(MoPrimTypeUint, args[2]); err != nil {
+			return nil, err
+		}
+		idx_end = int(args[2].Val.(moValUint))
+	}
+	if (idx_end < 0) || (idx_end > len(str)) {
+		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeIndexOutOfBounds, idx_end, len(str))
+	} else if idx_end < idx_start {
+		return nil, me.diagSpan(false, true, args[1]).newDiagErr(NoticeCodeRangeNegative, idx_end, idx_start)
+	}
+	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValStr(str[idx_start:idx_end])}, nil
+}
+
+func (me *Interp) primFnStrLen(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
+		return nil, err
+	}
+	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValUint(len(args[0].Val.(moValStr)))}, nil
+}
+
+func (me *Interp) primFnStrConcat(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	var buf strings.Builder
+	for _, arg := range args {
+		if err := me.checkIs(MoPrimTypeStr, arg); err != nil {
+			return nil, err
+		}
+		buf.WriteString(string(arg.Val.(moValStr)))
+	}
+	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValStr(buf.String())}, nil
+}
+
+func (me *Interp) primFnStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}
@@ -421,21 +517,21 @@ func (me *Interp) primFnStr(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotic
 	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: str}, nil
 }
 
-func (me *Interp) primFnExprStr(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnExprStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}
 	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValStr(args[0].String())}, nil
 }
 
-func (me *Interp) primFnExprEval(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnExprEval(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}
-	return me.evalAndApply(env, args[0])
+	return me.evalAndApply(me.Env, args[0])
 }
 
-func (me *Interp) primFnExprParse(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) primFnExprParse(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return nil, err
 	}

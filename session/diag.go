@@ -36,13 +36,13 @@ const (
 	NoticeCodeLitSyntax      SrcFileNoticeCode = "LitSyntax"
 
 	// semantic
-	NoticeCodeExpectedFoo          SrcFileNoticeCode = "Unexpected"
-	NoticeCodeUndefined            SrcFileNoticeCode = "Unresolved"
-	NoticeCodeUncallable           SrcFileNoticeCode = "NotCallable"
-	NoticeCodeReserved             SrcFileNoticeCode = "Reserved"
-	NoticeCodeNoElseCase           SrcFileNoticeCode = "ElseCaseMissing"
-	NoticeCodeListIndexOutOfBounds SrcFileNoticeCode = "ListIndexOutOfBounds"
-	NoticeCodeListRangeNegative    SrcFileNoticeCode = "ListRangeNegative"
+	NoticeCodeExpectedFoo      SrcFileNoticeCode = "Unexpected"
+	NoticeCodeUndefined        SrcFileNoticeCode = "Unresolved"
+	NoticeCodeUncallable       SrcFileNoticeCode = "NotCallable"
+	NoticeCodeReserved         SrcFileNoticeCode = "Reserved"
+	NoticeCodeNoElseCase       SrcFileNoticeCode = "ElseCaseMissing"
+	NoticeCodeIndexOutOfBounds SrcFileNoticeCode = "IndexOutOfBounds"
+	NoticeCodeRangeNegative    SrcFileNoticeCode = "RangeNegative"
 )
 
 var (
@@ -60,13 +60,13 @@ var (
 		NoticeCodeLitSyntax:      "invalid literal: %s", // actual error msg in %s
 		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
 
-		NoticeCodeExpectedFoo:          "expected %s",
-		NoticeCodeUndefined:            "`%s` is not defined, not in scope, or not a value",
-		NoticeCodeUncallable:           "`%s` is not callable",
-		NoticeCodeReserved:             "cannot assign to `%s` or any other `%s`-prefixed identifier",
-		NoticeCodeNoElseCase:           "missing a fallback case",
-		NoticeCodeListIndexOutOfBounds: "index %d out of bounds for list of length %d",
-		NoticeCodeListRangeNegative:    "range end %d is smaller than range start %d",
+		NoticeCodeExpectedFoo:      "expected %s",
+		NoticeCodeUndefined:        "`%s` is not defined, not in scope, or not a value",
+		NoticeCodeUncallable:       "`%s` is not callable",
+		NoticeCodeReserved:         "cannot assign to `%s` or any other `%s`-prefixed identifier",
+		NoticeCodeNoElseCase:       "missing a fallback case",
+		NoticeCodeIndexOutOfBounds: "index %d out of bounds, given length %d",
+		NoticeCodeRangeNegative:    "range end %d is smaller than range start %d",
 	}
 )
 
