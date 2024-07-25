@@ -8,8 +8,8 @@ import (
 var rootEnv = MoEnv{Own: map[moValIdent]*MoExpr{}}
 
 type MoEnv struct {
-	Outer *MoEnv
-	Own   map[moValIdent]*MoExpr
+	Parent *MoEnv
+	Own    map[moValIdent]*MoExpr
 }
 
 // only called for rootEnv
@@ -24,9 +24,9 @@ func (me *MoEnv) populateWithPrims() {
 	}
 }
 
-func newMoEnv(outer *MoEnv, names []*MoExpr, values []*MoExpr) *MoEnv {
+func newMoEnv(parent *MoEnv, names []*MoExpr, values []*MoExpr) *MoEnv {
 	util.Assert(len(names) == len(values), "newMoEnv: len(names) != len(values)")
-	ret := MoEnv{Outer: outer, Own: map[moValIdent]*MoExpr{}}
+	ret := MoEnv{Parent: parent, Own: map[moValIdent]*MoExpr{}}
 	for i, name := range names {
 		ret.Own[name.Val.(moValIdent)] = values[i]
 	}
@@ -40,7 +40,7 @@ func (me *MoEnv) eq(to *MoEnv) bool {
 	if (me == nil) || (to == nil) {
 		return false
 	}
-	return me.Outer.eq(to.Outer) && kv.Eq(me.Own, to.Own, (*MoExpr).eq)
+	return me.Parent.eq(to.Parent) && kv.Eq(me.Own, to.Own, (*MoExpr).eq)
 }
 
 func (me *MoEnv) hasOwn(name moValIdent) (ret bool) {
@@ -61,8 +61,8 @@ func (me *MoEnv) lookup(name moValIdent) *MoExpr {
 func (me *MoEnv) lookupOwner(name moValIdent) (*MoEnv, *MoExpr) {
 	found := me.Own[name]
 	if found == nil {
-		if me.Outer != nil {
-			return me.Outer.lookupOwner(name)
+		if me.Parent != nil {
+			return me.Parent.lookupOwner(name)
 		} else {
 			return nil, nil
 		}

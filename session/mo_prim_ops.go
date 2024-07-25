@@ -180,10 +180,11 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		return nil, ret, err
 	}
 
-	// hash-table? call ourselves on each key and value
+	// record? call ourselves on each key and value
 	if rec, is := args[0].Val.(moValRec); is {
-		ret := make(moValRec, len(rec))
-		for k, v := range rec {
+		ret := make(moValRec, 0, len(rec))
+		for _, pair := range rec {
+			k, v := pair[0], pair[1]
 			_, key, err := me.primOpQuasiQuote(env, k)
 			if err != nil {
 				return nil, nil, err
@@ -192,7 +193,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			if err != nil {
 				return nil, nil, err
 			}
-			ret[key] = val
+			ret = append(ret, [2]*MoExpr{key, val})
 		}
 		return nil, &MoExpr{Val: ret, SrcSpan: args[0].SrcSpan}, nil
 	}
@@ -299,16 +300,18 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if err := me.checkCount(0, 0, args); err != nil {
 		return nil, err
 	}
-	ret := &MoExpr{Val: make(moValRec, len(me.Env.Own)+len(env.Own))}
+	ret := &MoExpr{Val: make(moValRec, 0, len(me.Env.Own)+len(env.Own))}
 	var populate func(it *MoEnv, into *MoExpr) *MoExpr
 	populate = func(it *MoEnv, into *MoExpr) *MoExpr {
+		rec := into.Val.(moValRec)
 		for k, v := range it.Own {
-			into.Val.(moValRec)[&MoExpr{Val: k}] = v
+			rec.Set(&MoExpr{Val: k}, v)
 		}
-		if it.Outer != nil {
-			rec := &MoExpr{Val: make(moValRec, len(env.Outer.Own))}
-			into.Val.(moValRec)[&MoExpr{Val: moValIdent("")}] = populate(it.Outer, rec)
+		if it.Parent != nil {
+			rec_parent := &MoExpr{Val: make(moValRec, 0, len(env.Parent.Own))}
+			rec.Set(&MoExpr{Val: moValIdent("")}, populate(it.Parent, rec_parent))
 		}
+		into.Val = rec
 		return into
 	}
 	populate(env, ret)

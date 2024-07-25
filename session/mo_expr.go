@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"atmo/util"
-	"atmo/util/kv"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -91,7 +90,7 @@ type moValFloat float64
 type moValChar rune
 type moValStr string
 type moValErr struct{ Err *MoExpr }
-type moValRec map[*MoExpr]*MoExpr // [][2]*MoExpr
+type moValRec [][2]*MoExpr
 type moValList []*MoExpr
 type moValCall []*MoExpr
 type moValFnPrim moFnEager
@@ -129,6 +128,48 @@ func (me moValList) String() string         { return moValToString(me) }
 func (me moValCall) String() string         { return moValToString(me) }
 func (me moValFnPrim) String() string       { return moValToString(me) }
 func (me *moValFnLam) String() string       { return moValToString(me) }
+
+func (me moValRec) Has(key *MoExpr) bool {
+	for _, pair := range me {
+		if found := pair[0].eq(key); found {
+			return true
+		}
+	}
+	return false
+}
+
+func (me moValRec) Get(key *MoExpr) *MoExpr {
+	for _, pair := range me {
+		if found := pair[0].eq(key); found {
+			return pair[1]
+		}
+	}
+	return nil
+}
+
+func (me moValRec) Without(keys ...*MoExpr) moValRec {
+	if len(keys) == 0 {
+		return me
+	}
+	return sl.Where(me, func(pair [2]*MoExpr) bool {
+		return !sl.HasWhere(keys, func(k *MoExpr) bool { return k.eq(pair[0]) })
+	})
+}
+
+func (me *moValRec) Set(key *MoExpr, val *MoExpr) {
+	this := *me
+	var found bool
+	for i, pair := range this {
+		if found = pair[0].eq(key); found {
+			this[i][1] = val
+			break
+		}
+	}
+	if !found {
+		this = append(this, [2]*MoExpr{key, val})
+	}
+	*me = this
+}
 
 type MoExpr struct {
 	Val     MoVal
@@ -170,14 +211,12 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 		if len(it) != len(other) {
 			return false
 		}
-		keys_other := kv.Keys(other)
-		for k, v := range it {
-			if key_other := sl.FirstWhere(keys_other, func(key *MoExpr) bool { return key.eq(k) }); key_other == nil {
-				return false
-			} else if !v.eq(other[key_other]) {
+		for i := range it {
+			if !sl.HasWhere(other, func(other_pair [2]*MoExpr) bool { return other_pair[0].eq(it[i][0]) && other_pair[1].eq(it[i][1]) }) {
 				return false
 			}
 		}
+		return true
 	}
 	return me.Val == to.Val
 }
@@ -221,11 +260,11 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		w.WriteString(")")
 	case moValRec:
 		w.WriteString("{")
-		var n int
-		for k, v := range it {
-			if n > 0 {
+		for i, pair := range it {
+			if i > 0 {
 				w.WriteString(", ")
 			}
+			k, v := pair[0], pair[1]
 			if ident, is := k.Val.(moValIdent); is && ((ident == "") || (ident[0] == '@')) {
 				w.WriteString(str.Q(string(ident)))
 			} else {
@@ -233,7 +272,6 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			}
 			w.WriteString(": ")
 			v.WriteTo(w)
-			n++
 		}
 		w.WriteString("}")
 	case moValList:
@@ -340,8 +378,9 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			}
 			val = list
 		case node.IsCurlyBraces():
-			rec := make(moValRec, len(node.Nodes))
+			rec := make(moValRec, 0, len(node.Nodes))
 			for _, node := range node.Nodes {
+				util.Assert(len(node.Nodes) == 2, len(node.Nodes))
 				expr_key, err := me.exprFromAstNode(node.Nodes[0])
 				if err != nil {
 					return nil, err
@@ -350,7 +389,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 				if err != nil {
 					return nil, err
 				}
-				rec[expr_key] = expr_val
+				rec = append(rec, [2]*MoExpr{expr_key, expr_val})
 			}
 			val = rec
 		default:
