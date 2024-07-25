@@ -31,6 +31,11 @@ var (
 		"@numFloatMul": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) * opr.(moValFloat) }),
 		"@numFloatDiv": makeArithPrimOp[moValFloat](MoPrimTypeFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(moValFloat) / opr.(moValFloat) }),
 		"@eq":          (*Interp).primFnEq,
+		"@neq":         (*Interp).primFnNeq,
+		"@geq":         (*Interp).primFnGeq,
+		"@leq":         (*Interp).primFnLeq,
+		"@lt":          (*Interp).primFnLt,
+		"@gt":          (*Interp).primFnGt,
 		"@primTypeTag": (*Interp).primFnPrimTypeTag,
 		"@fnCall":      (*Interp).primFnFuncCall,
 		"@listItemAt":  (*Interp).primFnListItemAt,
@@ -620,4 +625,55 @@ func (me *Interp) primFnEq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) 
 		return nil, err
 	}
 	return me.exprBool(args[0].eq(args[1]), args...), nil
+}
+
+func (me *Interp) primFnNeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	return me.exprBool(!args[0].eq(args[1]), args...), nil
+}
+
+func (me *Interp) primFnLeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	cmp, err := me.cmp(args[0], args[1])
+	if err != nil {
+		return nil, err
+	}
+	return me.exprBool(cmp <= 0, args...), nil
+}
+
+func (me *Interp) primFnGeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	cmp, err := me.cmp(args[0], args[1])
+	if err != nil {
+		return nil, err
+	}
+	return me.exprBool(cmp >= 0, args...), nil
+}
+
+func (me *Interp) primFnLt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	cmp, err := me.cmp(args[0], args[1])
+	if err != nil {
+		return nil, err
+	}
+	return me.exprBool(cmp < 0, args...), nil
+}
+
+func (me *Interp) primFnGt(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, err
+	}
+	cmp, err := me.cmp(args[0], args[1])
+	if err != nil {
+		return nil, err
+	}
+	return me.exprBool(cmp > 0, args...), nil
 }

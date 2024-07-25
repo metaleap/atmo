@@ -1,6 +1,7 @@
 package session
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"strconv"
@@ -229,6 +230,32 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 		return true
 	}
 	return me.Val == to.Val
+}
+
+func (me *Interp) cmp(it *MoExpr, to *MoExpr) (int, *SrcFileNotice) {
+	switch it := it.Val.(type) {
+	case moValChar:
+		if other, is := to.Val.(moValChar); is {
+			return cmp.Compare(it, other), nil
+		}
+	case moValStr:
+		if other, is := to.Val.(moValStr); is {
+			return cmp.Compare(it, other), nil
+		}
+	case moValFloat:
+		if other, is := to.Val.(moValFloat); is {
+			return cmp.Compare(it, other), nil
+		}
+	case moValInt:
+		if other, is := to.Val.(moValInt); is {
+			return cmp.Compare(it, other), nil
+		}
+	case moValUint:
+		if other, is := to.Val.(moValUint); is {
+			return cmp.Compare(it, other), nil
+		}
+	}
+	return 0, me.diagSpan(true, false, it, to).newDiagErr(NoticeCodeNotComparable, it, to)
 }
 
 func (me *Interp) withSrcSpan(expr *MoExpr, srcSpanCtx ...*MoExpr) *MoExpr {

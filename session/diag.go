@@ -44,6 +44,7 @@ const (
 	NoticeCodeIndexOutOfBounds SrcFileNoticeCode = "IndexOutOfBounds"
 	NoticeCodeRangeNegative    SrcFileNoticeCode = "RangeNegative"
 	NoticeCodeDictDuplKey      SrcFileNoticeCode = "DictDuplKey"
+	NoticeCodeNotComparable    SrcFileNoticeCode = "NotComparable"
 )
 
 var (
@@ -69,6 +70,7 @@ var (
 		NoticeCodeIndexOutOfBounds: "index %d out of bounds, given length %d",
 		NoticeCodeRangeNegative:    "range end %d is smaller than range start %d",
 		NoticeCodeDictDuplKey:      "duplicate key `%s` in dict constructor",
+		NoticeCodeNotComparable:    "operands `%s` and `%s` cannot be compared, except in terms of (in)equality",
 	}
 )
 
