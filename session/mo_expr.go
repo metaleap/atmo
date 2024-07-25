@@ -160,7 +160,7 @@ func (me moValDict) With(key *MoExpr, val *MoExpr) moValDict {
 	ret := make(moValDict, len(me))
 	for i, pair := range me {
 		k, v := *pair[0], *pair[1]
-		ret[i] = [2]*MoExpr{&k, &v}
+		ret[i][0], ret[i][1] = &k, &v
 	}
 	ret.Set(key, val)
 	return ret
@@ -287,11 +287,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 				w.WriteString(", ")
 			}
 			k, v := pair[0], pair[1]
-			// if ident, is_ident := k.Val.(moValIdent); is_ident && ((ident == "") || (ident[0] == '@')) {
-			// 	w.WriteString(str.Q(string(ident)))
-			// } else {
 			k.WriteTo(w)
-			// }
 			w.WriteString(": ")
 			v.WriteTo(w)
 		}
@@ -435,11 +431,5 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			val = call_form
 		}
 	}
-	ret := &MoExpr{SrcSpan: util.Ptr(node.Toks.Span()), Val: val}
-	// if val != nil {
-	// 	os.Stdout.WriteString(">>>")
-	// 	ret.WriteTo(os.Stdout)
-	// 	os.Stdout.WriteString("<<<\n")
-	// }
-	return ret, nil
+	return &MoExpr{SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
 }
