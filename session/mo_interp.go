@@ -95,6 +95,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 			found := env.lookup(val)
 			if found == nil {
 				return nil, me.diagSpan(false, true, expr).newDiagErr(NoticeCodeUndefined, val)
+			} else if found.SrcSpan == nil {
+				return &MoExpr{Val: found.Val, SrcSpan: expr.SrcSpan}, nil
 			}
 			return found, nil
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
@@ -232,7 +234,8 @@ func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have []
 
 func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *SrcFileNotice {
 	if have_type := have.Val.primType(); have_type != want {
-		return me.diagSpan(false, true, have).newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%s instead of %s `%s`", want.Str(true), have_type.Str(true), have.String()))
+		have_str := util.If(have_type == MoPrimTypeFunc, me.SrcFile.srcAt(have.SrcSpan, '`'), "`"+have.String()+"`")
+		return me.diagSpan(false, true, have).newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%s instead of %s %s", want.Str(true), have_type.Str(true), have_str))
 	}
 	return nil
 }

@@ -190,3 +190,18 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 func (me *SrcPack) srcFilePaths() []string {
 	return sl.As(me.Files, func(it *SrcFile) string { return it.FilePath })
 }
+
+// costly, only for error-message productions where the hit won't matter
+func (me *SrcFile) srcAt(at *SrcFileSpan, wrapIn rune) (ret string) {
+	if at != nil {
+		me.Src.Ast.walk(func(node *AstNode) bool {
+			if node.Toks.Span() == *at {
+				if ret = node.Src; wrapIn != 0 {
+					ret = string(wrapIn) + ret + string(wrapIn)
+				}
+			}
+			return (ret == "")
+		}, nil)
+	}
+	return
+}
