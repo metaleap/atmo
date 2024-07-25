@@ -273,10 +273,6 @@ func (me *Interp) exprBool(b bool, srcSpanCtx ...*MoExpr) *MoExpr {
 	return me.withSrcSpan(util.If(b, moValTrue, moValFalse), srcSpanCtx...)
 }
 
-func (me *MoExpr) isFalsy() bool {
-	return me.eqFalse() || me.eqNone()
-}
-
 func (me *MoExpr) setSrcSpanIfNone(from *MoExpr) {
 	if me.SrcSpan == nil {
 		me.SrcSpan = from.SrcSpan
