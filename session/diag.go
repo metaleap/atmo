@@ -51,6 +51,7 @@ var (
 	allNotices       = map[string]SrcFileNotices{}
 	OnNoticesChanged = func() {}
 	OnDbgMsg         = func(showIf bool, fmt string, args ...any) {}
+	OnLogMsg         = func(showIf bool, fmt string, args ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
 		NoticeCodeAtmoTodo:      "TODO by Atmo team, please report: \"%s\"",
 		NoticeCodeFileReadError: "%s", // actual error msg in %s
@@ -130,9 +131,10 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 	return
 }
 
-// callers have already `sharedState.Lock`ed
-func refreshAndPublishNotices(provokingFilePaths ...string) {
-	if len(provokingFilePaths) == 0 {
+// callers have already `sharedState.Lock`ed.
+// `force` is ONLY for repl-reset use-case (fully reload pack), NOT to circumvent any diags-refr/pub bugs for LSP clients!
+func refreshAndPublishNotices(force bool, provokingFilePaths ...string) {
+	if (len(provokingFilePaths) == 0) && !force {
 		return
 	}
 	new_notices := map[string]SrcFileNotices{}
@@ -177,7 +179,7 @@ func refreshAndPublishNotices(provokingFilePaths ...string) {
 		}
 	}
 
-	if have_changes {
+	if have_changes || force {
 		go OnNoticesChanged()
 	}
 }

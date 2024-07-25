@@ -9,8 +9,9 @@ import (
 )
 
 func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
+	return
 	defer func(timeStarted time.Time) {
-		OnDbgMsg(true, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
+		OnLogMsg(true, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
 	}(time.Now())
 
 	var top_level MoExprs
@@ -19,13 +20,10 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 			had_errs := (len(src_file.notices.Sema) > 0)
 			src_file.notices.Sema = nil
 			for _, top_node := range src_file.Src.Ast {
-				if (top_node.Kind == AstNodeKindComment) || (top_node.Kind == AstNodeKindErr) {
-					continue
-				}
 				expr, err := src_file.ExprFromAstNode(top_node)
 				if err != nil {
 					src_file.notices.Sema = append(src_file.notices.Sema, err)
-				} else {
+				} else if expr != nil {
 					top_level = append(top_level, expr)
 				}
 			}

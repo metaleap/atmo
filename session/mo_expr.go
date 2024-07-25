@@ -389,9 +389,14 @@ func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 }
 
 func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
-	util.Assert(topNode.Kind == AstNodeKindGroup, nil)
+	if topNode.Kind == AstNodeKindComment {
+		return nil, nil
+	}
+	util.Assert(topNode.Kind == AstNodeKindGroup, topNode.Kind)
 	nodes := topNode.Nodes.withoutComments()
-	util.Assert(len(nodes) > 0, nil)
+	if len(nodes) == 0 {
+		return nil, nil
+	}
 	if len(nodes) > 1 {
 		nodes = AstNodes{nodes.toGroupNode(me, topNode, true, false)}
 	}

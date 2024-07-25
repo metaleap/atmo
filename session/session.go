@@ -44,13 +44,13 @@ func LockedDo(do func(sess StateAccess)) {
 type stateAccess struct{ sync.Mutex }
 
 func (*stateAccess) OnSrcFileEdit(srcFilePath string, curFullContent string) {
-	refreshAndPublishNotices(ensureSrcFiles(&curFullContent, true, srcFilePath)...)
+	refreshAndPublishNotices(false, ensureSrcFiles(&curFullContent, true, srcFilePath)...)
 }
 
 func (*stateAccess) OnSrcFileEvents(removed []string, canSkipFileRead bool, current ...string) {
 	packsFsRefresh()
 	removeSrcFiles(removed...) // does refreshAndPublishNotices for removed
-	refreshAndPublishNotices(ensureSrcFiles(nil, canSkipFileRead, current...)...)
+	refreshAndPublishNotices(false, ensureSrcFiles(nil, canSkipFileRead, current...)...)
 }
 
 func (*stateAccess) AllCurrentSrcFileNotices() map[string]SrcFileNotices {
@@ -78,7 +78,7 @@ func (*stateAccess) GetSrcPack(packDirPath string, loadIfMissing bool) (ret *Src
 			}
 		})
 		if refr_diags_for := ensureSrcFiles(nil, true, src_file_paths...); len(refr_diags_for) > 0 {
-			refreshAndPublishNotices(refr_diags_for...)
+			refreshAndPublishNotices(false, refr_diags_for...)
 		}
 		ret = state.srcPacks[packDirPath]
 	}
@@ -89,7 +89,7 @@ func (me *stateAccess) Interpreter(packDirPath string) *Interp {
 	util.Assert(filepath.IsAbs(packDirPath), nil)
 	src_pack := me.GetSrcPack(packDirPath, true)
 	src_file_path := newSrcFilePathFakeAndReplish(packDirPath)
-	me.SrcFile(src_file_path, true)
+	me.SrcFile(src_file_path, false)
 	src_file := state.srcFiles[src_file_path]
 	if src_pack == nil {
 		src_pack = me.GetSrcPack(packDirPath, true) // do this again in case the previous was `nil`, now it shouldnt be
@@ -97,6 +97,7 @@ func (me *stateAccess) Interpreter(packDirPath string) *Interp {
 	util.Assert(src_file != nil, nil)
 	util.Assert(src_pack != nil, nil)
 	util.Assert(src_file.pack == src_pack, nil)
+	defer refreshAndPublishNotices(false, src_pack.srcFilePaths()...)
 	return newInterp(src_pack, src_file)
 }
 
@@ -104,7 +105,7 @@ func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {
 	refr_diags_for := ensureSrcFiles(nil, canSkipFileRead, srcFilePath)
 	src_file := state.srcFiles[srcFilePath]
 	if (src_file == nil) || (len(refr_diags_for) > 0) { // the latter, if non-empty, WILL have srcFilePath
-		refreshAndPublishNotices(refr_diags_for...)
+		refreshAndPublishNotices(false, refr_diags_for...)
 	}
 	return src_file
 }

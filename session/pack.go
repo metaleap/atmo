@@ -93,7 +93,7 @@ func removeSrcFiles(srcFilePaths ...string) {
 		pack_file_paths = append(pack_file_paths, src_pack.srcFilePaths()...)
 		src_pack.refreshSema()
 	}
-	refreshAndPublishNotices(append(pack_file_paths, srcFilePaths...)...)
+	refreshAndPublishNotices(false, append(pack_file_paths, srcFilePaths...)...)
 }
 
 func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths ...string) (encounteredDiagsRelevantChanges []string) {
@@ -148,7 +148,11 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 
 		if (src_file.Src.Text != old_content) || had_last_read_err || (src_file.notices.LastReadErr != nil) {
 			old_ast := src_file.Src.Ast
-			src_file.Src.Ast, src_file.Src.Toks, src_file.notices.LexErrs = nil, nil, nil
+			had_errs := (len(src_file.notices.LexErrs) > 0) || (len(src_file.notices.Sema) > 0) || src_file.Src.Ast.has(true, func(node *AstNode) bool { return node.Kind == AstNodeKindErr })
+			if had_errs {
+				flag_for_diags_refr()
+			}
+			src_file.Src.Ast, src_file.Src.Toks, src_file.notices.LexErrs, src_file.notices.Sema = nil, nil, nil, nil
 			if src_file.notices.LastReadErr != nil {
 				flag_for_diags_refr()
 			} else {

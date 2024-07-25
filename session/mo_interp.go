@@ -37,6 +37,22 @@ func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 	return &me
 }
 
+func (me *Interp) reset() {
+	LockedDo(func(sess StateAccess) {
+		allNotices = map[string]sl.Of[*SrcFileNotice]{}
+		me.ClearStackTrace()
+		me.Env = newMoEnv(&rootEnv, nil, nil)
+		me.Pack.Sema.Eval, me.Pack.Sema.Top = me, nil
+		for _, src_file := range me.Pack.Files {
+			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.Sema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
+				nil, nil, nil, nil, nil, ""
+		}
+		_ = ensureSrcFiles(nil, false, me.Pack.srcFilePaths()...)
+		me.Pack.refreshSema()
+		refreshAndPublishNotices(true, me.Pack.srcFilePaths()...)
+	})
+}
+
 func (me *Interp) ClearStackTrace() {
 	me.LastStackTrace = me.LastStackTrace[:0] // keeps currently-already-alloc'd capacity, for reduced GC churn and reduced alloc times
 }

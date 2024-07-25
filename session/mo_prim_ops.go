@@ -16,6 +16,7 @@ var (
 		"@replPrintf":  (*Interp).primFnSessPrintf,
 		"@replPrint":   (*Interp).primFnSessPrint,
 		"@replPrintln": (*Interp).primFnSessPrintln,
+		"@replReset":   (*Interp).primFnSessReset,
 		"@numIntAdd":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) + opr.(MoValNumInt) }),
 		"@numIntSub":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) - opr.(MoValNumInt) }),
 		"@numIntMul":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) * opr.(MoValNumInt) }),
@@ -665,6 +666,11 @@ func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFil
 		return nil, err
 	}
 	return me.expr(MoValType(args[0].Val.PrimType()), nil, nil, args...), nil
+}
+
+func (me *Interp) primFnSessReset(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	me.reset()
+	return moValNone, nil
 }
 
 func (me *Interp) primFnEq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {

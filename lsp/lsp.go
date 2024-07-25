@@ -5,6 +5,7 @@ import (
 	"atmo/session"
 	"atmo/util"
 	"atmo/util/str"
+	"os"
 )
 
 const (
@@ -17,6 +18,7 @@ var (
 )
 
 func Main() {
+	os.Stderr.WriteString("Atmo LSP starting up.\n")
 	panic(Server.Forever())
 }
 
@@ -27,6 +29,14 @@ func init() {
 				msg = str.Fmt(msg, args...)
 			}
 			Server.Notify_window_showMessage(lsp.ShowMessageParams{Type: lsp.MessageTypeInfo, Message: "DBG:" + msg})
+		}
+	}
+	session.OnLogMsg = func(should bool, msg string, args ...any) {
+		if should {
+			if len(args) > 0 {
+				msg = str.Fmt(msg, args...)
+			}
+			Server.Notify_window_logMessage(lsp.LogMessageParams{Type: lsp.MessageTypeInfo, Message: "LOG:" + msg})
 		}
 	}
 }

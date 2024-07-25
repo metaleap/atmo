@@ -123,11 +123,8 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 					} else {
 						err_toks := node.Toks[1:2]
 						split_by_comma := toks_inner.split(',')
-						for i, item_toks := range split_by_comma {
+						for _, item_toks := range split_by_comma {
 							if len(item_toks) == 0 {
-								if (i < len(split_by_comma)-1) && (len(split_by_comma[i+1]) > 0) { // catch a better error position closer the trouble, if possible
-									err_toks = split_by_comma[i+1]
-								}
 								node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: err_toks.src(me.Src.Text),
 									errParsing: err_toks[util.If(is_curly, 0, len(err_toks)-1)].newErr(NoticeCodeExpectedFoo, "expression before the superfluous comma")})
 							} else {

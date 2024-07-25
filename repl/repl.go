@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"atmo/session"
 	"atmo/util"
@@ -22,11 +23,12 @@ func Main() {
 	var sess_msgs []string
 	var mutex sync.Mutex
 
-	session.OnDbgMsg = func(should bool, msgFmt string, args ...any) {
+	on_msg := func(should bool, msgFmt string, args ...any) {
 		mutex.Lock()
 		defer mutex.Unlock()
 		sess_msgs = append(sess_msgs, "🪲 "+fmt.Sprintf(msgFmt, args...))
 	}
+	session.OnDbgMsg, session.OnLogMsg = on_msg, on_msg
 	session.OnNoticesChanged = func() {
 		session.LockedDo(func(sess session.StateAccess) {
 			mutex.Lock()
@@ -51,12 +53,15 @@ func Main() {
 	})
 
 	for {
+		time.Sleep(123 * time.Millisecond) // for initial diag prints, if any
 		{
 			mutex.Lock()
 			if len(sess_msgs) > 0 {
+				os.Stdout.WriteString(str.Repeat("—", 77) + "\n")
 				for _, line := range sess_msgs {
 					os.Stdout.WriteString(line + "\n")
 				}
+				os.Stdout.WriteString(str.Repeat("—", 77) + "\n")
 				sess_msgs = nil
 			}
 			mutex.Unlock()
@@ -78,6 +83,7 @@ func Main() {
 		}
 		if expr != nil {
 			expr.WriteTo(os.Stdout)
+			os.Stdout.WriteString("\n")
 		} else if diag != nil {
 			os.Stderr.WriteString(errMsg("", diag) + "\n")
 			for _, item := range interp.LastStackTrace {
