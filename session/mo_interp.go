@@ -5,9 +5,6 @@ import (
 	"atmo/util/str"
 )
 
-// TODO: signature-trigger-char "," (and similar `lsp` lang defaults)
-// TODO: lazies in env via adhoc/faux macros
-
 type Interp struct {
 	SrcFile        *SrcFile
 	Env            *MoEnv
@@ -94,7 +91,7 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 	switch val := expr.Val.(type) {
 	case moValIdent:
-		if (val[0] != '@') || ((moPrimIdents[val] == nil) && (moPrimOpsLazy[val] == nil)) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
+		if (val[0] != '@') || (moPrimIdents[val] == nil) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
 			found := env.lookup(val)
 			if found == nil {
 				return nil, me.diagSpan(false, true, expr).newDiagErr(NoticeCodeUndefined, val)

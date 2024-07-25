@@ -11,6 +11,10 @@ import (
 )
 
 func init() {
+	Server.Lang.DocumentSymbolsMultiTreeLabel = "Atmo"
+	Server.Lang.TriggerChars.Completion = []string{".", "/"}
+	Server.Lang.TriggerChars.Signature = []string{" "}
+
 	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) ([]lsp.DocumentSymbol, error) {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		return sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},

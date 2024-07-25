@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"atmo/util"
-	"atmo/util/kv"
 )
 
 var (
@@ -35,6 +34,8 @@ var (
 		"@str":         (*Interp).primFnStr,
 		"@listItemAt":  (*Interp).primFnListItemAt,
 		"@listSlice":   (*Interp).primFnListSlice,
+		"@exprParse":   (*Interp).primFnExprParse,
+		"@exprEval":    (*Interp).primFnExprEval,
 	}
 )
 
@@ -59,68 +60,8 @@ func init() {
 	} {
 		moPrimOpsLazy[k] = v
 	}
-}
 
-var rootEnv = MoEnv{Own: map[moValIdent]*MoExpr{}}
-
-func init() {
-	for prim_op_fn_name, prim_op_fn_func := range moPrimOpsEager {
-		rootEnv.set(prim_op_fn_name, &MoExpr{Val: moValFnPrim(prim_op_fn_func)})
-	}
-	for prim_ident_name, prim_ident_expr := range moPrimIdents {
-		rootEnv.set(prim_ident_name, prim_ident_expr)
-	}
-}
-
-type MoEnv struct {
-	Outer *MoEnv
-	Own   map[moValIdent]*MoExpr
-}
-
-func newMoEnv(outer *MoEnv, names []*MoExpr, values []*MoExpr) *MoEnv {
-	util.Assert(len(names) == len(values), "newMoEnv: len(names) != len(values)")
-	ret := MoEnv{Outer: outer, Own: map[moValIdent]*MoExpr{}}
-	for i, name := range names {
-		ret.Own[name.Val.(moValIdent)] = values[i]
-	}
-	return &ret
-}
-
-func (me *MoEnv) eq(to *MoEnv) bool {
-	if me == to {
-		return true
-	}
-	if (me == nil) || (to == nil) {
-		return false
-	}
-	return me.Outer.eq(to.Outer) && kv.Eq(me.Own, to.Own, (*MoExpr).eq)
-}
-
-func (me *MoEnv) hasOwn(name moValIdent) (ret bool) {
-	_, ret = me.Own[name]
-	return
-}
-
-func (me *MoEnv) set(name moValIdent, value *MoExpr) {
-	util.Assert(value != nil, "MoEnv.set(name, nil)")
-	me.Own[name] = value
-}
-
-func (me *MoEnv) lookup(name moValIdent) *MoExpr {
-	_, found := me.lookupOwner(name)
-	return found
-}
-
-func (me *MoEnv) lookupOwner(name moValIdent) (*MoEnv, *MoExpr) {
-	found := me.Own[name]
-	if found == nil {
-		if me.Outer != nil {
-			return me.Outer.lookupOwner(name)
-		} else {
-			return nil, nil
-		}
-	}
-	return me, found
+	rootEnv.populateWithPrims()
 }
 
 // lazy prim-ops first, eager prim-ops afterwards
@@ -363,13 +304,16 @@ func (me *Interp) primFnEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotic
 }
 
 func (me *Interp) primFnCall(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	if err := me.checkCount(1, -1, args); err != nil {
+	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, err
 	}
 	if err := me.checkIs(MoPrimTypeFunc, args[0]); err != nil {
 		return nil, err
 	}
-	return me.callWithDiagCtxSet(env, args[0], args[1:]...)
+	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
+		return nil, err
+	}
+	return me.callWithDiagCtxSet(env, args[0], args[1].Val.(moValList)...)
 }
 
 func (me *Interp) primFnPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -463,4 +407,21 @@ func (me *Interp) primFnStr(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotic
 		return nil, err
 	}
 	return &MoExpr{SrcSpan: srcSpanFrom(args), Val: moValStr(args[0].String())}, nil
+}
+
+func (me *Interp) primFnExprEval(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, err
+	}
+	return me.evalAndApply(env, args[0])
+}
+
+func (me *Interp) primFnExprParse(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, err
+	}
+	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
+		return nil, err
+	}
+	return me.Parse(string(args[0].Val.(moValStr)))
 }

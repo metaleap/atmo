@@ -51,9 +51,9 @@ func (me MoValPrimType) String() string { return me.Str(false) }
 func (me MoValPrimType) Str(forDiag bool) string {
 	switch me {
 	case MoPrimTypeType:
-		return util.If(forDiag, "type", "@Type")
+		return util.If(forDiag, "type tag", "@TypeTag")
 	case MoPrimTypeIdent:
-		return util.If(forDiag, "identifier", "@Ident")
+		return util.If(forDiag, "quoted-identifier", "@Ident")
 	case MoPrimTypeInt:
 		return util.If(forDiag, "signed integer number", "@Int")
 	case MoPrimTypeUint:
@@ -71,7 +71,7 @@ func (me MoValPrimType) Str(forDiag bool) string {
 	case MoPrimTypeList:
 		return util.If(forDiag, "list", "@List")
 	case MoPrimTypeCall:
-		return util.If(forDiag, "call", "@Call")
+		return util.If(forDiag, "call expression", "@Call")
 	case MoPrimTypeFunc:
 		return util.If(forDiag, "function", "@Func")
 	}
@@ -96,10 +96,11 @@ type moValList []*MoExpr
 type moValCall []*MoExpr
 type moValFnPrim moFnEager
 type moValFnLam struct {
-	params  []*MoExpr // all are guaranteed to be ident before construction
-	body    *MoExpr
-	env     *MoEnv
-	isMacro bool
+	params              []*MoExpr // all are guaranteed to be ident before construction
+	body                *MoExpr
+	env                 *MoEnv
+	isMacro             bool
+	isLazyPrimOpWrapper bool
 }
 
 func (moValType) primType() MoValPrimType   { return MoPrimTypeType }

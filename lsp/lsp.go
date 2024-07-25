@@ -21,9 +21,6 @@ func Main() {
 }
 
 func init() {
-	Server.Lang.DocumentSymbolsMultiTreeLabel = "Atmo"
-	Server.Lang.TriggerChars.Completion = []string{"."}
-	Server.Lang.TriggerChars.Signature = []string{","}
 	session.OnDbgMsg = func(should bool, msg string, args ...any) {
 		if should {
 			if len(args) > 0 {
