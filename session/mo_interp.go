@@ -104,9 +104,7 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 				default:
 					return nil, me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String())
 				case MoValFnPrim:
-					if expr, err = fn(me, env, call_args...); err != nil {
-						return nil, err
-					}
+					expr = fn(me, env, call_args...)
 					expr.setSrcSpanIfNone(diag_ctx_cur)
 					env, me.diagCtxCall = nil, diag_ctx_prev
 				case *MoValFnLam:

@@ -78,7 +78,7 @@ func Main() {
 		}
 
 		interp.ClearStackTrace()
-		expr, diag := interp.Parse(string(line))
+		expr, diag := interp.ParseExpr(string(line))
 		if (diag == nil) && (expr != nil) {
 			expr, diag = interp.Eval(expr)
 		}

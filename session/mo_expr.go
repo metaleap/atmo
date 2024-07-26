@@ -24,7 +24,7 @@ var (
 	moValFalse = &MoExpr{Val: MoValIdent("@false")}
 )
 
-type moFnEager = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
+type moFnEager = func(ctx *Interp, env *MoEnv, args ...*MoExpr) *MoExpr
 type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr)
 
 type MoValPrimType int
@@ -351,7 +351,7 @@ func MoValToString(it MoVal) string {
 	return buf.String()
 }
 
-func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) ParseExpr(src string) (*MoExpr, *SrcFileNotice) {
 	me.ReplFauxFile.Src.Ast, me.ReplFauxFile.Src.Toks, me.ReplFauxFile.Src.Text = nil, nil, src
 	toks, errs := tokenize(me.ReplFauxFile.FilePath, src)
 	if len(errs) > 0 {
@@ -364,8 +364,8 @@ func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
 			return nil, diag
 		}
 	}
-	if len(me.ReplFauxFile.Src.Ast) > 1 {
-		return nil, me.ReplFauxFile.Src.Ast.newDiagErr(me.ReplFauxFile, NoticeCodeAtmoTodo, "odd case: please report, quoting exact input, namely: `"+src+"`")
+	if me.ReplFauxFile.Src.Ast = me.ReplFauxFile.Src.Ast.withoutComments(); len(me.ReplFauxFile.Src.Ast) > 1 {
+		return nil, me.ReplFauxFile.Src.Ast.newDiagErr(me.ReplFauxFile, NoticeCodeExpectedFoo, str.Fmt("a single expression only, rather than %d", len(me.ReplFauxFile.Src.Ast)))
 	} else if (len(me.ReplFauxFile.Src.Ast) == 0) || (len(me.ReplFauxFile.Src.Ast[0].Nodes) == 0) {
 		return nil, nil
 	}
