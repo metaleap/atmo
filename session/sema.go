@@ -4,14 +4,49 @@ import (
 	"cmp"
 	"time"
 
+	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
 
 func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
+	cur_paths := me.srcFilePaths()
+	can_skip := (len(cur_paths) == len(me.Sema.last.files))
 	defer func(timeStarted time.Time) {
-		OnLogMsg(true, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
+		OnLogMsg(!can_skip, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
 	}(time.Now())
+
+	if can_skip {
+		cur_paths := me.srcFilePaths()
+		for _, path := range cur_paths {
+			if _, ok := me.Sema.last.files[path]; !ok {
+				can_skip = false
+				break
+			}
+		}
+		for path := range me.Sema.last.files {
+			if can_skip && !sl.Has(cur_paths, path) {
+				can_skip = false
+				break
+			}
+		}
+		for _, src_file := range me.Files {
+			if can_skip && (!src_file.isReplish()) && (me.Sema.last.files[src_file.FilePath] != util.ContentHash(src_file.Src.Text)) {
+				can_skip = false
+				break
+			}
+		}
+	}
+	if can_skip {
+		return
+	} else {
+		me.Sema.last.files = map[string]string{}
+		for _, src_file := range me.Files {
+			if !src_file.isReplish() {
+				me.Sema.last.files[src_file.FilePath] = util.ContentHash(src_file.Src.Text)
+			}
+		}
+	}
 
 	var top_level MoExprs
 	for _, src_file := range me.Files {
@@ -31,8 +66,8 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.Sema) > 0) || had_errs || has_brace_errs
 		}
 	}
-
 	me.Sema.Pre = top_level.sorted()
+
 	return
 }
 

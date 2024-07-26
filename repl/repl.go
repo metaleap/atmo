@@ -25,9 +25,11 @@ func Main() {
 	var mutex sync.Mutex
 
 	on_msg := func(should bool, msgFmt string, args ...any) {
-		mutex.Lock()
-		defer mutex.Unlock()
-		sess_msgs = append(sess_msgs, "🪲 "+fmt.Sprintf(msgFmt, args...))
+		if should {
+			mutex.Lock()
+			defer mutex.Unlock()
+			sess_msgs = append(sess_msgs, "🪲 "+fmt.Sprintf(msgFmt, args...))
+		}
 	}
 	session.OnDbgMsg, session.OnLogMsg = on_msg, on_msg
 	session.OnNoticesChanged = func() {

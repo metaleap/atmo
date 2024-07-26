@@ -36,6 +36,7 @@ func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 	return &me
 }
 
+// for REPL use-cases only!
 func (me *Interp) reset() {
 	LockedDo(func(sess StateAccess) {
 		allNotices = map[string]sl.Of[*SrcFileNotice]{}
@@ -46,8 +47,7 @@ func (me *Interp) reset() {
 			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.Sema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
 				nil, nil, nil, nil, nil, ""
 		}
-		_ = ensureSrcFiles(nil, false, me.Pack.srcFilePaths()...)
-		me.Pack.refreshSema()
+		_ = ensureSrcFiles(nil, false, me.Pack.srcFilePaths()...) // does refreshSema too
 		refreshAndPublishNotices(true, me.Pack.srcFilePaths()...)
 	})
 }

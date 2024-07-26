@@ -1,10 +1,11 @@
-package session
+package util
 
 import (
-	"atmo/util/str"
 	"hash/adler32"
 	"hash/crc32"
 	"hash/maphash"
+
+	"atmo/util/str"
 )
 
 var (
@@ -31,11 +32,11 @@ func hashCrc(src string) string {
 	return str.FromU64(uint64(hasherCrc.Sum32()), 36)
 }
 
-func contentHash(src string) string {
-	return hashAdler(src) + hashMh(src) + hashCrc(src)
+func ContentHash(src string) string {
+	return hashAdler(src) + hashCrc(src) + hashMh(src)
 }
 
-func contentHashEq(src1 string, src2 string) string {
+func ContentHashEq(src1 string, src2 string) string {
 	adler := hashAdler(src1)
 	if hashAdler(src2) != adler {
 		return ""
@@ -48,5 +49,5 @@ func contentHashEq(src1 string, src2 string) string {
 	if hashCrc(src2) != crc {
 		return ""
 	}
-	return adler + mh + crc
+	return adler + crc + mh
 }

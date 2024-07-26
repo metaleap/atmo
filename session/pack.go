@@ -16,6 +16,9 @@ type SrcPack struct {
 		Eval *Interp
 		Pre  MoExprs
 		Post MoExprs
+		last struct {
+			files map[string]string
+		}
 	}
 }
 
@@ -127,6 +130,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 			src_file.pack = state.srcPacks[pack_dir_path]
 			if src_file.pack == nil {
 				src_file.pack = &SrcPack{DirPath: pack_dir_path}
+				src_file.pack.Sema.last.files = map[string]string{}
 				state.srcPacks[pack_dir_path] = src_file.pack
 			}
 			src_file.pack.Files = sl.With(src_file.pack.Files, src_file)
@@ -197,7 +201,8 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 }
 
 func (me *SrcPack) srcFilePaths() []string {
-	return sl.As(me.Files, func(it *SrcFile) string { return it.FilePath })
+	return sl.As(sl.Where(me.Files, func(it *SrcFile) bool { return !it.isReplish() }),
+		func(it *SrcFile) string { return it.FilePath })
 }
 
 // costly, only for error-message productions where the hit won't matter
