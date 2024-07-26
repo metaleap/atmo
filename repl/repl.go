@@ -86,7 +86,8 @@ func Main() {
 				expr, diag = nil, expr.Diag.Err
 			} else if fn, _ := expr.Val.(session.MoValFnPrim); fn != nil {
 				// REPL-only convenience: Eval nilary builtin prim funcs, handy for @replReset, @replEnv etc
-				call := &session.MoExpr{Val: session.MoValCall{&session.MoExpr{Val: fn}}}
+				src_span := util.Ptr(interp.ReplFauxFile.Span())
+				call := &session.MoExpr{Val: session.MoValCall{&session.MoExpr{Val: fn, SrcSpan: src_span, SrcFile: interp.ReplFauxFile}}, SrcSpan: src_span, SrcFile: interp.ReplFauxFile}
 				if result, err := interp.Eval(call); err == nil {
 					expr = result
 				}

@@ -16,7 +16,7 @@ type Writer interface {
 
 type Interp struct {
 	Pack           *SrcPack
-	replFauxFile   *SrcFile
+	ReplFauxFile   *SrcFile
 	Env            *MoEnv
 	StackTraces    bool
 	LastStackTrace MoExprs
@@ -29,7 +29,7 @@ type Interp struct {
 }
 
 func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
-	me := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, replFauxFile: replFauxFile}
+	me := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, ReplFauxFile: replFauxFile}
 	me.StdIo.In, me.StdIo.Out, me.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
 	me.ensureRootEnvPopulated()
 	me.Pack.Sema.Eval = &me
@@ -180,7 +180,6 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
 
 func (me *Interp) diagSpan(preferCalleeOverCall bool, preferTheseEvenMore bool, have ...*MoExpr) (ret *SrcFileSpan) {
 	if me.diagCtxCall != nil {
-		println("DCCSS", me.diagCtxCall.Val.PrimType().Str(false))
 		ret = me.diagCtxCall.SrcSpan
 		if callee := me.diagCtxCall.Val.(MoValCall)[0]; preferCalleeOverCall && (callee.SrcSpan != nil) {
 			ret = callee.SrcSpan
@@ -274,7 +273,6 @@ func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have MoExprs) *Src
 
 func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have MoExprs, preferSrcSpan bool) *SrcFileNotice {
 	diag_src_span := me.diagSpan(false, preferSrcSpan, have...)
-	println(me.diagCtxCall == nil, diag_src_span == nil)
 	moniker := util.If(preferSrcSpan, "item", "arg")
 	if wantAtLeast < 0 {
 		return nil

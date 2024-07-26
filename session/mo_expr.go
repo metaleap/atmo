@@ -352,25 +352,25 @@ func MoValToString(it MoVal) string {
 }
 
 func (me *Interp) Parse(src string) (*MoExpr, *SrcFileNotice) {
-	me.replFauxFile.Src.Ast, me.replFauxFile.Src.Toks, me.replFauxFile.Src.Text = nil, nil, src
-	toks, errs := tokenize(me.replFauxFile.FilePath, src)
+	me.ReplFauxFile.Src.Ast, me.ReplFauxFile.Src.Toks, me.ReplFauxFile.Src.Text = nil, nil, src
+	toks, errs := tokenize(me.ReplFauxFile.FilePath, src)
 	if len(errs) > 0 {
 		return nil, errs[0]
 	}
-	me.replFauxFile.Src.Toks = toks
-	me.replFauxFile.Src.Ast = me.replFauxFile.parse()
-	for _, diag := range me.replFauxFile.allNotices() {
+	me.ReplFauxFile.Src.Toks = toks
+	me.ReplFauxFile.Src.Ast = me.ReplFauxFile.parse()
+	for _, diag := range me.ReplFauxFile.allNotices() {
 		if diag.Kind == NoticeKindErr {
 			return nil, diag
 		}
 	}
-	if len(me.replFauxFile.Src.Ast) > 1 {
-		return nil, me.replFauxFile.Src.Ast.newDiagErr(me.replFauxFile, NoticeCodeAtmoTodo, "odd case: please report, quoting exact input, namely: `"+src+"`")
-	} else if (len(me.replFauxFile.Src.Ast) == 0) || (len(me.replFauxFile.Src.Ast[0].Nodes) == 0) {
+	if len(me.ReplFauxFile.Src.Ast) > 1 {
+		return nil, me.ReplFauxFile.Src.Ast.newDiagErr(me.ReplFauxFile, NoticeCodeAtmoTodo, "odd case: please report, quoting exact input, namely: `"+src+"`")
+	} else if (len(me.ReplFauxFile.Src.Ast) == 0) || (len(me.ReplFauxFile.Src.Ast[0].Nodes) == 0) {
 		return nil, nil
 	}
 
-	expr, err := me.replFauxFile.ExprFromAstNode(me.replFauxFile.Src.Ast[0])
+	expr, err := me.ReplFauxFile.ExprFromAstNode(me.ReplFauxFile.Src.Ast[0])
 	if err != nil {
 		return nil, err
 	}

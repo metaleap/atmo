@@ -368,7 +368,7 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	if err := me.checkCount(0, 0, args); err != nil {
 		return me.exprNever(err), err
 	}
-	src_file := me.replFauxFile
+	src_file := me.ReplFauxFile
 	if (me.diagCtxCall != nil) && (me.diagCtxCall.SrcFile != nil) {
 		src_file = me.diagCtxCall.SrcFile
 	}
