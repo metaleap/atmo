@@ -40,7 +40,8 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			ret = sess.AllCurrentSrcPacks()
 		})
 
-	case "getSrcPkgMo":
+	case "getSrcPkgMoPre", "getSrcPkgMoPost":
+		is_post := (params.Command == "getSrcPkgMoPost")
 		type moNode struct {
 			PrimTypeTag session.MoValPrimType
 			Nodes       []*moNode
@@ -95,7 +96,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							return &ret
 						}
 						var top_level []*moNode
-						for _, top_expr := range src_pkg.Sema.Pre {
+						for _, top_expr := range util.If(is_post, src_pkg.Sema.Post, src_pkg.Sema.Pre) {
 							top_level = append(top_level, convert(top_expr))
 						}
 						ret = top_level

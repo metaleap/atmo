@@ -268,7 +268,9 @@ func (me *Interp) expr(val MoVal, srcFile *SrcFile, srcSpan *SrcFileSpan, srcSpa
 	return &MoExpr{Val: val, SrcSpan: srcSpan, SrcFile: srcFile}
 }
 func (me *Interp) exprFrom(expr *MoExpr, srcSpanCtx ...*MoExpr) *MoExpr {
-	return me.expr(expr.Val, expr.SrcFile, expr.SrcSpan, srcSpanCtx...)
+	ret := me.expr(expr.Val, expr.SrcFile, expr.SrcSpan, srcSpanCtx...)
+	ret.Diag.Err = expr.Diag.Err
+	return ret
 }
 func (me *Interp) exprBool(b bool, srcSpanCtx ...*MoExpr) *MoExpr {
 	return me.exprFrom(util.If(b, moValTrue, moValFalse), srcSpanCtx...)

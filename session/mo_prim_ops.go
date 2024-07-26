@@ -274,7 +274,7 @@ func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		} else if pred.EqTrue() {
 			return env, me.exprFrom(val, val)
 		} else if !pred.EqFalse() {
-			return nil, me.exprNever(me.diagSpan(false, true, key).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression"))
+			return nil, me.exprNever(me.newErrExpectedBool(key))
 		}
 	}
 	return nil, me.exprNever(me.diagSpan(true, false, args...).newDiagErr(NoticeCodeNoElseCase))
@@ -291,7 +291,7 @@ func (me *Interp) primOpBoolAnd(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		} else if evaled.EqFalse() {
 			return nil, me.exprBool(false, args...)
 		} else if !evaled.EqTrue() {
-			return nil, me.exprNever(me.diagSpan(false, true, arg).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression"))
+			return nil, me.exprNever(me.newErrExpectedBool(arg))
 		}
 	}
 	return nil, me.exprBool(true, args...)
@@ -308,10 +308,14 @@ func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		} else if evaled.EqTrue() {
 			return nil, me.exprBool(true, args...)
 		} else if !evaled.EqFalse() {
-			return nil, me.exprNever(me.diagSpan(false, true, arg).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression"))
+			return nil, me.exprNever(me.newErrExpectedBool(arg))
 		}
 	}
 	return nil, me.exprBool(false, args...)
+}
+
+func (me *Interp) newErrExpectedBool(noBool *MoExpr) *SrcFileNotice {
+	return me.diagSpan(false, true, noBool).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression instead of `"+noBool.String()+"`")
 }
 
 // eager prim-ops below, lazy ones above

@@ -100,6 +100,9 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) *MoExpr {
 					me.diagCtxCall = diag_ctx_cur
 					call = expr.Val.(MoValCall)
 					callee, call_args = call[0], (MoExprs)(call[1:])
+					if callee.IsErr() {
+						break
+					}
 					switch fn := callee.Val.(type) {
 					default:
 						env, expr = nil, me.exprNever(me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String()))
