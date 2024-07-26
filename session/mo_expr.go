@@ -2,7 +2,6 @@ package session
 
 import (
 	"cmp"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -15,6 +14,7 @@ import (
 var (
 	moPrimIdents = map[MoValIdent]*MoExpr{
 		moValNone.Val.(MoValIdent):  moValNone,
+		moValNever.Val.(MoValIdent): moValNever,
 		moValTrue.Val.(MoValIdent):  moValTrue,
 		moValFalse.Val.(MoValIdent): moValFalse,
 	}
@@ -80,7 +80,6 @@ func (me MoValPrimType) Str(forDiag bool) string {
 }
 
 type MoVal interface {
-	fmt.Stringer
 	PrimType() MoValPrimType
 }
 
@@ -116,23 +115,10 @@ func (MoValList) PrimType() MoValPrimType     { return MoPrimTypeList }
 func (MoValCall) PrimType() MoValPrimType     { return MoPrimTypeCall }
 func (MoValFnPrim) PrimType() MoValPrimType   { return MoPrimTypeFunc }
 func (*MoValFnLam) PrimType() MoValPrimType   { return MoPrimTypeFunc }
-func (me MoValType) String() string           { return moValToString(me) }
-func (me MoValIdent) String() string          { return moValToString(me) }
-func (me MoValNumInt) String() string         { return moValToString(me) }
-func (me MoValNumUint) String() string        { return moValToString(me) }
-func (me MoValNumFloat) String() string       { return moValToString(me) }
-func (me MoValChar) String() string           { return moValToString(me) }
-func (me MoValStr) String() string            { return moValToString(me) }
-func (me MoValErr) String() string            { return moValToString(me) }
-func (me MoValDict) String() string           { return moValToString(me) }
-func (me MoValList) String() string           { return moValToString(me) }
-func (me MoValCall) String() string           { return moValToString(me) }
-func (me MoValFnPrim) String() string         { return moValToString(me) }
-func (me *MoValFnLam) String() string         { return moValToString(me) }
 
 func (me MoValDict) Has(key *MoExpr) bool {
 	for _, pair := range me {
-		if found := pair[0].eq(key); found {
+		if found := pair[0].Eq(key); found {
 			return true
 		}
 	}
@@ -141,7 +127,7 @@ func (me MoValDict) Has(key *MoExpr) bool {
 
 func (me MoValDict) Get(key *MoExpr) *MoExpr {
 	for _, pair := range me {
-		if found := pair[0].eq(key); found {
+		if found := pair[0].Eq(key); found {
 			return pair[1]
 		}
 	}
@@ -153,7 +139,7 @@ func (me MoValDict) Without(keys ...*MoExpr) MoValDict {
 		return me
 	}
 	return sl.Where(me, func(pair [2]*MoExpr) bool {
-		return !sl.HasWhere(keys, func(k *MoExpr) bool { return k.eq(pair[0]) })
+		return !sl.HasWhere(keys, func(k *MoExpr) bool { return k.Eq(pair[0]) })
 	})
 }
 
@@ -171,7 +157,7 @@ func (me *MoValDict) Set(key *MoExpr, val *MoExpr) {
 	this := *me
 	var found bool
 	for i, pair := range this {
-		if found = pair[0].eq(key); found {
+		if found = pair[0].Eq(key); found {
 			this[i][1] = val
 			break
 		}
@@ -183,7 +169,11 @@ func (me *MoValDict) Set(key *MoExpr, val *MoExpr) {
 }
 
 type MoExpr struct {
-	Val     MoVal
+	Val  MoVal
+	Diag struct {
+		Err           *SrcFileNotice
+		NonErrNotices SrcFileNotices
+	}
 	SrcSpan *SrcFileSpan // caution: `nil` for prims / builtins
 	SrcFile *SrcFile     // dito
 }
@@ -195,17 +185,11 @@ func (me *MoExpr) srcNode() *AstNode {
 	return nil
 }
 
-func (me *MoExpr) Callee() *MoExpr {
-	if call, is := me.Val.(MoValCall); is {
-		return call[0]
-	}
-	return nil
-}
-
-func (me *MoExpr) eqTrue() bool  { return (me == moValTrue) || (me.Val == moValTrue.Val) }
-func (me *MoExpr) eqFalse() bool { return (me == moValFalse) || (me.Val == moValFalse.Val) }
-func (me *MoExpr) eqNone() bool  { return (me == moValNone) || (me.Val == moValNone.Val) }
-func (me *MoExpr) eq(to *MoExpr) bool {
+func (me *MoExpr) EqTrue() bool  { return (me == moValTrue) || (me.Val == moValTrue.Val) }
+func (me *MoExpr) EqFalse() bool { return (me == moValFalse) || (me.Val == moValFalse.Val) }
+func (me *MoExpr) EqNone() bool  { return (me == moValNone) || (me.Val == moValNone.Val) }
+func (me *MoExpr) EqNever() bool { return (me == moValNever) || (me.Val == moValNever.Val) }
+func (me *MoExpr) Eq(to *MoExpr) bool {
 	if me == to {
 		return true
 	}
@@ -215,16 +199,16 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 	switch it := me.Val.(type) {
 	case MoValErr:
 		other := to.Val.(MoValErr)
-		return it.Err.eq(other.Err)
+		return it.Err.Eq(other.Err)
 	case MoValList:
 		other := to.Val.(MoValList)
-		return sl.Eq(it, other, (*MoExpr).eq)
+		return sl.Eq(it, other, (*MoExpr).Eq)
 	case MoValCall:
 		other := to.Val.(MoValCall)
-		return sl.Eq(it, other, (*MoExpr).eq)
+		return sl.Eq(it, other, (*MoExpr).Eq)
 	case *MoValFnLam:
 		other := to.Val.(*MoValFnLam)
-		return it.Body.eq(other.Body) && (it.IsMacro == other.IsMacro) && sl.Eq(it.Params, other.Params, (*MoExpr).eq) && it.Env.eq(other.Env)
+		return it.Body.Eq(other.Body) && (it.IsMacro == other.IsMacro) && sl.Eq(it.Params, other.Params, (*MoExpr).Eq) && it.Env.eq(other.Env)
 	case MoValFnPrim:
 		other := to.Val.(MoValFnPrim)
 		return (it == nil) && (other == nil)
@@ -234,7 +218,7 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 			return false
 		}
 		for i := range it {
-			if !sl.HasWhere(other, func(other_pair [2]*MoExpr) bool { return other_pair[0].eq(it[i][0]) && other_pair[1].eq(it[i][1]) }) {
+			if !sl.HasWhere(other, func(other_pair [2]*MoExpr) bool { return other_pair[0].Eq(it[i][0]) && other_pair[1].Eq(it[i][1]) }) {
 				return false
 			}
 		}
@@ -243,7 +227,7 @@ func (me *MoExpr) eq(to *MoExpr) bool {
 	return me.Val == to.Val
 }
 
-func (me *Interp) cmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *SrcFileNotice) {
+func (me *Interp) Cmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *SrcFileNotice) {
 	switch it := it.Val.(type) {
 	case MoValChar:
 		if other, is := to.Val.(MoValChar); is {
@@ -269,6 +253,11 @@ func (me *Interp) cmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *Sr
 	return 0, me.diagSpan(true, false, it, to).newDiagErr(NoticeCodeNotComparable, it, to, diagMsgOpMoniker)
 }
 
+func (me *Interp) exprNever(err *SrcFileNotice, srcFile *SrcFile, srcSpan *SrcFileSpan, srcSpanCtx ...*MoExpr) *MoExpr {
+	expr := me.expr(moValNever.Val, srcFile, srcSpan, srcSpanCtx...)
+	expr.Diag.Err = err
+	return expr
+}
 func (me *Interp) expr(val MoVal, srcFile *SrcFile, srcSpan *SrcFileSpan, srcSpanCtx ...*MoExpr) *MoExpr {
 	if srcSpan == nil {
 		srcSpan = me.diagSpan(false, false, srcSpanCtx...)
@@ -356,7 +345,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		panic(it)
 	}
 }
-func moValToString(it MoVal) string {
+func MoValToString(it MoVal) string {
 	var buf strings.Builder
 	moValWriteTo(it, &buf)
 	return buf.String()
@@ -485,6 +474,23 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	return &MoExpr{SrcFile: me, SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
 }
 
+func (me *MoExpr) Errs() (ret SrcFileNotices) {
+	me.Walk(nil, func(it *MoExpr) {
+		if it.Diag.Err != nil {
+			ret.Add(it.Diag.Err)
+		}
+	})
+	return
+}
+
+func (me *MoExpr) HasErrs() (ret bool) {
+	me.Walk(func(it *MoExpr) bool {
+		ret = ret || (it.Diag.Err != nil)
+		return !ret
+	}, nil)
+	return
+}
+
 func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
 	if onBefore != nil && !onBefore(me) {
 		return
@@ -518,8 +524,10 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 
 type MoExprs []*MoExpr
 
-func (me MoExprs) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
+func (me MoExprs) Walk(filterBy *SrcFile, onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
 	for _, expr := range me {
-		expr.Walk(onBefore, onAfter)
+		if (filterBy == nil) || (expr.SrcFile == filterBy) {
+			expr.Walk(onBefore, onAfter)
+		}
 	}
 }

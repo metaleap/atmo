@@ -259,7 +259,7 @@ func With[TSlice ~[]TItem, TItem comparable](slice TSlice, items ...TItem) TSlic
 
 func Uniq[TSlice ~[]TItem, TItem comparable](slice TSlice) TSlice {
 	dupl_idxs := make([]int, 0, 2)
-	for i := len(slice) - 1; i > 0; i-- {
+	for i := len(slice) - 1; i > 0; i-- { // `>` not `>=` since the first item is by definition never a duplicate, only later ones can be
 		look_from := 0
 		for idx := IdxOf(slice[look_from:i], slice[i]); (look_from < i) && (idx >= 0); idx = IdxOf(slice[look_from:i], slice[i]) {
 			dupl_idxs = append(dupl_idxs, look_from+idx)

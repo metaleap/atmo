@@ -42,7 +42,7 @@ func (me *MoEnv) eq(to *MoEnv) bool {
 	if (me == nil) || (to == nil) {
 		return false
 	}
-	return me.Parent.eq(to.Parent) && kv.Eq(me.Own, to.Own, (*MoExpr).eq)
+	return me.Parent.eq(to.Parent) && kv.Eq(me.Own, to.Own, (*MoExpr).Eq)
 }
 
 func (me *MoEnv) hasOwn(name MoValIdent) (ret bool) {

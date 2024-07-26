@@ -65,7 +65,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 								}
 							case session.MoValDict:
 								for _, pair := range it {
-									node := &moNode{PrimTypeTag: session.MoPrimTypeDict, Nodes: []*moNode{convert(pair[0]), convert(pair[1])}}
+									node := &moNode{PrimTypeTag: -1, Nodes: []*moNode{convert(pair[0]), convert(pair[1])}}
 									node.ClientInfo.SrcFilePath = node.Nodes[0].ClientInfo.SrcFilePath
 									node.ClientInfo.SrcFileSpan = node.Nodes[0].ClientInfo.SrcFileSpan.ExtendBy(node.Nodes[1].ClientInfo.SrcFileSpan)
 									node.ClientInfo.SrcFileText = node.Nodes[0].ClientInfo.SrcFileText + ": " + node.Nodes[1].ClientInfo.SrcFileText

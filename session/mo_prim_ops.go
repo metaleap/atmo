@@ -299,9 +299,9 @@ func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *S
 		if err != nil {
 			return nil, nil, err
 		}
-		if pred.eqTrue() {
+		if pred.EqTrue() {
 			return env, me.exprFrom(val, val), nil
-		} else if !pred.eqFalse() {
+		} else if !pred.EqFalse() {
 			return nil, nil, me.diagSpan(false, true, key).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression")
 		}
 	}
@@ -317,9 +317,9 @@ func (me *Interp) primOpBoolAnd(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *
 		if err != nil {
 			return nil, nil, err
 		}
-		if evaled.eqFalse() {
+		if evaled.EqFalse() {
 			return nil, me.exprBool(false, args...), nil
-		} else if !evaled.eqTrue() {
+		} else if !evaled.EqTrue() {
 			return nil, nil, me.diagSpan(false, true, arg).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression")
 		}
 	}
@@ -335,9 +335,9 @@ func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *S
 		if err != nil {
 			return nil, nil, err
 		}
-		if evaled.eqTrue() {
+		if evaled.EqTrue() {
 			return nil, me.exprBool(true, args...), nil
-		} else if !evaled.eqFalse() {
+		} else if !evaled.EqFalse() {
 			return nil, nil, me.diagSpan(false, true, arg).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression")
 		}
 	}
@@ -571,7 +571,7 @@ func (me *Interp) primFnStr(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice)
 	case MoValType:
 		str = MoValStr(((MoValPrimType)(it)).Str(true))
 	default:
-		str = MoValStr(it.String())
+		str = MoValStr(MoValToString(it))
 	}
 	return me.expr(str, nil, nil, args...), nil
 }
@@ -674,7 +674,7 @@ func (me *Interp) primFnEq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) 
 	if !me.checkNoneArePrimFuncs(args...) {
 		return nil, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "equality")
 	}
-	return me.exprBool(args[0].eq(args[1]), args...), nil
+	return me.exprBool(args[0].Eq(args[1]), args...), nil
 }
 
 func (me *Interp) primFnNeq(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -684,7 +684,7 @@ func (me *Interp) primFnNeq(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotic
 	if !me.checkNoneArePrimFuncs(args...) {
 		return nil, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "equality")
 	}
-	return me.exprBool(!args[0].eq(args[1]), args...), nil
+	return me.exprBool(!args[0].Eq(args[1]), args...), nil
 }
 
 func (me *Interp) primFnLeq(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
@@ -726,7 +726,7 @@ func (me *Interp) primCmpHelper(diagMoniker string, args ...*MoExpr) (int, *SrcF
 	if !me.checkNoneArePrimFuncs(args...) {
 		return 0, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], diagMoniker)
 	}
-	cmp, err := me.cmp(args[0], args[1], diagMoniker)
+	cmp, err := me.Cmp(args[0], args[1], diagMoniker)
 	if err != nil {
 		return 0, err
 	}
