@@ -23,6 +23,8 @@ var (
 )
 
 func Main() {
+	session.InterpStderr = (any(io.Discard)).(session.Writer)
+	session.InterpStdout = (any(io.Discard)).(session.Writer)
 	if redirectStderrTemporarilyTo != "" {
 		file, err := os.Create(redirectStderrTemporarilyTo + "." + strconv.FormatInt(time.Now().UnixNano(), 10))
 		if err != nil {
@@ -36,8 +38,6 @@ func Main() {
 }
 
 func init() {
-	session.InterpStderr = (any(io.Discard)).(session.Writer)
-	session.InterpStdout = (any(io.Discard)).(session.Writer)
 	session.OnDbgMsg = func(should bool, msg string, args ...any) {
 		if should {
 			if len(args) > 0 {

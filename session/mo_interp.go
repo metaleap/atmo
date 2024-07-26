@@ -10,10 +10,16 @@ import (
 )
 
 var (
-	InterpStderr Writer    = os.Stderr
-	InterpStdout Writer    = os.Stdout
-	InterpStdin  io.Reader = os.Stdin
+	InterpStderr Writer
+	InterpStdout Writer
+	InterpStdin  io.Reader
 )
+
+func init() {
+	InterpStderr = os.Stderr
+	InterpStdout = os.Stdout
+	InterpStdin = os.Stdin
+}
 
 type Writer interface {
 	io.Writer

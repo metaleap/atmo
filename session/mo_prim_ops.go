@@ -2,6 +2,7 @@ package session
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"atmo/util"
@@ -392,6 +393,7 @@ func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) *MoExpr {
 	if !expr.IsErr() {
 		InterpStdout.WriteString("\n")
 	}
+	os.Stdout.Sync()
 	return expr
 }
 
