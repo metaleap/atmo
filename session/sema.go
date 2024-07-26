@@ -13,7 +13,6 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 	cur_paths := me.srcFilePaths()
 	can_skip := (len(cur_paths) == len(me.Sema.last.files))
 	defer func(timeStarted time.Time) {
-		OnDbgMsg(true, "CS:%v DRC:%v", can_skip, encounteredDiagsRelevantChanges)
 		OnLogMsg(!can_skip, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
 	}(time.Now())
 
@@ -76,15 +75,14 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 		return
 	}
 
-	if me.Sema.Eval == nil {
+	if me.Interp == nil {
 		_ = newInterp(me, nil)
-		util.Assert(me.Sema.Eval != nil, nil)
+		util.Assert(me.Interp != nil, nil)
 	}
 
 	me.Sema.Post = nil
 	for _, top_expr := range me.Sema.Pre {
-		evaled := me.Sema.Eval.Eval(top_expr)
-		if evaled != nil {
+		if evaled := me.Interp.Eval(top_expr); evaled != nil {
 			me.Sema.Post = append(me.Sema.Post, evaled)
 			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs() || evaled.EqNever()
 		}

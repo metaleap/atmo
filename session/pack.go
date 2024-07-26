@@ -12,8 +12,8 @@ import (
 type SrcPack struct {
 	DirPath string
 	Files   []*SrcFile
+	Interp  *Interp
 	Sema    struct {
-		Eval *Interp
 		Pre  MoExprs
 		Post MoExprs
 		last struct {

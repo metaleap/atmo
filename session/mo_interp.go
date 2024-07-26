@@ -38,7 +38,7 @@ func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 
 	me := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, ReplFauxFile: replFauxFile}
 	me.ensureRootEnvPopulated()
-	me.Pack.Sema.Eval = &me
+	me.Pack.Interp = &me
 	return &me
 }
 
@@ -48,7 +48,7 @@ func (me *Interp) reset() {
 		allNotices = map[string]sl.Of[*SrcFileNotice]{}
 		me.ClearStackTrace()
 		me.Env = newMoEnv(&rootEnv, nil, nil)
-		me.Pack.Sema.Eval, me.Pack.Sema.Pre = me, nil
+		me.Pack.Interp, me.Pack.Sema.Pre = me, nil
 		for _, src_file := range me.Pack.Files {
 			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.PreSema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
 				nil, nil, nil, nil, nil, ""
