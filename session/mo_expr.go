@@ -54,7 +54,7 @@ func (me MoValPrimType) Str(forDiag bool) string {
 	case MoPrimTypeType:
 		return util.If(forDiag, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
-		return util.If(forDiag, "quoted-identifier", "@Ident")
+		return util.If(forDiag, "identifier", "@Ident")
 	case MoPrimTypeNumInt:
 		return util.If(forDiag, "signed-integer number", "@Int")
 	case MoPrimTypeNumUint:
@@ -528,7 +528,11 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 	}
 }
 
-type MoExprs []*MoExpr
+type MoExprs sl.Of[*MoExpr]
+
+func (me MoExprs) AnyErrs() bool {
+	return sl.Any(me, func(it *MoExpr) bool { return it.HasErrs() })
+}
 
 func (me MoExprs) Walk(filterBy *SrcFile, onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr)) {
 	for _, expr := range me {

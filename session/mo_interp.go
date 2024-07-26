@@ -9,6 +9,12 @@ import (
 	"atmo/util/str"
 )
 
+var (
+	InterpStderr Writer    = os.Stderr
+	InterpStdout Writer    = os.Stdout
+	InterpStdin  io.Reader = os.Stdin
+)
+
 type Writer interface {
 	io.Writer
 	io.StringWriter
@@ -20,12 +26,7 @@ type Interp struct {
 	Env            *MoEnv
 	StackTraces    bool
 	LastStackTrace MoExprs
-	StdIo          struct {
-		In  io.Reader
-		Out Writer
-		Err Writer
-	}
-	diagCtxCall *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
+	diagCtxCall    *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
 }
 
 func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
@@ -36,7 +37,6 @@ func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 	}
 
 	me := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, ReplFauxFile: replFauxFile}
-	me.StdIo.In, me.StdIo.Out, me.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
 	me.ensureRootEnvPopulated()
 	me.Pack.Sema.Eval = &me
 	return &me
@@ -63,7 +63,6 @@ func (me *Interp) ClearStackTrace() {
 }
 
 func (me *Interp) Eval(expr *MoExpr) *MoExpr {
-	return nil
 	me.ClearStackTrace()
 	me.diagCtxCall = nil
 	if expr == nil {

@@ -299,6 +299,7 @@ func (me *Server) Forever() error {
 			return nil, nil
 		}
 		me.On_initialized = func(params *InitializedParams) (any, error) {
+			me.Initialized.Fully = true
 			if me.On_workspace_didChangeWatchedFiles != nil {
 				me.Request_client_registerCapability(RegistrationParams{
 					Registrations: []Registration{
@@ -314,7 +315,6 @@ func (me *Server) Forever() error {
 			if old_initialized != nil {
 				return old_initialized(params)
 			}
-			me.Initialized.Fully = true
 			return nil, nil
 		}
 	}

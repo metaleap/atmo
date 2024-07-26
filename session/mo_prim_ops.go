@@ -370,7 +370,7 @@ func (me *Interp) primFnSessPrintf(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	for _, arg := range list {
 		fmt_args = append(fmt_args, arg.Val)
 	}
-	fmt.Fprintf(me.StdIo.Out, string(args[0].Val.(MoValStr)), fmt_args...)
+	fmt.Fprintf(InterpStdout, string(args[0].Val.(MoValStr)), fmt_args...)
 	return me.exprFrom(moValNone, args...)
 }
 
@@ -380,9 +380,9 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	switch arg0 := args[0].Val.(type) {
 	case MoValStr:
-		me.StdIo.Out.WriteString(string(arg0))
+		InterpStdout.WriteString(string(arg0))
 	default:
-		args[0].WriteTo(me.StdIo.Out)
+		args[0].WriteTo(InterpStdout)
 	}
 	return me.exprFrom(moValNone, args...)
 }
@@ -390,7 +390,7 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) *MoExpr {
 	expr := me.primFnSessPrint(env, args...)
 	if !expr.IsErr() {
-		me.StdIo.Out.WriteString("\n")
+		InterpStdout.WriteString("\n")
 	}
 	return expr
 }

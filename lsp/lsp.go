@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"io"
 	"os"
 	"strconv"
 	"time"
@@ -13,7 +14,7 @@ import (
 
 const (
 	logJsonMsgs                 = true
-	redirectStderrTemporarilyTo = "/tmp/atmo/lsp.log"
+	redirectStderrTemporarilyTo = "" // "/tmp/atmo/lsp.log"
 )
 
 var (
@@ -35,6 +36,8 @@ func Main() {
 }
 
 func init() {
+	session.InterpStderr = (any(io.Discard)).(session.Writer)
+	session.InterpStdout = (any(io.Discard)).(session.Writer)
 	session.OnDbgMsg = func(should bool, msg string, args ...any) {
 		if should {
 			if len(args) > 0 {
