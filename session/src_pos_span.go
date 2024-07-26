@@ -37,12 +37,23 @@ type SrcFileSpan struct {
 	End   SrcFilePos
 }
 
-func (me SrcFileSpan) contains(it *SrcFilePos) bool {
+func (me SrcFileSpan) Contains(it *SrcFilePos) bool {
 	return it.afterOrAt(&me.Start) && it.beforeOrAt(&me.End)
 }
-func (me *SrcFileSpan) isSinglePos() bool { return me.Start == me.End }
+
+func (me *SrcFileSpan) IsSinglePos() bool { return me.Start == me.End }
+
+func (me SrcFileSpan) Eq(to SrcFileSpan) bool {
+	return (me.Start == to.Start) && (me.End == to.End)
+}
+
+func (me *SrcFileSpan) ExtendBy(it *SrcFileSpan) *SrcFileSpan {
+	return &SrcFileSpan{Start: util.If(it.Start.before(&me.Start), it.Start, me.Start),
+		End: util.If(it.End.after(&me.End), it.End, me.End)}
+}
+
 func (me SrcFileSpan) String() string {
-	if me.isSinglePos() {
+	if me.IsSinglePos() {
 		return me.Start.String()
 	}
 	return str.Fmt("%s-%s", me.Start.String(), me.End.String())

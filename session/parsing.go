@@ -15,14 +15,13 @@ import (
 type AstNodes sl.Of[*AstNode]
 
 type AstNode struct {
-	parent        *AstNode
-	Kind          AstNodeKind
-	Src           string
-	Toks          Toks
-	Nodes         AstNodes `json:",omitempty"`
-	errParsing    *SrcFileNotice
-	errsExpansion SrcFileNotices
-	Lit           any `json:",omitempty"` // if AstNodeKindIdent or AstNodeKindLit, one of: float64 | int64 | uint64 | rune | string
+	parent     *AstNode
+	Kind       AstNodeKind
+	Src        string
+	Toks       Toks
+	Nodes      AstNodes `json:",omitempty"`
+	errParsing *SrcFileNotice
+	Lit        any `json:",omitempty"` // if AstNodeKindIdent or AstNodeKindLit, one of: float64 | int64 | uint64 | rune | string
 }
 
 type AstNodeKind int
@@ -181,9 +180,9 @@ func parseLit[T cmp.Ordered](toks Toks, kind AstNodeKind, parseFunc func(string)
 
 func (me *SrcFile) NodeAtPos(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 	for _, node := range me.Src.Ast {
-		if node.Toks.Span().contains(&pos) {
+		if node.Toks.Span().Contains(&pos) {
 			ret = node.find(func(it *AstNode) bool {
-				return (len(it.Nodes) == 0) && it.Toks.Span().contains(&pos)
+				return (len(it.Nodes) == 0) && it.Toks.Span().Contains(&pos)
 			})
 			if ret == nil && orAncestor {
 				ret = node
@@ -196,7 +195,7 @@ func (me *SrcFile) NodeAtPos(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 
 func (me *SrcFile) NodeAtSpan(span *SrcFileSpan) (ret *AstNode) {
 	for _, node := range me.Src.Ast {
-		if node_span := node.Toks.Span(); node_span.contains(&span.Start) || node_span.contains(&span.End) {
+		if node_span := node.Toks.Span(); node_span.Contains(&span.Start) || node_span.Contains(&span.End) {
 			if ret = node.find(func(it *AstNode) bool {
 				return it.Toks.Span() == *span
 			}); ret != nil {
@@ -218,12 +217,12 @@ func (me *AstNode) cmp(it *AstNode) int {
 	return cmp.Compare(me.Toks[0].byteOffset, it.Toks[0].byteOffset)
 }
 
-func (me *AstNode) equals(it *AstNode, withoutComments bool) bool {
+func (me *AstNode) equals(it *AstNode, includingSpans bool, withoutComments bool) bool {
 	util.Assert(me != it, nil)
 
-	// note: AstNode.errsExpansion are not compared, because usually one comparee already has them and the other not-yet
-
-	if (me.Kind != it.Kind) || (!me.Nodes.equals(it.Nodes, withoutComments)) {
+	if (me.Kind != it.Kind) ||
+		(includingSpans && !me.Toks.Span().Eq(it.Toks.Span())) ||
+		(!me.Nodes.equals(it.Nodes, includingSpans, withoutComments)) {
 		return false
 	}
 
@@ -379,12 +378,12 @@ func (me *AstNode) walk(onBefore func(node *AstNode) bool, onAfter func(node *As
 	}
 }
 
-func (me AstNodes) equals(it AstNodes, withoutComments bool) bool {
+func (me AstNodes) equals(it AstNodes, includingSpans bool, withoutComments bool) bool {
 	if withoutComments {
 		me, it = me.withoutComments(), it.withoutComments()
 	}
 	return sl.Eq(me, it, func(node1 *AstNode, node2 *AstNode) bool {
-		return node1.equals(node2, withoutComments)
+		return node1.equals(node2, includingSpans, withoutComments)
 	})
 }
 

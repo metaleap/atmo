@@ -41,7 +41,7 @@ func (me *Interp) reset() {
 		allNotices = map[string]sl.Of[*SrcFileNotice]{}
 		me.ClearStackTrace()
 		me.Env = newMoEnv(&rootEnv, nil, nil)
-		me.Pack.Sema.Eval, me.Pack.Sema.Top = me, nil
+		me.Pack.Sema.Eval, me.Pack.Sema.Pre = me, nil
 		for _, src_file := range me.Pack.Files {
 			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.Sema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
 				nil, nil, nil, nil, nil, ""

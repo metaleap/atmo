@@ -112,7 +112,7 @@ func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNo
 }
 
 func (me *SrcFile) allNotices() (ret SrcFileNotices) {
-	has_brace_err := me.Src.Ast.hasBraceErrors()
+	has_brace_errs := me.Src.Ast.hasBraceErrors()
 	if me.notices.LastReadErr != nil {
 		ret.Add(me.notices.LastReadErr)
 	}
@@ -121,11 +121,10 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 		if node.errParsing != nil {
 			ret.Add(node.errParsing)
 		}
-		if !has_brace_err {
-			ret.Add(node.errsExpansion...)
-		}
 	})
-	ret.Add(me.notices.Sema...)
+	if !has_brace_errs {
+		ret.Add(me.notices.Sema...)
+	}
 	return
 }
 

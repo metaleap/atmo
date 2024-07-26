@@ -65,7 +65,11 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 								}
 							case session.MoValDict:
 								for _, pair := range it {
-									ret.Nodes = append(ret.Nodes, &moNode{PrimTypeTag: session.MoPrimTypeDict, Nodes: []*moNode{convert(pair[0]), convert(pair[1])}})
+									node := &moNode{PrimTypeTag: session.MoPrimTypeDict, Nodes: []*moNode{convert(pair[0]), convert(pair[1])}}
+									node.ClientInfo.SrcFilePath = node.Nodes[0].ClientInfo.SrcFilePath
+									node.ClientInfo.SrcFileSpan = node.Nodes[0].ClientInfo.SrcFileSpan.ExtendBy(node.Nodes[1].ClientInfo.SrcFileSpan)
+									node.ClientInfo.SrcFileText = node.Nodes[0].ClientInfo.SrcFileText + ": " + node.Nodes[1].ClientInfo.SrcFileText
+									ret.Nodes = append(ret.Nodes, node)
 								}
 							case session.MoValErr:
 								ret.Nodes = append(ret.Nodes, convert(it.Err))
@@ -91,7 +95,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							return &ret
 						}
 						var top_level []*moNode
-						for _, top_expr := range src_pkg.Sema.Top {
+						for _, top_expr := range src_pkg.Sema.Pre {
 							top_level = append(top_level, convert(top_expr))
 						}
 						ret = top_level

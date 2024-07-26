@@ -14,7 +14,8 @@ type SrcPack struct {
 	Files   []*SrcFile
 	Sema    struct {
 		Eval *Interp
-		Top  MoExprs
+		Pre  MoExprs
+		Post MoExprs
 	}
 }
 
@@ -169,7 +170,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 						old_ast_sans_comments := old_ast.withoutComments()
 						for _, new_node := range new_ast.withoutComments() {
 							for _, old_node := range old_ast_sans_comments {
-								if old_node.equals(new_node, true) {
+								if old_node.equals(new_node, true, true) {
 									new_same_as_old[new_node] = true
 									break
 								}

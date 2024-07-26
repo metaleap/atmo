@@ -32,19 +32,23 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 		}
 	}
 
-	me.Sema.Top = top_level.sorted()
+	me.Sema.Pre = top_level.sorted()
 	return
 }
 
 func (me MoExprs) sorted() MoExprs {
 	return sl.SortedPer(me, func(expr1 *MoExpr, expr2 *MoExpr) int {
-		node1, node2 := expr1.srcNode(), expr2.srcNode()
-		if (node1 == nil) || (node2 == nil) || (expr1.SrcFile.FilePath != expr2.SrcFile.FilePath) {
+		var node1, node2 *AstNode
+		if expr1.SrcFile.FilePath == expr2.SrcFile.FilePath {
+			node1, node2 = expr1.srcNode(), expr2.srcNode()
+		}
+		if (node1 == nil) || (node2 == nil) {
 			return cmp.Compare(expr1.SrcFile.FilePath, expr2.SrcFile.FilePath)
 		}
 		if node1.Toks[0].Pos.Line != node2.Toks[0].Pos.Line {
 			return cmp.Compare(node1.Toks[0].Pos.Line, node2.Toks[0].Pos.Line)
 		}
+		// we shouldn't really ever get to here, since we only sort top-level exprs and there are no two of them on the same line in the same file
 		return cmp.Compare(node1.Toks[0].Pos.Char, node2.Toks[0].Pos.Char)
 	})
 }
