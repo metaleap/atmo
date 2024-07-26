@@ -15,6 +15,8 @@ import (
 	"atmo/util/str"
 )
 
+var StdErr = os.Stderr
+
 type Void struct{}
 
 type Server struct {
@@ -25,6 +27,7 @@ type Server struct {
 
 	LogPrefixSendRecvJsons string
 	Initialized            struct {
+		Fully  bool
 		Client *InitializeParams
 		Server *InitializeResult
 	}
@@ -115,8 +118,8 @@ func (me *Server) sendMsg(jsonable any) {
 	me.stdioMu.Lock()
 	defer me.stdioMu.Unlock()
 	if me.LogPrefixSendRecvJsons != "" {
-		println(me.LogPrefixSendRecvJsons + ".SEND>>" + string(json_bytes) + ">>")
-		_ = os.Stderr.Sync()
+		StdErr.WriteString(me.LogPrefixSendRecvJsons + ".SEND>>" + string(json_bytes) + ">>\n")
+		_ = StdErr.Sync()
 	}
 	_, _ = me.stdout.Write([]byte("Content-Length: "))
 	_, _ = me.stdout.Write([]byte(strconv.Itoa(len(json_bytes))))
@@ -311,6 +314,7 @@ func (me *Server) Forever() error {
 			if old_initialized != nil {
 				return old_initialized(params)
 			}
+			me.Initialized.Fully = true
 			return nil, nil
 		}
 	}
@@ -349,12 +353,12 @@ func (me *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[s
 		json_bytes := stdin.Bytes()
 		if me.LogPrefixSendRecvJsons != "" {
 			me.stdioMu.Lock()
-			println(me.LogPrefixSendRecvJsons + ".RECV<<" + string(json_bytes) + "<<")
-			_ = os.Stderr.Sync()
+			StdErr.WriteString(me.LogPrefixSendRecvJsons + ".RECV<<" + string(json_bytes) + "<<\n")
+			_ = StdErr.Sync()
 			me.stdioMu.Unlock()
 		}
 		if err := json.Unmarshal(json_bytes, &raw); err != nil {
-			println("failed to parse incoming JSON message '" + string(json_bytes) + "': " + err.Error()) // goes to stderr
+			StdErr.WriteString("failed to parse incoming JSON message '" + string(json_bytes) + "': " + err.Error() + "\n")
 			continue
 		}
 		msg_id := raw["id"]
@@ -365,7 +369,7 @@ func (me *Server) forever(in io.Reader, out io.Writer, handleIncoming func(map[s
 
 		if raw["code"] != nil { // received an error message
 			me.stdioMu.Lock()
-			println(string(json_bytes)) // goes to stderr
+			StdErr.WriteString(string(json_bytes) + "\n")
 			me.stdioMu.Unlock()
 			continue
 		}
@@ -428,7 +432,7 @@ func serverHandleIncoming[TIn any, TOut any](me *Server, handler func(*TIn) (TOu
 			}
 			me.sendMsg(resp)
 		} else if err != nil {
-			println("handler for Notification '" + msgMethodName + "' failed: " + err.Error()) // goes to stderr
+			StdErr.WriteString("handler for Notification '" + msgMethodName + "' failed: " + err.Error() + "\n")
 		}
 	}(&params)
 }

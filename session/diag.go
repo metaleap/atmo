@@ -123,6 +123,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 		}
 	})
 	if !has_brace_errs {
+		ret.Add(me.notices.PreSema...)
 		add := func(it *MoExpr) {
 			ret.Add(it.Diag.NonErrNotices...)
 			if it.Diag.Err != nil {
@@ -131,7 +132,6 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 		}
 		me.pack.Sema.Pre.Walk(me, nil, add)
 		me.pack.Sema.Post.Walk(me, nil, add)
-		ret.Add(me.notices.PreSema...)
 	}
 	return
 }

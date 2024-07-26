@@ -13,7 +13,7 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 	cur_paths := me.srcFilePaths()
 	can_skip := (len(cur_paths) == len(me.Sema.last.files))
 	defer func(timeStarted time.Time) {
-		OnLogMsg(!can_skip, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
+		OnLogMsg(false, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
 	}(time.Now())
 
 	if can_skip {
@@ -78,6 +78,15 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 		util.Assert(me.Sema.Eval != nil, nil)
 	}
 
+	me.Sema.Post = nil
+	for _, top_expr := range me.Sema.Pre {
+		evaled := me.Sema.Eval.Eval(top_expr)
+		if evaled != nil {
+			me.Sema.Post = append(me.Sema.Post, evaled)
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs() || evaled.EqNever()
+		}
+	}
+	me.Sema.Post = me.Sema.Post.sorted()
 	return
 }
 

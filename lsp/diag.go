@@ -3,14 +3,15 @@ package lsp
 import (
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
-	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
 
 func init() {
 	session.OnNoticesChanged = func() {
-		util.Assert(Server.Initialized.Client != nil && Server.Initialized.Server != nil, nil)
+		if !Server.Initialized.Fully {
+			return
+		}
 		session.LockedDo(func(sess session.StateAccess) {
 			all_notices := sess.AllCurrentSrcFileNotices()
 			for file_path, diags := range all_notices {

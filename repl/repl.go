@@ -81,17 +81,18 @@ func Main() {
 		interp.ClearStackTrace()
 		expr, diag := interp.ParseExpr(string(line))
 		if (diag == nil) && (expr != nil) {
-			expr = interp.Eval(expr)
-			if expr.Diag.Err != nil {
-				expr, diag = nil, expr.Diag.Err
-			} else if errs := expr.Errs(); len(errs) > 0 {
-				diag = errs[0]
-			} else if fn, _ := expr.Val.(session.MoValFnPrim); fn != nil {
-				// REPL-only convenience: Eval nilary builtin prim funcs, handy for @replReset, @replEnv etc
-				src_span := util.Ptr(interp.ReplFauxFile.Span())
-				call := &session.MoExpr{Val: session.MoValCall{&session.MoExpr{Val: fn, SrcSpan: src_span, SrcFile: interp.ReplFauxFile}}, SrcSpan: src_span, SrcFile: interp.ReplFauxFile}
-				if result := interp.Eval(call); !result.IsErr() {
-					expr = result
+			if expr = interp.Eval(expr); expr != nil {
+				if expr.Diag.Err != nil {
+					expr, diag = nil, expr.Diag.Err
+				} else if errs := expr.Errs(); len(errs) > 0 {
+					diag = errs[0]
+				} else if fn, _ := expr.Val.(session.MoValFnPrim); fn != nil {
+					// REPL-only convenience: Eval nilary builtin prim funcs, handy for @replReset, @replEnv etc
+					src_span := util.Ptr(interp.ReplFauxFile.Span())
+					call := &session.MoExpr{Val: session.MoValCall{&session.MoExpr{Val: fn, SrcSpan: src_span, SrcFile: interp.ReplFauxFile}}, SrcSpan: src_span, SrcFile: interp.ReplFauxFile}
+					if result := interp.Eval(call); !result.IsErr() {
+						expr = result
+					}
 				}
 			}
 		}
@@ -102,8 +103,8 @@ func Main() {
 			os.Stderr.WriteString(errMsg("", diag) + "\n")
 		} else if expr != nil {
 			expr.WriteTo(os.Stdout)
-			os.Stdout.WriteString("\n")
 		}
+		os.Stdout.WriteString("\n")
 
 	}
 }

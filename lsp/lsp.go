@@ -1,15 +1,19 @@
 package lsp
 
 import (
+	"os"
+	"strconv"
+	"time"
+
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
 	"atmo/util"
 	"atmo/util/str"
-	"os"
 )
 
 const (
-	logJsonMsgs = false
+	logJsonMsgs                 = true
+	redirectStderrTemporarilyTo = "/tmp/atmo/lsp.log"
 )
 
 var (
@@ -18,7 +22,15 @@ var (
 )
 
 func Main() {
-	os.Stderr.WriteString("Atmo LSP starting up.\n")
+	if redirectStderrTemporarilyTo != "" {
+		file, err := os.Create(redirectStderrTemporarilyTo + "." + strconv.FormatInt(time.Now().UnixNano(), 10))
+		if err != nil {
+			panic(err)
+		}
+		lsp.StdErr = file
+	}
+
+	lsp.StdErr.WriteString("Atmo LSP starting up.\n")
 	panic(Server.Forever())
 }
 
@@ -36,6 +48,8 @@ func init() {
 			if len(args) > 0 {
 				msg = str.Fmt(msg, args...)
 			}
+			lsp.StdErr.WriteString(msg + "\n")
+			lsp.StdErr.Sync()
 			Server.Notify_window_logMessage(lsp.LogMessageParams{Type: lsp.MessageTypeInfo, Message: "LOG:" + msg})
 		}
 	}

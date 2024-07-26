@@ -63,6 +63,7 @@ func (me *Interp) ClearStackTrace() {
 }
 
 func (me *Interp) Eval(expr *MoExpr) *MoExpr {
+	return nil
 	me.ClearStackTrace()
 	me.diagCtxCall = nil
 	if expr == nil {
