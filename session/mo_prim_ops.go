@@ -85,28 +85,28 @@ func init() {
 
 // lazy prim-ops first, eager prim-ops afterwards
 
-func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	callee, args_list := args[0], args[1].Val.(MoValList)
-	return env, me.expr(append(MoValCall{callee}, args_list...), nil, nil, args...), nil
+	return env, me.expr(append(MoValCall{callee}, args_list...), nil, nil, args...)
 }
 
-func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	if err := me.checkIs(MoPrimTypeIdent, args[0]); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	name := args[0].Val.(MoValIdent)
 	if is_reserved := ((name[0] == '@') || (name[0] == moPrimOpQuote[0]) || (name[0] == moPrimOpUnquote[0]) || moPrimOpsLazy[name] != nil); is_reserved {
 		err := me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0])))
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	owner_env, found := env.lookupOwner(name)
 	if owner_env == nil {
@@ -117,51 +117,51 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	if (!can_set_macros) && (found != nil) {
 		if fn, _ := found.Val.(*MoValFnLam); (fn != nil) && fn.IsMacro {
 			err := me.diagSpan(true, false, args...).newDiagErr(NoticeCodeAtmoTodo, "mutating macros currently disabled, let us know whether you disagree with that or not")
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		}
 	}
 	new_value, err := me.evalAndApply(env, args[1])
 	if err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	owner_env.set(name, new_value)
-	return nil, me.exprFrom(moValNone, args...), nil
+	return nil, me.exprFrom(moValNone, args...)
 }
 
-func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	list := args[0].Val.(MoValList)
 	for _, item := range list[:len(list)-1] {
 		if _, err := me.evalAndApply(env, item); err != nil {
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		}
 	}
-	return env, me.exprFrom(list[len(list)-1], args...), nil
+	return env, me.exprFrom(list[len(list)-1], args...)
 }
 
-func (me *Interp) primOpMacro(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
-	_, expr, err := me.primOpFn(env, args...)
-	if err != nil {
-		return nil, me.exprNever(err), err
+func (me *Interp) primOpMacro(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
+	_, expr := me.primOpFn(env, args...)
+	if expr.Diag.Err != nil {
+		return nil, expr
 	}
 	expr.Val.(*MoValFnLam).IsMacro = true
-	return nil, expr, nil
+	return nil, expr
 }
 
-func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	if err := me.checkIsListOf(MoPrimTypeIdent, args[0]); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	list := args[1].Val.(MoValList)
 	body := list[0]
@@ -172,35 +172,35 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 	expr := me.expr(
 		&MoValFnLam{Params: MoExprs(args[0].Val.(MoValList)), Body: body, Env: env},
 		body.SrcFile, srcSpanFrom(args))
-	return nil, expr, nil
+	return nil, expr
 }
 
-func (me *Interp) primOpQuote(_ *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpQuote(_ *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
-	return nil, me.exprFrom(args[0], args...), nil
+	return nil, me.exprFrom(args[0], args...)
 }
 
-func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 
 	// is atomic arg? then just like primOpQuote
 	if args[0].Val.PrimType().isAtomic() {
-		return nil, me.exprFrom(args[0], args...), nil
+		return nil, me.exprFrom(args[0], args...)
 	}
 
 	// is this call directly quoting an unquote call?
 	if is_unquote, err := me.checkIsCallOnIdent(args[0], moPrimOpUnquote, 1); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	} else if is_unquote {
 		ret, err := me.evalAndApply(env, args[0].Val.(MoValCall)[1])
 		if err != nil {
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		}
-		return nil, me.exprFrom(ret, args...), nil
+		return nil, me.exprFrom(ret, args...)
 	}
 
 	// dict? call ourselves on each key and value
@@ -208,21 +208,15 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		ret := make(MoValDict, 0, len(dict))
 		for _, pair := range dict {
 			k, v := pair[0], pair[1]
-			_, key, err := me.primOpQuasiQuote(env, k)
-			if err != nil {
-				return nil, me.exprNever(err), err
-			}
-			_, val, err := me.primOpQuasiQuote(env, v)
-			if err != nil {
-				return nil, me.exprNever(err), err
-			}
+			_, key := me.primOpQuasiQuote(env, k)
+			_, val := me.primOpQuasiQuote(env, v)
 			if dict.Has(key) {
 				err := k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key)
-				return nil, me.exprNever(err), err
+				return nil, me.exprNever(err)
 			}
 			ret.Set(key, val)
 		}
-		return nil, me.expr(ret, me.srcFile(false, true, args...), me.diagSpan(false, true, args...)), nil
+		return nil, me.expr(ret, me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
 	}
 
 	// must be list or call then: we handle them the same, per item iteration
@@ -235,122 +229,119 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		call_or_arr = MoExprs(args[0].Val.(MoValList))
 	} else {
 		err := me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote")
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 
 	ret := make(MoExprs, 0, len(call_or_arr))
 	for _, item := range call_or_arr {
 		if is_unquote, err := me.checkIsCallOnIdent(item, moPrimOpUnquote, 1); err != nil {
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		} else if is_unquote {
 			unquotee := item.Val.(MoValCall)[1]
 			if evaled, err := me.evalAndApply(env, unquotee); err != nil {
-				return nil, me.exprNever(err), err
+				return nil, me.exprNever(err)
 			} else {
 				ret = append(ret, evaled)
 			}
 		} else if is_splice_unquote, err := me.checkIsCallOnIdent(item, moPrimOpSpliceUnquote, 1); err != nil {
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		} else if is_splice_unquote {
 			unquotee := item.Val.(MoValCall)[1]
 			evaled, err := me.evalAndApply(env, unquotee)
 			if err != nil {
-				return nil, me.exprNever(err), err
+				return nil, me.exprNever(err)
 			}
 			if err = me.checkIsListOf(-1, evaled); err != nil {
-				return nil, me.exprNever(err), err
+				return nil, me.exprNever(err)
 			}
 			for _, splicee := range evaled.Val.(MoValList) {
 				if evaled, err := me.evalAndApply(env, splicee); err != nil {
-					return nil, me.exprNever(err), err
+					return nil, me.exprNever(err)
 				} else {
 					ret = append(ret, evaled)
 				}
 			}
 		} else {
-			_, evaled, err := me.primOpQuasiQuote(env, item)
-			if err != nil {
-				return nil, me.exprNever(err), err
-			}
+			_, evaled := me.primOpQuasiQuote(env, item)
 			ret = append(ret, evaled)
 		}
 	}
 	return nil, me.expr(util.If[MoVal](is_list, MoValList(ret), MoValCall(ret)),
-		me.srcFile(false, true, args...), me.diagSpan(false, true, args...)), nil
+		me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
 }
 
-func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	if err := me.checkIs(MoPrimTypeCall, args[0]); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	ret, err := me.macroExpand(env, args[0])
 	if err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
-	return nil, me.exprFrom(ret, args...), nil
+	return nil, me.exprFrom(ret, args...)
 }
 
-func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.check(MoPrimTypeDict, 1, 1, args...); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	pairs := args[0].Val.(MoValDict)
 	for _, pair := range pairs {
 		key, val := pair[0], pair[1]
 		pred, err := me.evalAndApply(env, key)
 		if err != nil {
-			return nil, me.exprNever(err, key), err
+			return nil, me.exprNever(err, key)
 		}
 		if pred.EqTrue() {
-			return env, me.exprFrom(val, val), nil
+			return env, me.exprFrom(val, val)
 		} else if !pred.EqFalse() {
 			err := me.diagSpan(false, true, key).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression")
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		}
 	}
 	err := me.diagSpan(true, false, args...).newDiagErr(NoticeCodeNoElseCase)
-	return nil, me.exprNever(err), err
+	return nil, me.exprNever(err)
 }
 
-func (me *Interp) primOpBoolAnd(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpBoolAnd(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	for _, arg := range args {
 		evaled, err := me.evalAndApply(env, arg)
 		if err != nil {
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		}
 		if evaled.EqFalse() {
-			return nil, me.exprBool(false, args...), nil
+			return nil, me.exprBool(false, args...)
 		} else if !evaled.EqTrue() {
 			err := me.diagSpan(false, true, arg).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression")
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		}
 	}
-	return nil, me.exprBool(true, args...), nil
+	return nil, me.exprBool(true, args...)
 }
 
-func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, me.exprNever(err), err
+		return nil, me.exprNever(err)
 	}
 	for _, arg := range args {
 		evaled, err := me.evalAndApply(env, arg)
 		if err != nil {
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		}
 		if evaled.EqTrue() {
-			return nil, me.exprBool(true, args...), nil
+			return nil, me.exprBool(true, args...)
 		} else if !evaled.EqFalse() {
 			err := me.diagSpan(false, true, arg).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression")
-			return nil, me.exprNever(err), err
+			return nil, me.exprNever(err)
 		}
 	}
-	return nil, me.exprBool(false, args...), nil
+	return nil, me.exprBool(false, args...)
 }
 
 // eager prim-ops below, lazy ones above

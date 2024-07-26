@@ -83,8 +83,8 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotic
 			if prim_op_lazy != nil {
 				diag_ctx_cur, diag_ctx_prev := expr, me.diagCtxCall
 				me.diagCtxCall = diag_ctx_cur
-				if env, expr, err = prim_op_lazy(me, env, call_args...); err != nil {
-					return nil, err
+				if env, expr = prim_op_lazy(me, env, call_args...); expr.Diag.Err != nil {
+					return nil, expr.Diag.Err
 				}
 				expr.setSrcSpanIfNone(diag_ctx_cur)
 				me.diagCtxCall = diag_ctx_prev
