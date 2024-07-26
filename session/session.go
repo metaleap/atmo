@@ -88,6 +88,10 @@ func (*stateAccess) GetSrcPack(packDirPath string, loadIfMissing bool) (ret *Src
 func (me *stateAccess) Interpreter(packDirPath string) *Interp {
 	util.Assert(filepath.IsAbs(packDirPath), nil)
 	src_pack := me.GetSrcPack(packDirPath, true)
+	if src_pack != nil && src_pack.Interp != nil {
+		return src_pack.Interp
+	}
+
 	src_file_path := newSrcFilePathFakeAndReplish(packDirPath)
 	_ = ensureSrcFiles(nil, true, src_file_path)
 	src_file := state.srcFiles[src_file_path]
@@ -98,6 +102,9 @@ func (me *stateAccess) Interpreter(packDirPath string) *Interp {
 	util.Assert(src_pack != nil, nil)
 	util.Assert(src_file.pack == src_pack, nil)
 	defer refreshAndPublishNotices(false, src_pack.srcFilePaths()...)
+	if src_pack.Interp != nil {
+		return src_pack.Interp
+	}
 	return newInterp(src_pack, src_file)
 }
 

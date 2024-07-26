@@ -81,10 +81,23 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 	}
 
 	me.Sema.Post = nil
-	for _, top_expr := range me.Sema.Pre {
-		if evaled := me.Interp.Eval(top_expr); evaled != nil {
+	me.Interp.resetEnv()
+	eval := func(expr *MoExpr) {
+		if evaled := me.Interp.Eval(expr); evaled != nil {
 			me.Sema.Post = append(me.Sema.Post, evaled)
 			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs() || evaled.EqNever()
+		}
+	}
+	// first, only top-level `@set` exprs, so that names are in env
+	for _, top_expr := range me.Sema.Pre {
+		if me.Interp.isSetCall(top_expr) {
+			eval(top_expr)
+		}
+	}
+	// now, all non-`@set` top-level exprs
+	for _, top_expr := range me.Sema.Pre {
+		if !me.Interp.isSetCall(top_expr) {
+			eval(top_expr)
 		}
 	}
 	me.Sema.Post = me.Sema.Post.sorted()

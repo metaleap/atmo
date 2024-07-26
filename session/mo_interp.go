@@ -42,10 +42,15 @@ func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 		replFauxFile = state.srcFiles[src_file_path]
 	}
 
-	me := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, ReplFauxFile: replFauxFile}
+	me := Interp{Pack: inPack, ReplFauxFile: replFauxFile}
+	me.resetEnv()
 	me.ensureRootEnvPopulated()
 	me.Pack.Interp = &me
 	return &me
+}
+
+func (me *Interp) resetEnv() {
+	me.Env = newMoEnv(&rootEnv, nil, nil)
 }
 
 // for REPL use-cases only!
@@ -53,7 +58,7 @@ func (me *Interp) reset() {
 	LockedDo(func(sess StateAccess) {
 		allNotices = map[string]sl.Of[*SrcFileNotice]{}
 		me.ClearStackTrace()
-		me.Env = newMoEnv(&rootEnv, nil, nil)
+		me.resetEnv()
 		me.Pack.Interp, me.Pack.Sema.Pre = me, nil
 		for _, src_file := range me.Pack.Files {
 			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.PreSema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
@@ -288,12 +293,13 @@ func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have MoExprs) *Src
 }
 
 func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have MoExprs, preferSrcSpan bool) *SrcFileNotice {
+	if wantAtLeast < 0 {
+		return nil
+	}
 	diag_src_span := me.diagSpan(false, preferSrcSpan, have...)
 	plural := util.If((wantAtLeast <= wantAtMost) && (wantAtLeast != 1), "s", "")
 	moniker := util.If(preferSrcSpan, "item"+plural, "arg"+plural+" for this call")
-	if wantAtLeast < 0 {
-		return nil
-	} else if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
+	if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
 		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d %s, not %d", wantAtLeast, moniker, len(have)))
 	} else if len(have) < wantAtLeast {
 		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("at least %d %s, not %d", wantAtLeast, moniker, len(have)))

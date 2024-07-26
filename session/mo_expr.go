@@ -276,6 +276,11 @@ func (me *Interp) exprBool(b bool, srcSpanCtx ...*MoExpr) *MoExpr {
 	return me.exprFrom(util.If(b, moValTrue, moValFalse), srcSpanCtx...)
 }
 
+func (me *Interp) isSetCall(expr *MoExpr) (ret bool) {
+	ret, _ = me.checkIsCallOnIdent(expr, moPrimOpSet, -1)
+	return
+}
+
 func (me *MoExpr) setSrcSpanIfNone(from *MoExpr) {
 	if me.SrcSpan == nil {
 		me.SrcSpan = from.SrcSpan
@@ -456,7 +461,6 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			val = dict
 		default:
 			nodes := node.Nodes.withoutComments()
-
 			if len(nodes) == 1 {
 				return me.exprFromAstNode(nodes[0])
 			} else if len(nodes) == 0 {

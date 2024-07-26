@@ -19,21 +19,22 @@ const (
 	moPrimOpUnquote       MoValIdent = "$"
 	moPrimOpSpliceUnquote MoValIdent = "$$"
 	moPrimOpDo            MoValIdent = "@do"
+	moPrimOpSet           MoValIdent = "@set"
 )
 
 func init() {
 	moPrimOpsLazy = map[MoValIdent]moFnLazy{
-		"@set":         (*Interp).primOpSet,
 		"@fn":          (*Interp).primOpFn,
+		"@fnCall":      (*Interp).primOpFnCall,
 		"@caseOf":      (*Interp).primOpCaseOf,
 		"@and":         (*Interp).primOpBoolAnd,
 		"@or":          (*Interp).primOpBoolOr,
 		"@macro":       (*Interp).primOpMacro,
 		"@expand":      (*Interp).primOpMacroExpand,
-		"@fnCall":      (*Interp).primOpFnCall,
-		moPrimOpDo:     (*Interp).primOpDo,
 		moPrimOpQuote:  (*Interp).primOpQuote,
 		moPrimOpQQuote: (*Interp).primOpQuasiQuote,
+		moPrimOpSet:    (*Interp).primOpSet,
+		moPrimOpDo:     (*Interp).primOpDo,
 	}
 	moPrimOpsEager = map[MoValIdent]moFnEager{
 		"@replEnv":     (*Interp).primFnSessEnv,
@@ -117,6 +118,9 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		}
 	}
 	new_value := me.evalAndApply(env, args[1])
+	if new_value.IsErr() || new_value.HasErrs() {
+		return nil, new_value
+	}
 	owner_env.set(name, new_value)
 	return nil, me.exprFrom(moValNone, args...)
 }
@@ -379,6 +383,7 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
+	println(args[0].IsErr(), args[0].HasErrs())
 	switch arg0 := args[0].Val.(type) {
 	case MoValStr:
 		InterpStdout.WriteString(string(arg0))
