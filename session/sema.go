@@ -69,7 +69,7 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 		}
 	}
 	me.Sema.Pre = top_level.sorted()
-	if any_pre_errs { // we leave the old `.Sema.Post` intact in this case, for editor purposes
+	if any_pre_errs { // bug out & leave the old `.Sema.Post` intact in this case, for editor clients
 		return
 	}
 
