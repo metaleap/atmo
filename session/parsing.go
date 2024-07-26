@@ -147,8 +147,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 		case TokKindEnd:
 			pop := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			ret = append(pop, &AstNode{Kind: AstNodeKindGroup, Toks: ret.toks(me),
-				Src: ret.src(me), Nodes: ret})
+			ret = append(pop, &AstNode{Kind: AstNodeKindGroup, Toks: ret.toks(me), Src: ret.src(me), Nodes: ret})
 			toks = toks[1:]
 		case TokKindBegin:
 			stack = append(stack, ret)
@@ -376,6 +375,18 @@ func (me *AstNode) walk(onBefore func(node *AstNode) bool, onAfter func(node *As
 	if onAfter != nil {
 		onAfter(me)
 	}
+}
+
+func (me AstNodes) eachOnAnotherLine() bool {
+	if len(me) <= 1 {
+		return false
+	}
+	for i, node := range me {
+		if i > 0 && node.Toks.Span().Start.Line == me[i-1].Toks.Span().End.Line {
+			return false
+		}
+	}
+	return true
 }
 
 func (me AstNodes) equals(it AstNodes, includingSpans bool, withoutComments bool) bool {

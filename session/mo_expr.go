@@ -456,6 +456,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			val = dict
 		default:
 			nodes := node.Nodes.withoutComments()
+
 			if len(nodes) == 1 {
 				return me.exprFromAstNode(nodes[0])
 			} else if len(nodes) == 0 {
@@ -463,12 +464,23 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			}
 
 			call_form := make(MoValCall, 0, len(nodes))
+			is_multi_line_call, start_line := nodes.eachOnAnotherLine(), nodes[0].Toks.Span().Start.Line
+			var gather MoExprs
 			for _, node := range nodes {
 				expr, err := me.exprFromAstNode(node)
 				if err != nil {
 					return nil, err
 				}
-				call_form = append(call_form, expr)
+				if (!is_multi_line_call) || node.Toks.Span().Start.Line == start_line {
+					call_form = append(call_form, expr)
+				} else {
+					gather = append(gather, expr)
+				}
+			}
+			if len(gather) > 0 {
+				call_form = append(call_form, &MoExpr{
+					Val:     (MoValList)(gather),
+					SrcSpan: gather[0].SrcSpan.ExtendBy(gather[len(gather)-1].SrcSpan), SrcFile: me})
 			}
 			val = call_form
 		}
