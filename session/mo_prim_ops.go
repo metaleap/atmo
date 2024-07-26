@@ -358,7 +358,7 @@ func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *S
 func makeArithPrimOp[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) moFnEager {
 	return func(me *Interp, _ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 		if err := me.check(t, 2, 2, args...); err != nil {
-			return nil, err
+			return me.exprNever(err), err
 		}
 		return me.expr(f(args[0].Val, args[1].Val), nil, nil, args...), nil
 	}
@@ -366,7 +366,7 @@ func makeArithPrimOp[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimTy
 
 func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(0, 0, args); err != nil {
-		return nil, err
+		return me.exprNever(err), err
 	}
 	src_file := me.replFauxFile
 	if (me.diagCtxCall != nil) && (me.diagCtxCall.SrcFile != nil) {

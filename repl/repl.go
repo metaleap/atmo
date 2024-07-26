@@ -53,7 +53,7 @@ func Main() {
 	})
 
 	for {
-		time.Sleep(123 * time.Millisecond) // for initial diag prints, if any
+		time.Sleep(42 * time.Millisecond) // for initial (and on-reset) diag prints, if any
 		{
 			mutex.Lock()
 			if len(sess_msgs) > 0 {
@@ -81,8 +81,16 @@ func Main() {
 		if (diag == nil) && (expr != nil) {
 			expr, diag = interp.Eval(expr)
 		}
-		if (diag == nil) && (expr != nil) && (expr.Diag.Err != nil) {
-			expr, diag = nil, expr.Diag.Err
+		if (diag == nil) && (expr != nil) {
+			if expr.Diag.Err != nil {
+				expr, diag = nil, expr.Diag.Err
+			} else if fn, _ := expr.Val.(session.MoValFnPrim); fn != nil {
+				// REPL-only convenience: Eval nilary builtin prim funcs, handy for @replReset, @replEnv etc
+				call := &session.MoExpr{Val: session.MoValCall{&session.MoExpr{Val: fn}}}
+				if result, err := interp.Eval(call); err == nil {
+					expr = result
+				}
+			}
 		}
 		if diag != nil {
 			os.Stderr.WriteString(errMsg("", diag) + "\n")

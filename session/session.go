@@ -73,7 +73,7 @@ func (*stateAccess) GetSrcPack(packDirPath string, loadIfMissing bool) (ret *Src
 	if (ret == nil) && loadIfMissing {
 		var src_file_paths []string
 		util.FsDirWalk(packDirPath, func(fsPath string, fsEntry fs.DirEntry) {
-			if IsSrcFilePath(fsPath) {
+			if (filepath.Dir(fsPath) == packDirPath) && IsSrcFilePath(fsPath) {
 				src_file_paths = append(src_file_paths, fsPath)
 			}
 		})
