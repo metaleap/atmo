@@ -225,22 +225,6 @@ func (me *Interp) srcFile(preferCalleeOverCall bool, preferTheseEvenMore bool, h
 	return
 }
 
-func (me *Interp) callWithDiagCtxSet(env *MoEnv, fnOrFuncExpr *MoExpr, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	util.Assert(me.diagCtxCall != nil, nil)
-	switch fn := fnOrFuncExpr.Val.(type) {
-	case MoValFnPrim:
-		return fn(me, env, args...)
-	case *MoValFnLam:
-		env, err := me.envWith(fn, args)
-		if err != nil {
-			return nil, err
-		}
-		return me.evalAndApply(env, fn.Body)
-	}
-	callee := me.diagCtxCall.Callee()
-	return nil, me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String())
-}
-
 func (me *Interp) envWith(fn *MoValFnLam, args MoExprs) (*MoEnv, *SrcFileNotice) {
 	if err := me.checkCount(len(fn.Params), len(fn.Params), args); err != nil {
 		return nil, err
@@ -252,10 +236,17 @@ func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice
 	diag_ctx := me.diagCtxCall
 	for fn := expr.macroCallCallee(env); fn != nil; fn = expr.macroCallCallee(env) {
 		me.diagCtxCall = expr
-		it, err := me.callWithDiagCtxSet(env, fn, expr.Val.(MoValCall)[1:]...)
+
+		fn := fn.Val.(*MoValFnLam)
+		call_env, err := me.envWith(fn, MoExprs(expr.Val.(MoValCall)[1:]))
 		if err != nil {
 			return nil, err
 		}
+		it, err := me.evalAndApply(call_env, fn.Body)
+		if err != nil {
+			return nil, err
+		}
+
 		it.setSrcSpanIfNone(expr)
 		expr = it
 	}
