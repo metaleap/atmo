@@ -56,9 +56,9 @@ func (me MoValPrimType) Str(forDiag bool) string {
 	case MoPrimTypeIdent:
 		return util.If(forDiag, "quoted-identifier", "@Ident")
 	case MoPrimTypeNumInt:
-		return util.If(forDiag, "signed integer number", "@Int")
+		return util.If(forDiag, "signed-integer number", "@Int")
 	case MoPrimTypeNumUint:
-		return util.If(forDiag, "unsigned integer number", "@Uint")
+		return util.If(forDiag, "unsigned-integer number", "@Uint")
 	case MoPrimTypeNumFloat:
 		return util.If(forDiag, "floating-point number", "@Float")
 	case MoPrimTypeChar:

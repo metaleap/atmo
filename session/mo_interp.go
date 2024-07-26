@@ -68,10 +68,11 @@ func (me *Interp) Eval(expr *MoExpr) *MoExpr {
 func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) *MoExpr {
 	diag_ctx_orig, expr_orig := me.diagCtxCall, expr
 	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
-	for (!expr.IsErr()) && (env != nil) {
+tco_loop:
+	for env != nil {
 		if _, is_call := expr.Val.(MoValCall); !is_call {
-			expr = me.evalExpr(env, expr)
-			env = nil
+			env, expr = nil, me.evalExpr(env, expr)
+			break tco_loop
 		} else if expr = me.macroExpand(env, expr); !expr.IsErr() {
 			if call, is_call := expr.Val.(MoValCall); is_call { // checking once more now after macro-expansion
 				callee, call_args := call[0], (MoExprs)(call[1:])
@@ -95,13 +96,18 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) *MoExpr {
 					me.diagCtxCall = diag_ctx_cur
 					expr = me.evalExpr(env, expr)
 					if expr.IsErr() {
-						break
+						break tco_loop
 					}
 					me.diagCtxCall = diag_ctx_cur
 					call = expr.Val.(MoValCall)
 					callee, call_args = call[0], (MoExprs)(call[1:])
 					if callee.IsErr() {
-						break
+						break tco_loop
+					}
+					for _, arg := range call_args {
+						if arg.IsErr() {
+							break tco_loop
+						}
 					}
 					switch fn := callee.Val.(type) {
 					default:
@@ -242,6 +248,16 @@ func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) *MoExpr {
 	return expr
 }
 
+func (me *MoExpr) callee() *MoExpr {
+	if me == nil {
+		return nil
+	}
+	if call, is := me.Val.(MoValCall); is {
+		return call[0]
+	}
+	return nil
+}
+
 func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
 	if call, is := me.Val.(MoValCall); is {
 		if ident, _ := call[0].Val.(MoValIdent); ident != "" {
@@ -261,15 +277,16 @@ func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have MoExprs) *Src
 
 func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have MoExprs, preferSrcSpan bool) *SrcFileNotice {
 	diag_src_span := me.diagSpan(false, preferSrcSpan, have...)
-	moniker := util.If(preferSrcSpan, "item", "arg")
+	plural := util.If((wantAtLeast <= wantAtMost) && (wantAtLeast != 1), "s", "")
+	moniker := util.If(preferSrcSpan, "item"+plural, "arg"+plural+" for this call")
 	if wantAtLeast < 0 {
 		return nil
 	} else if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d %s(s), not %d", wantAtLeast, moniker, len(have)))
+		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d %s, not %d", wantAtLeast, moniker, len(have)))
 	} else if len(have) < wantAtLeast {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("at least %d %s(s), not %d", wantAtLeast, moniker, len(have)))
+		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("at least %d %s, not %d", wantAtLeast, moniker, len(have)))
 	} else if (wantAtMost > wantAtLeast) && (len(have) > wantAtMost) {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d to %d %s(s), not %d", wantAtLeast, wantAtMost, moniker, len(have)))
+		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d to %d %s, not %d", wantAtLeast, wantAtMost, moniker, len(have)))
 	}
 	return nil
 }
