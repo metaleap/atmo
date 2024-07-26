@@ -125,7 +125,9 @@ func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) *MoExpr {
 	}
 	me.diagCtxCall = diag_ctx_orig
 	if (expr != nil) && ((expr.SrcFile == nil) || (expr.SrcSpan == nil)) {
+		diag := expr.Diag
 		expr = &MoExpr{Val: expr.Val, SrcSpan: sl.FirstNonNil(expr.SrcSpan, expr_orig.SrcSpan), SrcFile: sl.FirstNonNil(expr.SrcFile, expr_orig.SrcFile)}
+		expr.Diag = diag
 	}
 	return expr
 }

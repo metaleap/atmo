@@ -68,6 +68,10 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 	}
 	me.Sema.Pre = top_level.sorted()
 
+	if me.Sema.Eval == nil {
+		_ = newInterp(me, nil)
+	}
+
 	return
 }
 

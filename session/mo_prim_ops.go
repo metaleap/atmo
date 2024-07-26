@@ -8,10 +8,33 @@ import (
 )
 
 var (
-	moPrimOpsLazy = map[MoValIdent]moFnLazy{ // "lazy" prim-ops take unevaluated args to eval-or-not as needed. eg. `@match`, `@fn` etc
-		// populated in `init()` below to avoid initialization-cycle error
+	moPrimOpsLazy  map[MoValIdent]moFnLazy  // "lazy" prim-ops take unevaluated args to eval-or-not as needed. eg. `@match`, `@fn` etc
+	moPrimOpsEager map[MoValIdent]moFnEager // "eager" prim-ops receive already-evaluated args like any other func. eg. prim-type intrinsics like arithmetics, list concat etc
+)
+
+const (
+	moPrimOpQuote         MoValIdent = "#"
+	moPrimOpQQuote        MoValIdent = "#$"
+	moPrimOpUnquote       MoValIdent = "$"
+	moPrimOpSpliceUnquote MoValIdent = "$$"
+	moPrimOpDo            MoValIdent = "@do"
+)
+
+func init() {
+	moPrimOpsLazy = map[MoValIdent]moFnLazy{
+		"@set":         (*Interp).primOpSet,
+		"@fn":          (*Interp).primOpFn,
+		"@caseOf":      (*Interp).primOpCaseOf,
+		"@and":         (*Interp).primOpBoolAnd,
+		"@or":          (*Interp).primOpBoolOr,
+		"@macro":       (*Interp).primOpMacro,
+		"@expand":      (*Interp).primOpMacroExpand,
+		"@fnCall":      (*Interp).primOpFnCall,
+		moPrimOpDo:     (*Interp).primOpDo,
+		moPrimOpQuote:  (*Interp).primOpQuote,
+		moPrimOpQQuote: (*Interp).primOpQuasiQuote,
 	}
-	moPrimOpsEager = map[MoValIdent]moFnEager{ // "eager" prim-ops receive already-evaluated args like any other func. eg. prim-type intrinsics like arithmetics, list concat etc
+	moPrimOpsEager = map[MoValIdent]moFnEager{
 		"@replEnv":     (*Interp).primFnSessEnv,
 		"@replPrintf":  (*Interp).primFnSessPrintf,
 		"@replPrint":   (*Interp).primFnSessPrint,
@@ -54,32 +77,6 @@ var (
 		"@exprStr":     (*Interp).primFnExprStr,
 		"@exprParse":   (*Interp).primFnExprParse,
 		"@exprEval":    (*Interp).primFnExprEval,
-	}
-)
-
-const (
-	moPrimOpQuote         MoValIdent = "#"
-	moPrimOpQQuote        MoValIdent = "#$"
-	moPrimOpUnquote       MoValIdent = "$"
-	moPrimOpSpliceUnquote MoValIdent = "$$"
-	moPrimOpDo            MoValIdent = "@do"
-)
-
-func init() {
-	for k, v := range map[MoValIdent]moFnLazy{
-		"@set":         (*Interp).primOpSet,
-		"@fn":          (*Interp).primOpFn,
-		"@caseOf":      (*Interp).primOpCaseOf,
-		"@and":         (*Interp).primOpBoolAnd,
-		"@or":          (*Interp).primOpBoolOr,
-		"@macro":       (*Interp).primOpMacro,
-		"@expand":      (*Interp).primOpMacroExpand,
-		"@fnCall":      (*Interp).primOpFnCall,
-		moPrimOpDo:     (*Interp).primOpDo,
-		moPrimOpQuote:  (*Interp).primOpQuote,
-		moPrimOpQQuote: (*Interp).primOpQuasiQuote,
-	} {
-		moPrimOpsLazy[k] = v
 	}
 }
 
