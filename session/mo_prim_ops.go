@@ -388,7 +388,7 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 
 func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) *MoExpr {
 	expr := me.primFnSessPrint(env, args...)
-	if expr.IsErr() {
+	if !expr.IsErr() {
 		me.StdIo.Out.WriteString("\n")
 	}
 	return expr
