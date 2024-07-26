@@ -460,8 +460,18 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) *MoExpr {
 }
 
 func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
-	ret := make(MoValList, 0, len(args)*3)
-	for _, arg := range args {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
+		return me.exprNever(err)
+	}
+	list := args[0].Val.(MoValList)
+	ret := make(MoValList, 0, len(list)*3)
+	for _, arg := range list {
 		if err := me.checkIs(MoPrimTypeList, arg); err != nil {
 			return me.exprNever(err)
 		}
@@ -473,6 +483,9 @@ func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
 		return me.exprNever(err)
@@ -491,6 +504,9 @@ func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnStrRange(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 3, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
 		return me.exprNever(err)
@@ -521,6 +537,9 @@ func (me *Interp) primFnStrLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
 	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
 		return me.exprNever(err)
 	}
@@ -530,6 +549,9 @@ func (me *Interp) primFnStrLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnStrConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return me.exprNever(err)
@@ -547,6 +569,9 @@ func (me *Interp) primFnStrConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnStr(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	var str MoValStr
 	switch it := args[0].Val.(type) {
@@ -566,6 +591,9 @@ func (me *Interp) primFnExprStr(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
 	return me.expr(MoValStr(args[0].String()), nil, nil, args...)
 }
 
@@ -573,12 +601,18 @@ func (me *Interp) primFnExprEval(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
 	return me.exprFrom(me.evalAndApply(me.Env, args[0]), args...)
 }
 
 func (me *Interp) primFnExprParse(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
 		return me.exprNever(err)
@@ -594,6 +628,9 @@ func (me *Interp) primFnDictHas(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprNever(err)
 	}
@@ -603,6 +640,9 @@ func (me *Interp) primFnDictHas(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnDictGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprNever(err)
@@ -618,6 +658,9 @@ func (me *Interp) primFnDictWith(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(3, 3, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprNever(err)
 	}
@@ -629,6 +672,9 @@ func (me *Interp) primFnDictWith(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnDictWithout(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprNever(err)
@@ -645,6 +691,14 @@ func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	for _, arg := range args {
+		if err := arg.Err(); err != nil {
+			return me.exprNever(err, arg)
+		}
+	}
 	return me.expr(MoValType(args[0].Val.PrimType()), nil, nil, args...)
 }
 
@@ -657,6 +711,9 @@ func (me *Interp) primFnEq(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
 	if !me.checkNoneArePrimFuncs(args...) {
 		return me.exprNever(me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "equality"))
 	}
@@ -666,6 +723,9 @@ func (me *Interp) primFnEq(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnNeq(env *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if !me.checkNoneArePrimFuncs(args...) {
 		return me.exprNever(me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], "not-equal"))

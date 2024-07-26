@@ -288,6 +288,15 @@ func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
 	return nil
 }
 
+func (me *Interp) checkArgErrs(args ...*MoExpr) *MoExpr {
+	for _, arg := range args {
+		if err := arg.Err(); err != nil {
+			return me.exprNever(err, arg)
+		}
+	}
+	return nil
+}
+
 func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have MoExprs) *SrcFileNotice {
 	return me.checkCountWithSrcSpan(wantAtLeast, wantAtMost, have, false)
 }
