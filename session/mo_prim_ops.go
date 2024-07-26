@@ -118,10 +118,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 			return nil, me.exprNever(me.diagSpan(true, false, args...).newDiagErr(NoticeCodeAtmoTodo, "mutating macros currently disabled, let us know whether you disagree with that or not"))
 		}
 	}
-	new_value, err := me.evalAndApply(env, args[1])
-	if err != nil {
-		return nil, me.exprNever(err)
-	}
+	new_value := me.evalAndApply(env, args[1])
 	owner_env.set(name, new_value)
 	return nil, me.exprFrom(moValNone, args...)
 }
@@ -135,8 +132,8 @@ func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	}
 	list := args[0].Val.(MoValList)
 	for _, item := range list[:len(list)-1] {
-		if _, err := me.evalAndApply(env, item); err != nil {
-			return nil, me.exprNever(err)
+		if expr := me.evalAndApply(env, item); expr.IsErr() {
+			return nil, expr
 		}
 	}
 	return env, me.exprFrom(list[len(list)-1], args...)
@@ -144,7 +141,7 @@ func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 
 func (me *Interp) primOpMacro(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	_, expr := me.primOpFn(env, args...)
-	if expr.Diag.Err != nil {
+	if expr.IsErr() {
 		return nil, expr
 	}
 	expr.Val.(*MoValFnLam).IsMacro = true
@@ -194,11 +191,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 	if is_unquote, err := me.checkIsCallOnIdent(args[0], moPrimOpUnquote, 1); err != nil {
 		return nil, me.exprNever(err)
 	} else if is_unquote {
-		ret, err := me.evalAndApply(env, args[0].Val.(MoValCall)[1])
-		if err != nil {
-			return nil, me.exprNever(err)
-		}
-		return nil, me.exprFrom(ret, args...)
+		return nil, me.exprFrom(me.evalAndApply(env, args[0].Val.(MoValCall)[1]), args...)
 	}
 
 	// dict? call ourselves on each key and value
@@ -234,28 +227,20 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			return nil, me.exprNever(err)
 		} else if is_unquote {
 			unquotee := item.Val.(MoValCall)[1]
-			if evaled, err := me.evalAndApply(env, unquotee); err != nil {
-				return nil, me.exprNever(err)
-			} else {
-				ret = append(ret, evaled)
-			}
+			ret = append(ret, me.evalAndApply(env, unquotee))
 		} else if is_splice_unquote, err := me.checkIsCallOnIdent(item, moPrimOpSpliceUnquote, 1); err != nil {
 			return nil, me.exprNever(err)
 		} else if is_splice_unquote {
 			unquotee := item.Val.(MoValCall)[1]
-			evaled, err := me.evalAndApply(env, unquotee)
-			if err != nil {
-				return nil, me.exprNever(err)
+			evaled := me.evalAndApply(env, unquotee)
+			if evaled.IsErr() {
+				return nil, me.exprFrom(evaled)
 			}
 			if err = me.checkIsListOf(-1, evaled); err != nil {
 				return nil, me.exprNever(err)
 			}
 			for _, splicee := range evaled.Val.(MoValList) {
-				if evaled, err := me.evalAndApply(env, splicee); err != nil {
-					return nil, me.exprNever(err)
-				} else {
-					ret = append(ret, evaled)
-				}
+				ret = append(ret, me.evalAndApply(env, splicee))
 			}
 		} else {
 			_, evaled := me.primOpQuasiQuote(env, item)
@@ -273,11 +258,7 @@ func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExp
 	if err := me.checkIs(MoPrimTypeCall, args[0]); err != nil {
 		return nil, me.exprNever(err)
 	}
-	ret, err := me.macroExpand(env, args[0])
-	if err != nil {
-		return nil, me.exprNever(err)
-	}
-	return nil, me.exprFrom(ret, args...)
+	return nil, me.exprFrom(me.macroExpand(env, args[0]), args...)
 }
 
 func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
@@ -287,11 +268,10 @@ func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	pairs := args[0].Val.(MoValDict)
 	for _, pair := range pairs {
 		key, val := pair[0], pair[1]
-		pred, err := me.evalAndApply(env, key)
-		if err != nil {
-			return nil, me.exprNever(err, key)
-		}
-		if pred.EqTrue() {
+		pred := me.evalAndApply(env, key)
+		if pred.IsErr() {
+			return nil, me.exprFrom(pred)
+		} else if pred.EqTrue() {
 			return env, me.exprFrom(val, val)
 		} else if !pred.EqFalse() {
 			return nil, me.exprNever(me.diagSpan(false, true, key).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression"))
@@ -305,11 +285,10 @@ func (me *Interp) primOpBoolAnd(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		return nil, me.exprNever(err)
 	}
 	for _, arg := range args {
-		evaled, err := me.evalAndApply(env, arg)
-		if err != nil {
-			return nil, me.exprNever(err)
-		}
-		if evaled.EqFalse() {
+		evaled := me.evalAndApply(env, arg)
+		if evaled.IsErr() {
+			return nil, me.exprFrom(evaled)
+		} else if evaled.EqFalse() {
 			return nil, me.exprBool(false, args...)
 		} else if !evaled.EqTrue() {
 			return nil, me.exprNever(me.diagSpan(false, true, arg).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression"))
@@ -323,11 +302,10 @@ func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		return nil, me.exprNever(err)
 	}
 	for _, arg := range args {
-		evaled, err := me.evalAndApply(env, arg)
-		if err != nil {
-			return nil, me.exprNever(err)
-		}
-		if evaled.EqTrue() {
+		evaled := me.evalAndApply(env, arg)
+		if evaled.IsErr() {
+			return nil, me.exprFrom(evaled)
+		} else if evaled.EqTrue() {
 			return nil, me.exprBool(true, args...)
 		} else if !evaled.EqFalse() {
 			return nil, me.exprNever(me.diagSpan(false, true, arg).newDiagErr(NoticeCodeExpectedFoo, "a boolean expression"))
@@ -410,7 +388,7 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 
 func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) *MoExpr {
 	expr := me.primFnSessPrint(env, args...)
-	if expr.Diag.Err == nil {
+	if expr.IsErr() {
 		me.StdIo.Out.WriteString("\n")
 	}
 	return expr
@@ -585,11 +563,7 @@ func (me *Interp) primFnExprEval(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
-	ret, err := me.evalAndApply(me.Env, args[0])
-	if err != nil {
-		return me.exprNever(err)
-	}
-	return me.exprFrom(ret, args...)
+	return me.exprFrom(me.evalAndApply(me.Env, args[0]), args...)
 }
 
 func (me *Interp) primFnExprParse(_ *MoEnv, args ...*MoExpr) *MoExpr {

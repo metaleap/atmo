@@ -56,124 +56,113 @@ func (me *Interp) ClearStackTrace() {
 	me.LastStackTrace = me.LastStackTrace[:0] // keeps currently-already-alloc'd capacity, for reduced GC churn and reduced alloc times
 }
 
-func (me *Interp) Eval(expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) Eval(expr *MoExpr) *MoExpr {
 	me.ClearStackTrace()
 	me.diagCtxCall = nil
+	if expr == nil {
+		return nil
+	}
 	return me.evalAndApply(me.Env, expr)
 }
 
-func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
-	var err *SrcFileNotice
+func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) *MoExpr {
 	diag_ctx_orig, expr_orig := me.diagCtxCall, expr
 	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
-	for (err == nil) && (env != nil) {
+	for (!expr.IsErr()) && (env != nil) {
 		if _, is_call := expr.Val.(MoValCall); !is_call {
-			expr, err = me.evalExpr(env, expr)
+			expr = me.evalExpr(env, expr)
 			env = nil
-		} else if expr, err = me.macroExpand(env, expr); err != nil {
-			return nil, err
-		} else if call, is_call := expr.Val.(MoValCall); is_call {
-			callee, call_args := call[0], (MoExprs)(call[1:])
+		} else if expr = me.macroExpand(env, expr); !expr.IsErr() {
+			if call, is_call := expr.Val.(MoValCall); is_call { // checking once more now after macro-expansion
+				callee, call_args := call[0], (MoExprs)(call[1:])
 
-			var prim_op_lazy moFnLazy
-			if ident, _ := callee.Val.(MoValIdent); ident != "" {
-				prim_op_lazy = moPrimOpsLazy[ident]
-			}
+				var prim_op_lazy moFnLazy
+				if ident, _ := callee.Val.(MoValIdent); ident != "" {
+					prim_op_lazy = moPrimOpsLazy[ident]
+				}
 
-			if prim_op_lazy != nil {
-				diag_ctx_cur, diag_ctx_prev := expr, me.diagCtxCall
-				me.diagCtxCall = diag_ctx_cur
-				if env, expr = prim_op_lazy(me, env, call_args...); expr.Diag.Err != nil {
-					return nil, expr.Diag.Err
-				}
-				expr.setSrcSpanIfNone(diag_ctx_cur)
-				me.diagCtxCall = diag_ctx_prev
-			} else {
-				if me.StackTraces {
-					me.LastStackTrace = append(me.LastStackTrace, expr)
-				}
-				diag_ctx_cur, diag_ctx_prev := expr, me.diagCtxCall
-				me.diagCtxCall = diag_ctx_cur
-				if expr, err = me.evalExpr(env, expr); err != nil {
-					return nil, err
-				}
-				me.diagCtxCall = diag_ctx_cur
-				call = expr.Val.(MoValCall)
-				callee, call_args = call[0], (MoExprs)(call[1:])
-				switch fn := callee.Val.(type) {
-				default:
-					return nil, me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String())
-				case MoValFnPrim:
-					expr = fn(me, env, call_args...)
+				if prim_op_lazy != nil {
+					diag_ctx_cur, diag_ctx_prev := expr, me.diagCtxCall
+					me.diagCtxCall = diag_ctx_cur
+					env, expr = prim_op_lazy(me, env, call_args...)
 					expr.setSrcSpanIfNone(diag_ctx_cur)
-					env, me.diagCtxCall = nil, diag_ctx_prev
-				case *MoValFnLam:
-					expr = fn.Body
-					env, err = me.envWith(fn, call_args)
-					if err != nil {
-						return nil, err
+					me.diagCtxCall = diag_ctx_prev
+				} else {
+					if me.StackTraces {
+						me.LastStackTrace = append(me.LastStackTrace, expr)
+					}
+					diag_ctx_cur, diag_ctx_prev := expr, me.diagCtxCall
+					me.diagCtxCall = diag_ctx_cur
+					expr = me.evalExpr(env, expr)
+					if expr.IsErr() {
+						break
+					}
+					me.diagCtxCall = diag_ctx_cur
+					call = expr.Val.(MoValCall)
+					callee, call_args = call[0], (MoExprs)(call[1:])
+					switch fn := callee.Val.(type) {
+					default:
+						env, expr = nil, me.exprNever(me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String()))
+					case MoValFnPrim:
+						expr = fn(me, env, call_args...)
+						expr.setSrcSpanIfNone(diag_ctx_cur)
+						env, me.diagCtxCall = nil, diag_ctx_prev
+					case *MoValFnLam:
+						var err *SrcFileNotice
+						env, err = me.envWith(fn, call_args)
+						if err != nil {
+							env, expr = nil, me.exprNever(err)
+						} else {
+							expr = fn.Body
+						}
 					}
 				}
 			}
 		}
 	}
 	me.diagCtxCall = diag_ctx_orig
-	if expr != nil && ((expr.SrcFile == nil) || (expr.SrcSpan == nil)) {
+	if (expr != nil) && ((expr.SrcFile == nil) || (expr.SrcSpan == nil)) {
 		expr = &MoExpr{Val: expr.Val, SrcSpan: sl.FirstNonNil(expr.SrcSpan, expr_orig.SrcSpan), SrcFile: sl.FirstNonNil(expr.SrcFile, expr_orig.SrcFile)}
 	}
-	return expr, err
+	return expr
 }
 
-func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 	switch val := expr.Val.(type) {
 	case MoValIdent:
 		if (val[0] != '@') || (moPrimIdents[val] == nil) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
 			found := env.lookup(val)
 			if found == nil {
-				return nil, me.diagSpan(false, true, expr).newDiagErr(NoticeCodeUndefined, val)
+				return me.exprNever(me.diagSpan(false, true, expr).newDiagErr(NoticeCodeUndefined, val))
 			}
-			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan), nil
+			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
 	case MoValList:
 		list := make(MoValList, len(val))
 		for i, item := range val {
-			it, err := me.evalAndApply(env, item)
-			if err != nil {
-				return nil, err
-			}
-			list[i] = it
+			list[i] = me.evalAndApply(env, item)
 		}
-		return me.expr(list, expr.SrcFile, expr.SrcSpan), nil
+		return me.expr(list, expr.SrcFile, expr.SrcSpan)
 	case MoValDict:
 		dict := make(MoValDict, 0, len(val))
 		for _, pair := range val {
 			k, v := pair[0], pair[1]
-			key, err := me.evalAndApply(env, k)
-			if err != nil {
-				return nil, err
-			}
-			val, err := me.evalAndApply(env, v)
-			if err != nil {
-				return nil, err
-			}
-			if dict.Has(key) {
-				return nil, k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key)
+			key := me.evalAndApply(env, k)
+			val := me.evalAndApply(env, v)
+			if (!key.IsErr()) && dict.Has(key) {
+				return me.exprNever(k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
 			}
 			dict.Set(key, val)
 		}
-		return me.expr(dict, expr.SrcFile, expr.SrcSpan), nil
+		return me.expr(dict, expr.SrcFile, expr.SrcSpan)
 	case MoValCall:
 		call := make(MoValCall, len(val))
 		for i, item := range val {
-			it, err := me.evalAndApply(env, item)
-			if err != nil {
-				return nil, err
-			}
-			call[i] = it
+			call[i] = me.evalAndApply(env, item)
 		}
-		return me.expr(call, expr.SrcFile, expr.SrcSpan), nil
+		return me.expr(call, expr.SrcFile, expr.SrcSpan)
 	}
-	return expr, nil
+	return expr
 }
 
 func (me *Interp) diagSpan(preferCalleeOverCall bool, preferTheseEvenMore bool, have ...*MoExpr) (ret *SrcFileSpan) {
@@ -230,7 +219,7 @@ func (me *Interp) envWith(fn *MoValFnLam, args MoExprs) (*MoEnv, *SrcFileNotice)
 	return newMoEnv(fn.Env, fn.Params, args), nil
 }
 
-func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) *MoExpr {
 	diag_ctx := me.diagCtxCall
 	for fn := expr.macroCallCallee(env); fn != nil; fn = expr.macroCallCallee(env) {
 		me.diagCtxCall = expr
@@ -238,18 +227,14 @@ func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) (*MoExpr, *SrcFileNotice
 		fn := fn.Val.(*MoValFnLam)
 		call_env, err := me.envWith(fn, MoExprs(expr.Val.(MoValCall)[1:]))
 		if err != nil {
-			return nil, err
+			return me.exprNever(err)
 		}
-		it, err := me.evalAndApply(call_env, fn.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		it.setSrcSpanIfNone(expr)
-		expr = it
+		expr_now := me.evalAndApply(call_env, fn.Body)
+		expr_now.setSrcSpanIfNone(expr)
+		expr = expr_now
 	}
 	me.diagCtxCall = diag_ctx
-	return expr, nil
+	return expr
 }
 
 func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {

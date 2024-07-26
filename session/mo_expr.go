@@ -474,6 +474,10 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	return &MoExpr{SrcFile: me, SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
 }
 
+func (me *MoExpr) IsErr() bool {
+	return (me.Diag.Err != nil) && me.EqNever()
+}
+
 func (me *MoExpr) Errs() (ret SrcFileNotices) {
 	me.Walk(nil, func(it *MoExpr) {
 		if it.Diag.Err != nil {

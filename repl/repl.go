@@ -80,7 +80,7 @@ func Main() {
 		interp.ClearStackTrace()
 		expr, diag := interp.ParseExpr(string(line))
 		if (diag == nil) && (expr != nil) {
-			expr, diag = interp.Eval(expr)
+			expr = interp.Eval(expr)
 		}
 		if (diag == nil) && (expr != nil) {
 			if expr.Diag.Err != nil {
@@ -89,7 +89,7 @@ func Main() {
 				// REPL-only convenience: Eval nilary builtin prim funcs, handy for @replReset, @replEnv etc
 				src_span := util.Ptr(interp.ReplFauxFile.Span())
 				call := &session.MoExpr{Val: session.MoValCall{&session.MoExpr{Val: fn, SrcSpan: src_span, SrcFile: interp.ReplFauxFile}}, SrcSpan: src_span, SrcFile: interp.ReplFauxFile}
-				if result, err := interp.Eval(call); err == nil {
+				if result := interp.Eval(call); !result.IsErr() {
 					expr = result
 				}
 			}
