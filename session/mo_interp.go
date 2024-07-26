@@ -83,7 +83,7 @@ func (me *Interp) Eval(expr *MoExpr) *MoExpr {
 }
 
 func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) *MoExpr {
-	diag_ctx_orig, expr_orig := me.diagCtxCall, expr
+	diag_ctx_orig, expr_orig, did_lam_tco := me.diagCtxCall, expr, false
 	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
 tco_loop:
 	for env != nil {
@@ -134,10 +134,11 @@ tco_loop:
 						expr.setSrcSpanIfNone(diag_ctx_cur)
 						env, me.diagCtxCall = nil, diag_ctx_prev
 					case *MoValFnLam:
+						did_lam_tco = true
 						var err *SrcFileNotice
 						env, err = me.envWith(fn, call_args)
 						if err != nil {
-							env, expr = nil, me.exprNever(err)
+							env, expr = nil, me.exprNever(err, diag_ctx_cur)
 						} else {
 							expr = fn.Body
 						}
@@ -147,6 +148,11 @@ tco_loop:
 		}
 	}
 	me.diagCtxCall = diag_ctx_orig
+	if did_lam_tco {
+		if err := expr.Err(); (err != nil) && (expr_orig.SrcSpan != nil) {
+			err.Span = *expr_orig.SrcSpan
+		}
+	}
 	if (expr != nil) && ((expr.SrcFile == nil) || (expr.SrcSpan == nil)) {
 		diag := expr.Diag
 		expr = &MoExpr{Val: expr.Val, SrcSpan: sl.FirstNonNil(expr.SrcSpan, expr_orig.SrcSpan), SrcFile: sl.FirstNonNil(expr.SrcFile, expr_orig.SrcFile)}
@@ -243,6 +249,9 @@ func (me *Interp) srcFile(preferCalleeOverCall bool, preferTheseEvenMore bool, h
 func (me *Interp) envWith(fn *MoValFnLam, args MoExprs) (*MoEnv, *SrcFileNotice) {
 	if err := me.checkCount(len(fn.Params), len(fn.Params), args); err != nil {
 		return nil, err
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return nil, err.Diag.Err
 	}
 	return newMoEnv(fn.Env, fn.Params, args), nil
 }

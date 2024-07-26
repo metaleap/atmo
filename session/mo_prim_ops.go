@@ -118,8 +118,8 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		}
 	}
 	new_value := me.evalAndApply(env, args[1])
-	if new_value.IsErr() || new_value.HasErrs() {
-		return nil, new_value
+	if err := new_value.Err(); err != nil {
+		return nil, me.exprNever(err, args[1])
 	}
 	owner_env.set(name, new_value)
 	return nil, me.exprFrom(moValNone, args...)
@@ -134,8 +134,9 @@ func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	}
 	list := args[0].Val.(MoValList)
 	for _, item := range list[:len(list)-1] {
-		if expr := me.evalAndApply(env, item); expr.IsErr() {
-			return nil, expr
+		expr := me.evalAndApply(env, item)
+		if err := expr.Err(); err != nil {
+			return nil, me.exprNever(err, item)
 		}
 	}
 	return env, me.exprFrom(list[len(list)-1], args...)
@@ -191,9 +192,13 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 
 	// is this call directly quoting an unquote call?
 	if is_unquote, err := me.checkIsCallOnIdent(args[0], moPrimOpUnquote, 1); err != nil {
-		return nil, me.exprNever(err)
+		return nil, me.exprNever(err, args...)
 	} else if is_unquote {
-		return nil, me.exprFrom(me.evalAndApply(env, args[0].Val.(MoValCall)[1]), args...)
+		evaled := me.evalAndApply(env, args[0].Val.(MoValCall)[1])
+		if err := evaled.Err(); err != nil {
+			return nil, me.exprNever(err, args[0])
+		}
+		return nil, me.exprFrom(evaled, args[0])
 	}
 
 	// dict? call ourselves on each key and value
@@ -202,7 +207,13 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		for _, pair := range dict {
 			k, v := pair[0], pair[1]
 			_, key := me.primOpQuasiQuote(env, k)
+			if err := key.Err(); err != nil {
+				return nil, me.exprNever(err, k)
+			}
 			_, val := me.primOpQuasiQuote(env, v)
+			if err := val.Err(); err != nil {
+				return nil, me.exprNever(err, v)
+			}
 			if dict.Has(key) {
 				return nil, me.exprNever(k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
 			}
@@ -229,23 +240,33 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			return nil, me.exprNever(err)
 		} else if is_unquote {
 			unquotee := item.Val.(MoValCall)[1]
-			ret = append(ret, me.evalAndApply(env, unquotee))
+			evaled := me.evalAndApply(env, unquotee)
+			if err = evaled.Err(); err != nil {
+				return nil, me.exprNever(err, unquotee)
+			}
+			ret = append(ret, evaled)
 		} else if is_splice_unquote, err := me.checkIsCallOnIdent(item, moPrimOpSpliceUnquote, 1); err != nil {
 			return nil, me.exprNever(err)
 		} else if is_splice_unquote {
 			unquotee := item.Val.(MoValCall)[1]
 			evaled := me.evalAndApply(env, unquotee)
-			if evaled.IsErr() {
-				return nil, me.exprFrom(evaled)
-			}
-			if err = me.checkIsListOf(-1, evaled); err != nil {
+			if err = evaled.Err(); err != nil {
+				return nil, me.exprNever(err, unquotee)
+			} else if err = me.checkIsListOf(-1, evaled); err != nil {
 				return nil, me.exprNever(err)
 			}
 			for _, splicee := range evaled.Val.(MoValList) {
-				ret = append(ret, me.evalAndApply(env, splicee))
+				evaled = me.evalAndApply(env, splicee)
+				if err = evaled.Err(); err != nil {
+					return nil, me.exprNever(err, splicee)
+				}
+				ret = append(ret, evaled)
 			}
 		} else {
 			_, evaled := me.primOpQuasiQuote(env, item)
+			if err = evaled.Err(); err != nil {
+				return nil, me.exprNever(err, item)
+			}
 			ret = append(ret, evaled)
 		}
 	}
@@ -271,8 +292,8 @@ func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	for _, pair := range pairs {
 		key, val := pair[0], pair[1]
 		pred := me.evalAndApply(env, key)
-		if pred.IsErr() {
-			return nil, me.exprFrom(pred)
+		if err := pred.Err(); err != nil {
+			return nil, me.exprNever(err, key)
 		} else if pred.EqTrue() {
 			return env, me.exprFrom(val, val)
 		} else if !pred.EqFalse() {
@@ -288,8 +309,8 @@ func (me *Interp) primOpBoolAnd(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	}
 	for _, arg := range args {
 		evaled := me.evalAndApply(env, arg)
-		if evaled.IsErr() {
-			return nil, me.exprFrom(evaled)
+		if err := evaled.Err(); err != nil {
+			return nil, me.exprNever(err, arg)
 		} else if evaled.EqFalse() {
 			return nil, me.exprBool(false, args...)
 		} else if !evaled.EqTrue() {
@@ -305,8 +326,8 @@ func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	}
 	for _, arg := range args {
 		evaled := me.evalAndApply(env, arg)
-		if evaled.IsErr() {
-			return nil, me.exprFrom(evaled)
+		if err := evaled.Err(); err != nil {
+			return nil, me.exprNever(err, arg)
 		} else if evaled.EqTrue() {
 			return nil, me.exprBool(true, args...)
 		} else if !evaled.EqFalse() {
@@ -326,6 +347,9 @@ func makeArithPrimOp[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimTy
 	return func(me *Interp, _ *MoEnv, args ...*MoExpr) *MoExpr {
 		if err := me.check(t, 2, 2, args...); err != nil {
 			return me.exprNever(err)
+		}
+		if err := me.checkArgErrs(args...); err != nil {
+			return err
 		}
 		return me.expr(f(args[0].Val, args[1].Val), nil, nil, args...)
 	}
@@ -364,6 +388,9 @@ func (me *Interp) primFnSessPrintf(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
 	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
 		return me.exprNever(err)
 	}
@@ -383,8 +410,8 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
-	if args[0].IsErr() || args[0].HasErrs() {
-		return args[0]
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	switch arg0 := args[0].Val.(type) {
 	case MoValStr:
@@ -408,6 +435,9 @@ func (me *Interp) primFnListLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return me.exprNever(err)
 	}
@@ -417,6 +447,9 @@ func (me *Interp) primFnListLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnListItemAt(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return me.exprNever(err)
@@ -434,6 +467,9 @@ func (me *Interp) primFnListItemAt(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 3, args); err != nil {
 		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return me.exprNever(err)
