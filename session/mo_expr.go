@@ -496,6 +496,16 @@ func (me *MoExpr) IsErr() bool {
 	return (me.Diag.Err != nil) && me.EqNever()
 }
 
+func (me *MoExpr) Err() (ret *SrcFileNotice) {
+	me.Walk(func(it *MoExpr) bool {
+		if ret == nil {
+			ret = it.Diag.Err
+		}
+		return (ret == nil)
+	}, nil)
+	return
+}
+
 func (me *MoExpr) Errs() (ret SrcFileNotices) {
 	me.Walk(nil, func(it *MoExpr) {
 		if it.Diag.Err != nil {

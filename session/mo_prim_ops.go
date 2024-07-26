@@ -383,6 +383,9 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
+	if args[0].IsErr() || args[0].HasErrs() {
+		return args[0]
+	}
 	switch arg0 := args[0].Val.(type) {
 	case MoValStr:
 		InterpStdout.WriteString(string(arg0))
@@ -705,6 +708,11 @@ func (me *Interp) primFnGt(_ *MoEnv, args ...*MoExpr) *MoExpr {
 func (me *Interp) primCmpHelper(diagMoniker string, args ...*MoExpr) (int, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return 0, err
+	}
+	for _, arg := range args {
+		if err := arg.Err(); err != nil {
+			return 0, err
+		}
 	}
 	if !me.checkNoneArePrimFuncs(args...) {
 		return 0, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], diagMoniker)
