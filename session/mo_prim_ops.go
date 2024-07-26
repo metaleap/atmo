@@ -87,10 +87,10 @@ func init() {
 
 func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, me.exprNever(err, nil, nil, args...), err
+		return nil, me.exprNever(err, args...), err
 	}
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
-		return nil, me.exprNever(err, nil, nil, args...), err
+		return nil, me.exprNever(err, args...), err
 	}
 	callee, args_list := args[0], args[1].Val.(MoValList)
 	return env, me.expr(append(MoValCall{callee}, args_list...), nil, nil, args...), nil
@@ -98,14 +98,15 @@ func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *S
 
 func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, me.exprNever(err, nil, nil, args...), err
+		return nil, me.exprNever(err, args...), err
 	}
 	if err := me.checkIs(MoPrimTypeIdent, args[0]); err != nil {
-		return nil, me.exprNever(err, nil, nil, args...), err
+		return nil, me.exprNever(err, args...), err
 	}
 	name := args[0].Val.(MoValIdent)
 	if is_reserved := ((name[0] == '@') || (name[0] == moPrimOpQuote[0]) || (name[0] == moPrimOpUnquote[0]) || moPrimOpsLazy[name] != nil); is_reserved {
-		return nil, me.exprNever(me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0]))), nil, nil, args...), nil
+		err := me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0])))
+		return nil, me.exprNever(err, args...), err
 	}
 	owner_env, found := env.lookupOwner(name)
 	if owner_env == nil {
@@ -115,12 +116,13 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	const can_set_macros = false
 	if (!can_set_macros) && (found != nil) {
 		if fn, _ := found.Val.(*MoValFnLam); (fn != nil) && fn.IsMacro {
-			return nil, me.exprNever(me.diagSpan(true, false, args...).newDiagErr(NoticeCodeAtmoTodo, "mutating macros currently disabled, let us know whether you disagree with that or not"), nil, nil, args...), nil
+			err := me.diagSpan(true, false, args...).newDiagErr(NoticeCodeAtmoTodo, "mutating macros currently disabled, let us know whether you disagree with that or not")
+			return nil, me.exprNever(err, args...), err
 		}
 	}
 	new_value, err := me.evalAndApply(env, args[1])
 	if err != nil {
-		return nil, me.exprNever(err, nil, nil, args...), err
+		return nil, me.exprNever(err, args...), err
 	}
 	owner_env.set(name, new_value)
 	return nil, me.exprFrom(moValNone, args...), nil
@@ -128,15 +130,15 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 
 func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	list := args[0].Val.(MoValList)
 	for _, item := range list[:len(list)-1] {
 		if _, err := me.evalAndApply(env, item); err != nil {
-			return nil, nil, err
+			return nil, me.exprNever(err, args...), err
 		}
 	}
 	return env, me.exprFrom(list[len(list)-1], args...), nil
@@ -145,7 +147,7 @@ func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 func (me *Interp) primOpMacro(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	_, expr, err := me.primOpFn(env, args...)
 	if err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	expr.Val.(*MoValFnLam).IsMacro = true
 	return nil, expr, nil
@@ -153,13 +155,13 @@ func (me *Interp) primOpMacro(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *Sr
 
 func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	if err := me.checkIsListOf(MoPrimTypeIdent, args[0]); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	list := args[1].Val.(MoValList)
 	body := list[0]
@@ -175,14 +177,14 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFi
 
 func (me *Interp) primOpQuote(_ *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	return nil, me.exprFrom(args[0], args...), nil
 }
 
 func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 
 	// is atomic arg? then just like primOpQuote
@@ -192,13 +194,13 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 
 	// is this call directly quoting an unquote call?
 	if is_unquote, err := me.checkIsCallOnIdent(args[0], moPrimOpUnquote, 1); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args[0]), err
 	} else if is_unquote {
 		ret, err := me.evalAndApply(env, args[0].Val.(MoValCall)[1])
 		if err != nil {
-			return nil, nil, err
+			return nil, me.exprNever(err, args[0]), err
 		}
-		return nil, me.exprFrom(ret, args...), err
+		return nil, me.exprFrom(ret, args...), nil
 	}
 
 	// dict? call ourselves on each key and value
@@ -208,14 +210,15 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			k, v := pair[0], pair[1]
 			_, key, err := me.primOpQuasiQuote(env, k)
 			if err != nil {
-				return nil, nil, err
+				return nil, me.exprNever(err, k), err
 			}
 			_, val, err := me.primOpQuasiQuote(env, v)
 			if err != nil {
-				return nil, nil, err
+				return nil, me.exprNever(err, v), err
 			}
 			if dict.Has(key) {
-				return nil, nil, k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key)
+				err := k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key)
+				return nil, me.exprNever(err, k), err
 			}
 			ret.Set(key, val)
 		}
@@ -231,32 +234,35 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 	} else if is_list {
 		call_or_arr = MoExprs(args[0].Val.(MoValList))
 	} else {
-		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote")
+		err := me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote")
+		return nil, me.exprNever(err, args...), err
 	}
 
 	ret := make(MoExprs, 0, len(call_or_arr))
 	for _, item := range call_or_arr {
 		if is_unquote, err := me.checkIsCallOnIdent(item, moPrimOpUnquote, 1); err != nil {
-			return nil, nil, err
+			return nil, me.exprNever(err, item), err
 		} else if is_unquote {
-			if evaled, err := me.evalAndApply(env, item.Val.(MoValCall)[1]); err != nil {
-				return nil, nil, err
+			unquotee := item.Val.(MoValCall)[1]
+			if evaled, err := me.evalAndApply(env, unquotee); err != nil {
+				return nil, me.exprNever(err, unquotee), err
 			} else {
 				ret = append(ret, evaled)
 			}
 		} else if is_splice_unquote, err := me.checkIsCallOnIdent(item, moPrimOpSpliceUnquote, 1); err != nil {
-			return nil, nil, err
+			return nil, me.exprNever(err, item), err
 		} else if is_splice_unquote {
-			evaled, err := me.evalAndApply(env, item.Val.(MoValCall)[1])
+			unquotee := item.Val.(MoValCall)[1]
+			evaled, err := me.evalAndApply(env, unquotee)
 			if err != nil {
-				return nil, nil, err
+				return nil, me.exprNever(err, unquotee), err
 			}
 			if err = me.checkIsListOf(-1, evaled); err != nil {
-				return nil, nil, err
+				return nil, me.exprNever(err, unquotee), err
 			}
 			for _, splicee := range evaled.Val.(MoValList) {
 				if evaled, err := me.evalAndApply(env, splicee); err != nil {
-					return nil, nil, err
+					return nil, me.exprNever(err, splicee), err
 				} else {
 					ret = append(ret, evaled)
 				}
@@ -264,7 +270,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		} else {
 			_, evaled, err := me.primOpQuasiQuote(env, item)
 			if err != nil {
-				return nil, nil, err
+				return nil, me.exprNever(err, item), err
 			}
 			ret = append(ret, evaled)
 		}
@@ -275,14 +281,14 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 
 func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	if err := me.checkIs(MoPrimTypeCall, args[0]); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	ret, err := me.macroExpand(env, args[0])
 	if err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, args...), err
 	}
 	return nil, me.exprFrom(ret, args...), nil
 }

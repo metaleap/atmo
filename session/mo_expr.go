@@ -253,8 +253,8 @@ func (me *Interp) Cmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *Sr
 	return 0, me.diagSpan(true, false, it, to).newDiagErr(NoticeCodeNotComparable, it, to, diagMsgOpMoniker)
 }
 
-func (me *Interp) exprNever(err *SrcFileNotice, srcFile *SrcFile, srcSpan *SrcFileSpan, srcSpanCtx ...*MoExpr) *MoExpr {
-	expr := me.expr(moValNever.Val, srcFile, srcSpan, srcSpanCtx...)
+func (me *Interp) exprNever(err *SrcFileNotice, srcSpanCtx ...*MoExpr) *MoExpr {
+	expr := me.expr(moValNever.Val, nil, nil, srcSpanCtx...)
 	expr.Diag.Err = err
 	return expr
 }
