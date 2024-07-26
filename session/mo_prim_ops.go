@@ -87,10 +87,10 @@ func init() {
 
 func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, nil, nil, args...), err
 	}
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, nil, nil, args...), err
 	}
 	callee, args_list := args[0], args[1].Val.(MoValList)
 	return env, me.expr(append(MoValCall{callee}, args_list...), nil, nil, args...), nil
@@ -98,14 +98,14 @@ func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *S
 
 func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, nil, nil, args...), err
 	}
 	if err := me.checkIs(MoPrimTypeIdent, args[0]); err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, nil, nil, args...), err
 	}
 	name := args[0].Val.(MoValIdent)
 	if is_reserved := ((name[0] == '@') || (name[0] == moPrimOpQuote[0]) || (name[0] == moPrimOpUnquote[0]) || moPrimOpsLazy[name] != nil); is_reserved {
-		return nil, nil, me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0])))
+		return nil, me.exprNever(me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0]))), nil, nil, args...), nil
 	}
 	owner_env, found := env.lookupOwner(name)
 	if owner_env == nil {
@@ -115,32 +115,31 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcF
 	const can_set_macros = false
 	if (!can_set_macros) && (found != nil) {
 		if fn, _ := found.Val.(*MoValFnLam); (fn != nil) && fn.IsMacro {
-			return nil, nil, me.diagSpan(true, false, args...).newDiagErr(NoticeCodeAtmoTodo, "mutating macros currently disabled, let us know whether you disagree with that or not")
+			return nil, me.exprNever(me.diagSpan(true, false, args...).newDiagErr(NoticeCodeAtmoTodo, "mutating macros currently disabled, let us know whether you disagree with that or not"), nil, nil, args...), nil
 		}
 	}
 	new_value, err := me.evalAndApply(env, args[1])
 	if err != nil {
-		return nil, nil, err
+		return nil, me.exprNever(err, nil, nil, args...), err
 	}
 	owner_env.set(name, new_value)
 	return nil, me.exprFrom(moValNone, args...), nil
 }
 
-func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (tailEnv *MoEnv, expr *MoExpr, err *SrcFileNotice) {
-	if err = me.checkCount(1, 1, args); err != nil {
-		return
+func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return nil, nil, err
 	}
-	if err = me.checkIs(MoPrimTypeList, args[0]); err != nil {
-		return
+	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
+		return nil, nil, err
 	}
 	list := args[0].Val.(MoValList)
 	for _, item := range list[:len(list)-1] {
-		if expr, err = me.evalAndApply(env, item); err != nil {
-			return
+		if _, err := me.evalAndApply(env, item); err != nil {
+			return nil, nil, err
 		}
 	}
-	tailEnv, expr = env, me.exprFrom(list[len(list)-1], args...)
-	return
+	return env, me.exprFrom(list[len(list)-1], args...), nil
 }
 
 func (me *Interp) primOpMacro(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {

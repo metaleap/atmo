@@ -81,14 +81,17 @@ func Main() {
 		if (diag == nil) && (expr != nil) {
 			expr, diag = interp.Eval(expr)
 		}
-		if expr != nil {
-			expr.WriteTo(os.Stdout)
-			os.Stdout.WriteString("\n")
-		} else if diag != nil {
+		if (diag == nil) && (expr != nil) && (expr.Diag.Err != nil) {
+			expr, diag = nil, expr.Diag.Err
+		}
+		if diag != nil {
 			os.Stderr.WriteString(errMsg("", diag) + "\n")
 			for _, item := range interp.LastStackTrace {
 				os.Stderr.WriteString(str.Fmt("\t%s\t\t%s\n", item.SrcSpan.LocStr(""), item))
 			}
+		} else if expr != nil {
+			expr.WriteTo(os.Stdout)
+			os.Stdout.WriteString("\n")
 		}
 
 	}
