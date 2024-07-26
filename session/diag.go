@@ -131,7 +131,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 		}
 		me.pack.Sema.Pre.Walk(me, nil, add)
 		me.pack.Sema.Post.Walk(me, nil, add)
-		ret.Add(me.notices.Sema...)
+		ret.Add(me.notices.PreSema...)
 	}
 	return
 }

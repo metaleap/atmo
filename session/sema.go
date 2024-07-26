@@ -49,27 +49,33 @@ func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
 	}
 
 	var top_level MoExprs
+	var any_pre_errs bool
 	for _, src_file := range me.Files {
 		if !src_file.isReplish() {
-			has_brace_errs, had_errs := src_file.Src.Ast.hasBraceErrors(), (len(src_file.notices.Sema) > 0)
-			src_file.notices.Sema = nil
+			has_brace_errs, had_errs := src_file.Src.Ast.hasBraceErrors(), (len(src_file.notices.PreSema) > 0)
+			src_file.notices.PreSema = nil
 			if !has_brace_errs {
 				for _, top_node := range src_file.Src.Ast {
 					expr, err := src_file.ExprFromAstNode(top_node)
 					if err != nil {
-						src_file.notices.Sema = append(src_file.notices.Sema, err)
+						src_file.notices.PreSema = append(src_file.notices.PreSema, err)
 					} else if expr != nil {
 						top_level = append(top_level, expr)
 					}
 				}
 			}
-			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.Sema) > 0) || had_errs || has_brace_errs
+			any_pre_errs = any_pre_errs || has_brace_errs || (len(src_file.notices.PreSema) > 0)
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.PreSema) > 0) || had_errs || has_brace_errs
 		}
 	}
 	me.Sema.Pre = top_level.sorted()
+	if any_pre_errs { // we leave the old `.Sema.Post` intact in this case, for editor purposes
+		return
+	}
 
 	if me.Sema.Eval == nil {
 		_ = newInterp(me, nil)
+		util.Assert(me.Sema.Eval != nil, nil)
 	}
 
 	return

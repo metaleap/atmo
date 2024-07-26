@@ -89,7 +89,7 @@ func (me *stateAccess) Interpreter(packDirPath string) *Interp {
 	util.Assert(filepath.IsAbs(packDirPath), nil)
 	src_pack := me.GetSrcPack(packDirPath, true)
 	src_file_path := newSrcFilePathFakeAndReplish(packDirPath)
-	me.SrcFile(src_file_path, false)
+	_ = ensureSrcFiles(nil, true, src_file_path)
 	src_file := state.srcFiles[src_file_path]
 	if src_pack == nil {
 		src_pack = me.GetSrcPack(packDirPath, true) // do this again in case the previous was `nil`, now it shouldnt be

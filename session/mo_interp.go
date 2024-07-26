@@ -29,6 +29,12 @@ type Interp struct {
 }
 
 func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
+	if replFauxFile == nil {
+		src_file_path := newSrcFilePathFakeAndReplish(inPack.DirPath)
+		_ = ensureSrcFiles(nil, true, src_file_path)
+		replFauxFile = state.srcFiles[src_file_path]
+	}
+
 	me := Interp{Env: newMoEnv(&rootEnv, nil, nil), Pack: inPack, ReplFauxFile: replFauxFile}
 	me.StdIo.In, me.StdIo.Out, me.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
 	me.ensureRootEnvPopulated()
@@ -44,7 +50,7 @@ func (me *Interp) reset() {
 		me.Env = newMoEnv(&rootEnv, nil, nil)
 		me.Pack.Sema.Eval, me.Pack.Sema.Pre = me, nil
 		for _, src_file := range me.Pack.Files {
-			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.Sema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
+			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.PreSema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
 				nil, nil, nil, nil, nil, ""
 		}
 		_ = ensureSrcFiles(nil, false, me.Pack.srcFilePaths()...) // does refreshSema too
