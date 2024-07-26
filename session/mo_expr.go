@@ -468,14 +468,14 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			}
 
 			call_form := make(MoValCall, 0, len(nodes))
-			is_multi_line_call, start_line := nodes.eachOnAnotherLine(), nodes[0].Toks.Span().Start.Line
+			start_line := nodes[0].Toks.Span().Start.Line
 			var gather MoExprs
 			for _, node := range nodes {
 				expr, err := me.exprFromAstNode(node)
 				if err != nil {
 					return nil, err
 				}
-				if (!is_multi_line_call) || node.Toks.Span().Start.Line == start_line {
+				if node.Toks.Span().Start.Line == start_line {
 					call_form = append(call_form, expr)
 				} else {
 					gather = append(gather, expr)

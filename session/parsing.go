@@ -377,18 +377,6 @@ func (me *AstNode) walk(onBefore func(node *AstNode) bool, onAfter func(node *As
 	}
 }
 
-func (me AstNodes) eachOnAnotherLine() bool {
-	if len(me) <= 1 {
-		return false
-	}
-	for i, node := range me {
-		if i > 0 && node.Toks.Span().Start.Line == me[i-1].Toks.Span().End.Line {
-			return false
-		}
-	}
-	return true
-}
-
 func (me AstNodes) equals(it AstNodes, includingSpans bool, withoutComments bool) bool {
 	if withoutComments {
 		me, it = me.withoutComments(), it.withoutComments()

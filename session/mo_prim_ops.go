@@ -383,7 +383,6 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
-	println(args[0].IsErr(), args[0].HasErrs())
 	switch arg0 := args[0].Val.(type) {
 	case MoValStr:
 		InterpStdout.WriteString(string(arg0))
