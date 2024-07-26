@@ -38,6 +38,7 @@ const (
 	// semantic
 	NoticeCodeExpectedFoo      SrcFileNoticeCode = "Unexpected"
 	NoticeCodeUndefined        SrcFileNoticeCode = "Unresolved"
+	NoticeCodeNotFirstClass    SrcFileNoticeCode = "NotFirstClass"
 	NoticeCodeUncallable       SrcFileNoticeCode = "NotCallable"
 	NoticeCodeReserved         SrcFileNoticeCode = "Reserved"
 	NoticeCodeNoElseCase       SrcFileNoticeCode = "ElseCaseMissing"
@@ -64,7 +65,8 @@ var (
 		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
 
 		NoticeCodeExpectedFoo:      "expected %s",
-		NoticeCodeUndefined:        "`%s` is not defined, not in scope, or not a value",
+		NoticeCodeUndefined:        "`%s` is not defined or not in scope",
+		NoticeCodeNotFirstClass:    "`%s` cannot be used as a value",
 		NoticeCodeUncallable:       "`%s` is not callable",
 		NoticeCodeReserved:         "cannot assign to `%s` or any other `%s`-prefixed identifier",
 		NoticeCodeNoElseCase:       "missing a fallback case",

@@ -167,7 +167,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 		if (val[0] != '@') || (moPrimIdents[val] == nil) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
 			found := env.lookup(val)
 			if found == nil {
-				return me.exprNever(me.diagSpan(false, true, expr).newDiagErr(NoticeCodeUndefined, val))
+				_, is_lazy_prim_op := moPrimOpsLazy[val]
+				return me.exprNever(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, NoticeCodeUndefined, NoticeCodeNotFirstClass), val))
 			}
 			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
