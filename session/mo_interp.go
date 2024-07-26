@@ -148,7 +148,7 @@ tco_loop:
 		}
 	}
 	me.diagCtxCall = diag_ctx_orig
-	if did_lam_tco {
+	if did_lam_tco /* || diag_ctx_orig != nil  */ {
 		if err := expr.Err(); (err != nil) && (expr_orig.SrcSpan != nil) {
 			err.Span = *expr_orig.SrcSpan
 		}
