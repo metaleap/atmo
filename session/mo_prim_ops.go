@@ -38,7 +38,6 @@ var (
 		"@lt":          (*Interp).primFnLt,
 		"@gt":          (*Interp).primFnGt,
 		"@primTypeTag": (*Interp).primFnPrimTypeTag,
-		"@fnCall":      (*Interp).primFnFuncCall,
 		"@listItemAt":  (*Interp).primFnListItemAt,
 		"@listRange":   (*Interp).primFnListRange,
 		"@listLen":     (*Interp).primFnListLen,
@@ -75,6 +74,7 @@ func init() {
 		"@or":          (*Interp).primOpBoolOr,
 		"@macro":       (*Interp).primOpMacro,
 		"@expand":      (*Interp).primOpMacroExpand,
+		"@fnCall":      (*Interp).primOpFnCall,
 		moPrimOpDo:     (*Interp).primOpDo,
 		moPrimOpQuote:  (*Interp).primOpQuote,
 		moPrimOpQQuote: (*Interp).primOpQuasiQuote,
@@ -84,6 +84,17 @@ func init() {
 }
 
 // lazy prim-ops first, eager prim-ops afterwards
+
+func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return nil, nil, err
+	}
+	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
+		return nil, nil, err
+	}
+	callee, args_list := args[0], args[1].Val.(MoValList)
+	return env, me.expr(append(MoValCall{callee}, args_list...), nil, nil, args...), nil
+}
 
 func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr, *SrcFileNotice) {
 	if err := me.checkCount(2, 2, args); err != nil {
@@ -371,23 +382,6 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileN
 	}
 	populate(env, ret)
 	return ret, nil
-}
-
-func (me *Interp) primFnFuncCall(env *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {
-	if err := me.checkCount(2, 2, args); err != nil {
-		return nil, err
-	}
-	if err := me.checkIs(MoPrimTypeFunc, args[0]); err != nil {
-		return nil, err
-	}
-	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
-		return nil, err
-	}
-	ret, err := me.callWithDiagCtxSet(env, args[0], args[1].Val.(MoValList)...)
-	if err != nil {
-		return nil, err
-	}
-	return me.exprFrom(ret, args...), err
 }
 
 func (me *Interp) primFnSessPrintf(_ *MoEnv, args ...*MoExpr) (*MoExpr, *SrcFileNotice) {

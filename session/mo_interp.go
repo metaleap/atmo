@@ -33,7 +33,6 @@ func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 	me.StdIo.In, me.StdIo.Out, me.StdIo.Err = os.Stdin, os.Stdout, os.Stderr
 	me.ensureRootEnvPopulated()
 	me.Pack.Sema.Eval = &me
-	me.Pack.refreshSema()
 	return &me
 }
 
