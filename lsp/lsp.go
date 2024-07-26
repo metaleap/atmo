@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	logJsonMsgs                 = true
+	logJsonMsgs                 = false
 	redirectStderrTemporarilyTo = "" // "/tmp/atmo/lsp.log"
 )
 
