@@ -122,11 +122,9 @@ tco_loop:
 					evaled_callee, evaled_call_args := evaled_call[0], (MoExprs)(evaled_call[1:])
 					if evaled_callee.IsErr() {
 						return me.exprErr(evaled_callee.Diag.Err, callee)
-						// break tco_loop
 					}
 					for i, arg := range evaled_call_args {
 						if arg.IsErr() {
-							// break tco_loop
 							return me.exprErr(arg.Diag.Err, call_args[i])
 						}
 					}
