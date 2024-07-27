@@ -130,7 +130,7 @@ tco_loop:
 					}
 					switch fn := callee.Val.(type) {
 					default:
-						env, expr = nil, me.exprNever(me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String()))
+						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String()))
 					case MoValFnPrim:
 						expr = fn(me, env, call_args...)
 						expr.setSrcSpanIfNone(diag_ctx_cur)
@@ -140,7 +140,7 @@ tco_loop:
 						var err *SrcFileNotice
 						env, err = me.envWith(fn, call_args)
 						if err != nil {
-							env, expr = nil, me.exprNever(err, diag_ctx_cur)
+							env, expr = nil, me.exprErr(err, diag_ctx_cur)
 						} else {
 							expr = fn.Body
 						}
@@ -174,7 +174,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			}
 			if found == nil {
 				_, is_lazy_prim_op := moPrimOpsLazy[val]
-				return me.exprNever(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, NoticeCodeUndefined, NoticeCodeNotFirstClass), val))
+				return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, NoticeCodeUndefined, NoticeCodeNotFirstClass), val))
 			}
 			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
@@ -191,7 +191,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			key := me.evalAndApply(env, k)
 			val := me.evalAndApply(env, v)
 			if (!key.IsErr()) && dict.Has(key) {
-				return me.exprNever(k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
+				return me.exprErr(k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
 			}
 			dict.Set(key, val)
 		}
@@ -271,7 +271,7 @@ func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) *MoExpr {
 		fn := fn.Val.(*MoValFnLam)
 		call_env, err := me.envWith(fn, MoExprs(expr.Val.(MoValCall)[1:]))
 		if err != nil {
-			return me.exprNever(err)
+			return me.exprErr(err)
 		}
 		expr_now := me.evalAndApply(call_env, fn.Body)
 		expr_now.setSrcSpanIfNone(expr)
@@ -307,7 +307,7 @@ func (me *MoExpr) macroCallCallee(env *MoEnv) *MoExpr {
 func (me *Interp) checkArgErrs(args ...*MoExpr) *MoExpr {
 	for _, arg := range args {
 		if err := arg.Err(); err != nil {
-			return me.exprNever(err, arg)
+			return me.exprErr(err, arg)
 		}
 	}
 	return nil

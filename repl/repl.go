@@ -82,15 +82,13 @@ func Main() {
 		expr, diag := interp.ExprParse(string(line))
 		if (diag == nil) && (expr != nil) {
 			if expr = interp.ExprEval(expr, false); expr != nil {
-				if expr.Diag.Err != nil {
-					expr, diag = nil, expr.Diag.Err
-				} else if errs := expr.Errs(); len(errs) > 0 {
-					diag = errs[0]
+				if diag = expr.Err(); diag != nil {
+					expr = nil
 				} else if fn, _ := expr.Val.(session.MoValFnPrim); fn != nil {
 					// REPL-only convenience: Eval nilary builtin prim funcs, handy for @replReset, @replEnv etc
 					src_span := util.Ptr(interp.FauxFile.Span())
 					call := &session.MoExpr{Val: session.MoValCall{&session.MoExpr{Val: fn, SrcSpan: src_span, SrcFile: interp.FauxFile}}, SrcSpan: src_span, SrcFile: interp.FauxFile}
-					if result := interp.ExprEval(call, false); (result != nil) && (!result.IsErr()) {
+					if result := interp.ExprEval(call, false); (result != nil) && (result.Err() == nil) {
 						expr = result
 					}
 				}

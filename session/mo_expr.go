@@ -14,12 +14,10 @@ import (
 var (
 	moPrimIdents = map[MoValIdent]*MoExpr{
 		moValNone.Val.(MoValIdent):  moValNone,
-		moValNever.Val.(MoValIdent): moValNever,
 		moValTrue.Val.(MoValIdent):  moValTrue,
 		moValFalse.Val.(MoValIdent): moValFalse,
 	}
 	moValNone  = &MoExpr{Val: MoValIdent("@none")}
-	moValNever = &MoExpr{Val: MoValIdent("@never")}
 	moValTrue  = &MoExpr{Val: MoValIdent("@true")}
 	moValFalse = &MoExpr{Val: MoValIdent("@false")}
 )
@@ -90,7 +88,7 @@ type MoValNumUint uint64
 type MoValNumFloat float64
 type MoValChar rune
 type MoValStr string
-type MoValErr struct{ ErrVal any }
+type MoValErr struct{ ErrVal *MoExpr }
 type MoValDict [][2]*MoExpr
 type MoValList MoExprs
 type MoValCall MoExprs
@@ -188,7 +186,6 @@ func (me *MoExpr) srcNode() *AstNode {
 func (me *MoExpr) EqTrue() bool  { return (me == moValTrue) || (me.Val == moValTrue.Val) }
 func (me *MoExpr) EqFalse() bool { return (me == moValFalse) || (me.Val == moValFalse.Val) }
 func (me *MoExpr) EqNone() bool  { return (me == moValNone) || (me.Val == moValNone.Val) }
-func (me *MoExpr) EqNever() bool { return (me == moValNever) || (me.Val == moValNever.Val) }
 func (me *MoExpr) Eq(to *MoExpr) bool {
 	if me == to {
 		return true
@@ -199,17 +196,7 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	switch it := me.Val.(type) {
 	case MoValErr:
 		other := to.Val.(MoValErr)
-		expr1, is1 := it.ErrVal.(*MoExpr)
-		expr2, is2 := other.ErrVal.(*MoExpr)
-		if is1 && is2 {
-			return expr1.Eq(expr2)
-		}
-		diag1, is1 := it.ErrVal.(*SrcFileNotice)
-		diag2, is2 := other.ErrVal.(*SrcFileNotice)
-		if is1 && is2 {
-			return (diag1 == diag2) || (*diag1 == *diag2)
-		}
-		return it.ErrVal == other.ErrVal
+		return it.ErrVal.Eq(other.ErrVal)
 	case MoValList:
 		other := to.Val.(MoValList)
 		return sl.Eq(it, other, (*MoExpr).Eq)
@@ -263,10 +250,10 @@ func (me *Interp) ExprCmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int,
 	return 0, me.diagSpan(true, false, it, to).newDiagErr(NoticeCodeNotComparable, it, to, diagMsgOpMoniker)
 }
 
-func (me *Interp) exprNever(err *SrcFileNotice, srcSpanCtx ...*MoExpr) *MoExpr {
-	expr := me.expr(moValNever.Val, nil, nil, srcSpanCtx...)
-	expr.Diag.Err = err
-	return expr
+func (me *Interp) exprErr(err *SrcFileNotice, srcSpanCtx ...*MoExpr) *MoExpr {
+	ret := me.expr(MoValErr{}, nil, nil, srcSpanCtx...)
+	ret.Diag.Err = err
+	return ret
 }
 func (me *Interp) expr(val MoVal, srcFile *SrcFile, srcSpan *SrcFileSpan, srcSpanCtx ...*MoExpr) *MoExpr {
 	if srcSpan == nil {
@@ -326,11 +313,8 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		w.WriteString(str.Q(string(it)))
 	case MoValErr:
 		w.WriteString("(@Err ")
-		switch err_val := it.ErrVal.(type) {
-		case *MoExpr:
-			err_val.WriteTo(w)
-		case *SrcFileNotice:
-			w.WriteString(str.Q(err_val.String()))
+		if it.ErrVal != nil {
+			it.ErrVal.WriteTo(w)
 		}
 		w.WriteString(")")
 	case MoValDict:
@@ -409,7 +393,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	case AstNodeKindComment:
 		return nil, nil
 	case AstNodeKindErr:
-		val = moValNever.Val
+		return nil, node.newDiagErr(false, NoticeCodeAtmoTodo, "newly introduced post-parsing/pre-sema bug (encountered error AST node, when the idea is not to run this at all with any such present in AST)")
 	case AstNodeKindIdent:
 		if node.IsIdentSepish() {
 			return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression instead of `"+node.Src+"` here")
@@ -527,8 +511,8 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	return &MoExpr{SrcFile: me, SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
 }
 
-func (me *MoExpr) IsErr() bool {
-	return (me.Diag.Err != nil) && me.EqNever()
+func (me *MoExpr) IsErr() (ret bool) {
+	return me.Diag.Err != nil
 }
 
 func (me *MoExpr) Err() (ret *SrcFileNotice) {
@@ -538,15 +522,6 @@ func (me *MoExpr) Err() (ret *SrcFileNotice) {
 		}
 		return (ret == nil)
 	}, nil)
-	return
-}
-
-func (me *MoExpr) Errs() (ret SrcFileNotices) {
-	me.Walk(nil, func(it *MoExpr) {
-		if it.Diag.Err != nil {
-			ret.Add(it.Diag.Err)
-		}
-	})
 	return
 }
 
@@ -573,9 +548,8 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 			pair[1].Walk(onBefore, onAfter)
 		}
 	case MoValErr:
-		switch err_val := it.ErrVal.(type) {
-		case *MoExpr:
-			err_val.Walk(onBefore, onAfter)
+		if it.ErrVal != nil {
+			it.ErrVal.Walk(onBefore, onAfter)
 		}
 	case *MoValFnLam:
 		for _, item := range it.Params {

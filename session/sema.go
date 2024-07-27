@@ -62,7 +62,7 @@ func (me *SrcPack) semaRefresh() (encounteredDiagsRelevantChanges bool) {
 		dup := *top_expr
 		if evaled := me.Interp.ExprEval(&dup, true); evaled != nil {
 			me.Sema.Post = append(me.Sema.Post, evaled)
-			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs() || evaled.EqNever()
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs()
 		}
 	}
 	encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_errs || me.Sema.Post.AnyErrs()
