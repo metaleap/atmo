@@ -428,6 +428,8 @@ func (me *SrcFile) moExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 		default:
 			panic(str.Fmt("TODO: lit type %T", it))
 		}
+	case AstNodeKindBlock:
+		panic("YAY>>" + node.Src + "<<")
 	case AstNodeKindGroup:
 		switch {
 		case node.IsSquareBrackets():
@@ -463,7 +465,7 @@ func (me *SrcFile) moExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 				dict.Set(expr_key, expr_val)
 			}
 			val = dict
-		default:
+		default: // parensed or huddled
 			nodes := node.Nodes.withoutComments()
 			if len(nodes) == 1 {
 				return me.moExprFromAstNode(nodes[0])
@@ -472,23 +474,12 @@ func (me *SrcFile) moExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			}
 
 			call_form := make(MoValCall, 0, len(nodes))
-			start_line := nodes[0].Toks.Span().Start.Line
-			var gather MoExprs
 			for _, node := range nodes {
 				expr, err := me.moExprFromAstNode(node)
 				if err != nil {
 					return nil, err
 				}
-				if node.Toks.Span().Start.Line == start_line {
-					call_form = append(call_form, expr)
-				} else {
-					gather = append(gather, expr)
-				}
-			}
-			if len(gather) > 0 {
-				call_form = append(call_form, &MoExpr{
-					Val:     (MoValList)(gather),
-					SrcSpan: gather[0].SrcSpan.ExtendBy(gather[len(gather)-1].SrcSpan), SrcFile: me})
+				call_form = append(call_form, expr)
 			}
 			val = call_form
 		}
