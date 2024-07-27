@@ -30,9 +30,11 @@ type Interp struct {
 	Pack           *SrcPack
 	FauxFile       *SrcFile
 	Env            *MoEnv
-	StackTraces    bool
-	LastStackTrace MoExprs
-	diagCtxCall    *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
+	SubCallListing struct {
+		Use  bool
+		Last MoExprs
+	}
+	diagCtxCall *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
 }
 
 func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
@@ -70,7 +72,7 @@ func (me *Interp) replReset() {
 }
 
 func (me *Interp) ClearStackTrace() {
-	me.LastStackTrace = me.LastStackTrace[:0] // keeps currently-already-alloc'd capacity, for reduced GC churn and reduced alloc times
+	me.SubCallListing.Last = me.SubCallListing.Last[:0] // keeps currently-already-alloc'd capacity, for reduced GC churn and reduced alloc times
 }
 
 func (me *Interp) ExprEval(expr *MoExpr, forSema bool) *MoExpr {
@@ -106,8 +108,8 @@ tco_loop:
 					expr.setSrcSpanIfNone(diag_ctx_cur)
 					me.diagCtxCall = diag_ctx_prev
 				} else {
-					if me.StackTraces {
-						me.LastStackTrace = append(me.LastStackTrace, expr)
+					if me.SubCallListing.Use {
+						me.SubCallListing.Last = append(me.SubCallListing.Last, expr)
 					}
 					diag_ctx_cur, diag_ctx_prev := expr, me.diagCtxCall
 					me.diagCtxCall = diag_ctx_cur

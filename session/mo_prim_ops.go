@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"atmo/util"
+	"atmo/util/str"
 )
 
 var (
@@ -56,6 +57,7 @@ func init() {
 		"@numFloatSub": makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) - opr.(MoValNumFloat) }),
 		"@numFloatMul": makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
 		"@numFloatDiv": makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
+		"@cast":        (*Interp).primFnCast,
 		"@eq":          (*Interp).primFnEq,
 		"@neq":         (*Interp).primFnNeq,
 		"@geq":         (*Interp).primFnGeq,
@@ -72,6 +74,7 @@ func init() {
 		"@dictWith":    (*Interp).primFnDictWith,
 		"@dictWithout": (*Interp).primFnDictWithout,
 		"@dictLen":     (*Interp).primFnDictLen,
+		"@errNew":      (*Interp).primFnErrNew,
 		"@strConcat":   (*Interp).primFnStrConcat,
 		"@strLen":      (*Interp).primFnStrLen,
 		"@strCharAt":   (*Interp).primFnStrCharAt,
@@ -135,8 +138,8 @@ func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	}
 	list := args[0].Val.(MoValList)
 	for _, item := range list[:len(list)-1] {
-		expr := me.evalAndApply(env, item)
-		if err := expr.Err(); err != nil {
+		evaled := me.evalAndApply(env, item)
+		if err := evaled.Err(); err != nil {
 			return nil, me.exprNever(err, item)
 		}
 	}
@@ -744,12 +747,93 @@ func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkArgErrs(args...); err != nil {
 		return err
 	}
-	for _, arg := range args {
-		if err := arg.Err(); err != nil {
-			return me.exprNever(err, arg)
-		}
-	}
 	return me.expr(MoValType(args[0].Val.PrimType()), nil, nil, args...)
+}
+
+func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	if err := me.checkIs(MoPrimTypePrimTypeTag, args[0]); err != nil {
+		return me.exprNever(err)
+	}
+	convert_to, convertee := MoValPrimType(args[0].Val.(MoValType)), args[1]
+	if check := me.checkIs(convert_to, convertee); check == nil {
+		return me.exprFrom(convertee)
+	}
+	if err_val, is := convertee.Val.(MoValErr); is {
+		convertee = err_val.Err
+	}
+	var ret MoVal
+	switch convert_to {
+	case MoPrimTypeCall, MoPrimTypeDict, MoPrimTypeFunc, MoPrimTypeList:
+		break
+	case MoPrimTypeChar:
+		switch it := convertee.Val.(type) {
+		case MoValNumUint:
+			ret = MoValChar(rune(int32(it)))
+		}
+	case MoPrimTypeErr:
+		ret = MoValErr{Err: convertee}
+	case MoPrimTypeIdent:
+		switch it := convertee.Val.(type) {
+		case MoValStr:
+			ret = MoValIdent(it)
+		}
+	case MoPrimTypeNumFloat:
+		switch it := convertee.Val.(type) {
+		case MoValNumUint:
+			ret = MoValNumFloat(it)
+		case MoValNumInt:
+			ret = MoValNumFloat(it)
+		case MoValStr:
+			if f, err := str.ToF(string(it), 64); err == nil {
+				ret = MoValNumFloat(f)
+			}
+		}
+	case MoPrimTypeNumInt:
+		switch it := convertee.Val.(type) {
+		case MoValNumUint:
+			ret = MoValNumInt(it)
+		case MoValNumFloat:
+			ret = MoValNumInt(it)
+		case MoValStr:
+			if i, err := str.ToI64(string(it), 10, 64); err == nil {
+				ret = MoValNumInt(i)
+			}
+		}
+	case MoPrimTypeNumUint:
+		switch it := convertee.Val.(type) {
+		case MoValNumFloat:
+			ret = MoValNumUint(it)
+		case MoValNumInt:
+			ret = MoValNumUint(it)
+		case MoValStr:
+			if ui, err := str.ToU64(string(it), 10, 64); err == nil {
+				ret = MoValNumUint(ui)
+			}
+		}
+	case MoPrimTypePrimTypeTag:
+		switch it := convertee.Val.(type) {
+		case MoValNumUint:
+			ret = MoValType(it)
+		}
+	case MoPrimTypeStr:
+		ret = MoValStr(convertee.String())
+	default:
+		return me.exprNever(me.diagSpan(false, true, args...).newDiagErr(NoticeCodeAtmoTodo, "primFnCast: unhandled prim-type-tag "+convert_to.Str(false)))
+	}
+	if ret != nil {
+		return me.expr(ret, nil, nil, args[1])
+	}
+	return me.exprNever(me.diagSpan(false, false, args...).newDiagErr(NoticeCodeNotConvertible, convertee.String(), convert_to.Str(true)))
+}
+
+func (me *Interp) primFnErrNew(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	return nil
 }
 
 func (me *Interp) primFnSessReset(_ *MoEnv, args ...*MoExpr) *MoExpr {

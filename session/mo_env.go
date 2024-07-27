@@ -24,6 +24,22 @@ func (me *Interp) ensureRootEnvPopulated() {
 	for name, fn := range moPrimOpsEager {
 		rootEnv.set(name, me.expr(MoValFnPrim(fn), nil, nil))
 	}
+	for _, prim_type_tag := range []MoValPrimType{
+		MoPrimTypePrimTypeTag,
+		MoPrimTypeIdent,
+		MoPrimTypeNumInt,
+		MoPrimTypeNumUint,
+		MoPrimTypeNumFloat,
+		MoPrimTypeChar,
+		MoPrimTypeStr,
+		MoPrimTypeErr,
+		MoPrimTypeDict,
+		MoPrimTypeList,
+		MoPrimTypeCall,
+		MoPrimTypeFunc,
+	} {
+		rootEnv.set(MoValIdent(prim_type_tag.Str(false)), me.expr(MoValType(prim_type_tag), nil, nil))
+	}
 }
 
 func newMoEnv(parent *MoEnv, names MoExprs, values MoExprs) *MoEnv {

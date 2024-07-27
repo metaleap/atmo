@@ -30,7 +30,7 @@ type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr)
 type MoValPrimType int
 
 const (
-	MoPrimTypeType MoValPrimType = iota
+	MoPrimTypePrimTypeTag MoValPrimType = iota
 	MoPrimTypeIdent
 	MoPrimTypeNumInt
 	MoPrimTypeNumUint
@@ -51,7 +51,7 @@ func (me MoValPrimType) isAtomic() bool {
 func (me MoValPrimType) String() string { return me.Str(false) }
 func (me MoValPrimType) Str(forDiag bool) string {
 	switch me {
-	case MoPrimTypeType:
+	case MoPrimTypePrimTypeTag:
 		return util.If(forDiag, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
 		return util.If(forDiag, "identifier", "@Ident")
@@ -102,7 +102,7 @@ type MoValFnLam struct {
 	IsMacro bool
 }
 
-func (MoValType) PrimType() MoValPrimType     { return MoPrimTypeType }
+func (MoValType) PrimType() MoValPrimType     { return MoPrimTypePrimTypeTag }
 func (MoValIdent) PrimType() MoValPrimType    { return MoPrimTypeIdent }
 func (MoValNumInt) PrimType() MoValPrimType   { return MoPrimTypeNumInt }
 func (MoValNumUint) PrimType() MoValPrimType  { return MoPrimTypeNumUint }

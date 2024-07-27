@@ -46,6 +46,7 @@ const (
 	NoticeCodeRangeNegative    SrcFileNoticeCode = "RangeNegative"
 	NoticeCodeDictDuplKey      SrcFileNoticeCode = "DictDuplKey"
 	NoticeCodeNotComparable    SrcFileNoticeCode = "NotComparable"
+	NoticeCodeNotConvertible   SrcFileNoticeCode = "NotConvertible"
 )
 
 var (
@@ -74,6 +75,7 @@ var (
 		NoticeCodeRangeNegative:    "range end %d is smaller than range start %d",
 		NoticeCodeDictDuplKey:      "duplicate key `%s` in dict constructor",
 		NoticeCodeNotComparable:    "operands `%s` and `%s` cannot be compared in %s terms",
+		NoticeCodeNotConvertible:   "cannot convert `%s` to %s",
 	}
 )
 

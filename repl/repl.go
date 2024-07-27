@@ -51,7 +51,7 @@ func Main() {
 			panic(err)
 		}
 		interp = sess.Interpreter(dir_path)
-		interp.StackTraces = true
+		interp.SubCallListing.Use = true
 	})
 
 	for {
@@ -97,7 +97,7 @@ func Main() {
 			}
 		}
 		if diag != nil {
-			for _, item := range interp.LastStackTrace {
+			for _, item := range interp.SubCallListing.Last {
 				os.Stderr.WriteString(str.Fmt("\t%s\t\t%s\n", item.SrcSpan.LocStr(""), item))
 			}
 			os.Stderr.WriteString(errMsg("", diag) + "\n")
