@@ -10,6 +10,7 @@ import (
 )
 
 func (me *SrcPack) refreshSema() (encounteredDiagsRelevantChanges bool) {
+	return
 	cur_paths := me.srcFilePaths()
 	can_skip := (len(cur_paths) == len(me.Sema.last.files))
 	defer func(timeStarted time.Time) {

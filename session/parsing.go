@@ -32,6 +32,7 @@ const (
 	AstNodeKindIdent               // foo, #bar, @baz, $foo, %bar, ==, <==<
 	AstNodeKindLit                 // 123, -321, 1.23, -3.21, "foo", `bar`, 'ö'
 	AstNodeKindGroup               // foo bar, (), (foo), (foo bar), [], [foo], [foo bar], {}, {foo}, {foo bar}
+	AstNodeKindBlock
 )
 
 // only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
@@ -147,7 +148,7 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 		case TokKindEnd:
 			pop := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
-			ret = append(pop, &AstNode{Kind: AstNodeKindGroup, Toks: ret.toks(me), Src: ret.src(me), Nodes: ret})
+			ret = append(pop, &AstNode{Kind: AstNodeKindBlock, Toks: ret.toks(me), Src: ret.src(me), Nodes: ret})
 			toks = toks[1:]
 		case TokKindBegin:
 			stack = append(stack, ret)
@@ -226,7 +227,7 @@ func (me *AstNode) equals(it *AstNode, includingSpans bool, withoutComments bool
 	}
 
 	switch me.Kind {
-	case AstNodeKindGroup:
+	case AstNodeKindGroup, AstNodeKindBlock:
 		return (me.Src[0] == it.Src[0]) // covers parens,brackets,braces
 	case AstNodeKindLit:
 		switch mine := me.Lit.(type) {
@@ -271,30 +272,20 @@ func (me *AstNode) ident() string {
 	return util.If(me.Kind == AstNodeKindIdent, me.Src, "")
 }
 
-func (me *AstNode) IsCurlyBraces() bool {
+func (me *AstNode) IsBracketingWith(opener byte) bool {
 	if me.Kind == AstNodeKindGroup {
 		if lit, is := me.Lit.(byte); is {
-			return (lit == '{')
+			return (lit == opener)
 		}
 	}
 	return false
 }
+func (me *AstNode) IsCurlyBraces() bool    { return me.IsBracketingWith('{') }
+func (me *AstNode) IsSquareBrackets() bool { return me.IsBracketingWith('[') }
+func (me *AstNode) IsParens() bool         { return me.IsBracketingWith('(') }
 
-func (me *AstNode) IsSquareBrackets() bool {
-	if me.Kind == AstNodeKindGroup {
-		if lit, is := me.Lit.(byte); is {
-			return (lit == '[')
-		}
-	}
-	return false
-}
-
-func (me *AstNode) isIdentOpish() bool {
+func (me *AstNode) IsIdentOpish() bool {
 	return (me.Kind == AstNodeKindIdent) && (me.Toks[0].Kind == TokKindIdentOpish)
-}
-
-func (me *AstNode) isParens() bool {
-	return me.Src[0] == '('
 }
 
 func (me *AstNode) isWhitespacelesslyRightAfter(it *AstNode) bool {
