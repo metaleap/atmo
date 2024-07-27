@@ -171,11 +171,11 @@ func (me *MoValDict) Set(key *MoExpr, val *MoExpr) {
 type MoExpr struct {
 	Val  MoVal
 	Diag struct {
-		Err           *SrcFileNotice
-		NonErrNotices SrcFileNotices
+		Err *SrcFileNotice
 	}
 	SrcSpan *SrcFileSpan // caution: `nil` for prims / builtins
 	SrcFile *SrcFile     // dito
+	Sema    *SemaExpr
 }
 
 func (me *MoExpr) srcNode() *AstNode {
@@ -388,28 +388,15 @@ func (me *Interp) ExprParse(src string) (*MoExpr, *SrcFileNotice) {
 	return expr, nil
 }
 
-func (me *SrcFile) MoExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
-	if topNode.Kind == AstNodeKindComment || topNode.Kind == AstNodeKindErr {
-		return nil, nil
-	}
-	util.Assert(topNode.Kind == AstNodeKindBlock, len(topNode.Nodes))
-	nodes := topNode.Nodes.withoutComments()
-	if len(nodes) == 0 {
-		return nil, nil
-	}
-	if len(nodes) > 1 {
-		nodes = AstNodes{nodes.toGroupNode(me, topNode, true, false)}
-	}
-	return me.moExprFromAstNode(nodes[0])
-}
-
-func (me *SrcFile) moExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
+func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	var val MoVal
 	switch node.Kind {
+	case AstNodeKindComment:
+		return nil, nil
 	case AstNodeKindErr:
 		val = moValNever.Val
 	case AstNodeKindIdent:
-		if node.Toks[0].isSep() {
+		if node.IsIdentSepish() {
 			return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression instead of `"+node.Src+"` here")
 		}
 		val = MoValIdent(node.Src)
@@ -428,38 +415,75 @@ func (me *SrcFile) moExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 		default:
 			panic(str.Fmt("TODO: lit type %T", it))
 		}
-	case AstNodeKindBlock:
-		panic("YAY>>" + node.Src + "<<")
+	case AstNodeKindBlockLine:
+		nodes := node.Nodes.withoutComments()
+		if len(nodes) == 0 {
+			return nil, nil
+		}
+		var block_own_line MoExprs
+		var block_sub_lines MoExprs
+		for _, node := range nodes {
+			expr, err := me.MoExprFromAstNode(node)
+			if err != nil {
+				return nil, err
+			} else if expr != nil {
+				if node.Kind == AstNodeKindBlockLine {
+					if len(block_own_line) == 0 {
+						return nil, node.newDiagErr(false, NoticeCodeAtmoTodo, "newly introduced block-parsing bug (encountered block sub-line with no prior non-block own-line exprs)")
+					}
+					block_sub_lines = append(block_sub_lines, expr)
+				} else if len(block_sub_lines) > 0 {
+					return nil, node.newDiagErr(false, NoticeCodeAtmoTodo, "newly introduced block-parsing bug (encountered non-block sub-line)")
+				} else {
+					block_own_line = append(block_own_line, expr)
+				}
+			}
+		}
+		call_form := MoValCall(block_own_line)
+		if (len(call_form) == 1) && (len(block_sub_lines) == 0) {
+			val = call_form[0].Val
+		} else {
+			if len(block_sub_lines) > 0 {
+				call_form = append(call_form, &MoExpr{Val: MoValList(block_sub_lines), SrcFile: me,
+					SrcSpan: block_sub_lines[0].SrcSpan.Expanded(block_sub_lines[len(block_sub_lines)-1].SrcSpan)})
+			}
+			val = call_form
+		}
 	case AstNodeKindGroup:
 		switch {
 		case node.IsSquareBrackets():
-			list := make(MoValList, 0, len(node.Nodes))
-			for _, node := range node.Nodes.withoutComments() {
-				expr, err := me.moExprFromAstNode(node)
+			nodes := node.Nodes.withoutComments()
+			list := make(MoValList, 0, len(nodes))
+			for _, node := range nodes {
+				expr, err := me.MoExprFromAstNode(node)
 				if err != nil {
 					return nil, err
+				} else if expr != nil {
+					list = append(list, expr)
 				}
-				list = append(list, expr)
 			}
 			val = list
 		case node.IsCurlyBraces():
-			dict := make(MoValDict, 0, len(node.Nodes))
-			for _, kv_node := range node.Nodes.withoutComments() {
+			nodes := node.Nodes.withoutComments()
+			dict := make(MoValDict, 0, len(nodes))
+			for _, kv_node := range nodes {
 				nodes_of_pair := kv_node.Nodes.withoutComments()
 				if kv_node.Kind == AstNodeKindErr {
 					continue
 				} else if len(nodes_of_pair) != 2 {
 					return nil, kv_node.newDiagErr(false, NoticeCodeAtmoTodo, str.Fmt("new dict parsing bug: KV node has len %d with kind %d", len(nodes_of_pair), kv_node.Kind))
 				}
-				expr_key, err := me.moExprFromAstNode(nodes_of_pair[0])
+				expr_key, err := me.MoExprFromAstNode(nodes_of_pair[0])
 				if err != nil {
 					return nil, err
 				}
-				expr_val, err := me.moExprFromAstNode(nodes_of_pair[1])
+				expr_val, err := me.MoExprFromAstNode(nodes_of_pair[1])
 				if err != nil {
 					return nil, err
 				}
-				if dict.Has(expr_key) {
+				if (expr_key == nil) || (expr_val == nil) {
+					return nil, kv_node.newDiagErr(false, NoticeCodeAtmoTodo, str.Fmt("new dict parsing bug: had only Comment-kind node for key or value"))
+				} else if dict.Has(expr_key) {
 					return nil, expr_key.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, expr_key)
 				}
 				dict.Set(expr_key, expr_val)
@@ -468,18 +492,19 @@ func (me *SrcFile) moExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 		default: // parensed or huddled
 			nodes := node.Nodes.withoutComments()
 			if len(nodes) == 1 {
-				return me.moExprFromAstNode(nodes[0])
+				return me.MoExprFromAstNode(nodes[0])
 			} else if len(nodes) == 0 {
 				return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression inside these empty parens")
 			}
 
 			call_form := make(MoValCall, 0, len(nodes))
 			for _, node := range nodes {
-				expr, err := me.moExprFromAstNode(node)
+				expr, err := me.MoExprFromAstNode(node)
 				if err != nil {
 					return nil, err
+				} else if expr != nil {
+					call_form = append(call_form, expr)
 				}
-				call_form = append(call_form, expr)
 			}
 			val = call_form
 		}

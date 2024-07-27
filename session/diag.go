@@ -54,7 +54,7 @@ var (
 	OnDbgMsg         = func(showIf bool, fmt string, args ...any) {}
 	OnLogMsg         = func(showIf bool, fmt string, args ...any) {}
 	errMsgs          = map[SrcFileNoticeCode]string{
-		NoticeCodeAtmoTodo:      "TODO by Atmo team, please report: \"%s\"",
+		NoticeCodeAtmoTodo:      "TODO by Atmo team, please report this detail message: \"%s\"",
 		NoticeCodeFileReadError: "%s", // actual error msg in %s
 
 		NoticeCodeWhitespace:  "unsupported white-space; ensure both: no line-leading tabs, and LF-only line endings (no CR or CRLF)",
@@ -126,7 +126,6 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 	if len(ret) == 0 {
 		ret.Add(me.notices.PreSema...)
 		add := func(it *MoExpr) {
-			ret.Add(it.Diag.NonErrNotices...)
 			if it.Diag.Err != nil {
 				ret.Add(it.Diag.Err)
 			}

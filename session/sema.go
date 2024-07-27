@@ -52,12 +52,15 @@ func (me *SrcPack) semaRefresh() (encounteredDiagsRelevantChanges bool) {
 	// first, handle top-level `@set` exprs: we add them to env but un-evaled, just so sema evals will find them
 	for _, top_expr := range me.Sema.Pre {
 		if ident := me.Interp.isSetCall(top_expr); ident != "" {
-			me.Interp.Env.set(ident, top_expr)
+			dup := *top_expr
+			dup.Sema = &SemaExpr{preEnvUnevaled: true}
+			me.Interp.Env.set(ident, &dup)
 		}
 	}
 	// now, we sema
 	for _, top_expr := range me.Sema.Pre {
-		if evaled := me.Interp.ExprEval(top_expr, true); evaled != nil {
+		dup := *top_expr
+		if evaled := me.Interp.ExprEval(&dup, true); evaled != nil {
 			me.Sema.Post = append(me.Sema.Post, evaled)
 			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs() || evaled.EqNever()
 		}
@@ -124,4 +127,8 @@ func (me MoExprs) Sorted() MoExprs {
 		// we shouldn't really ever get to here, since we only sort top-level exprs and there are no two of them on the same line in the same file
 		return cmp.Compare(node1.Toks[0].Pos.Char, node2.Toks[0].Pos.Char)
 	})
+}
+
+type SemaExpr struct {
+	preEnvUnevaled bool
 }

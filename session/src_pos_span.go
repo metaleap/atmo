@@ -47,9 +47,12 @@ func (me SrcFileSpan) Eq(to SrcFileSpan) bool {
 	return (me.Start == to.Start) && (me.End == to.End)
 }
 
-func (me *SrcFileSpan) ExtendBy(it *SrcFileSpan) *SrcFileSpan {
-	return &SrcFileSpan{Start: util.If(it.Start.before(&me.Start), it.Start, me.Start),
-		End: util.If(it.End.after(&me.End), it.End, me.End)}
+func (me *SrcFileSpan) Expanded(to *SrcFileSpan) *SrcFileSpan {
+	if me == to {
+		return me
+	}
+	return &SrcFileSpan{Start: util.If(to.Start.before(&me.Start), to.Start, me.Start),
+		End: util.If(to.End.after(&me.End), to.End, me.End)}
 }
 
 func (me SrcFileSpan) String() string {

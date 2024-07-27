@@ -170,6 +170,12 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 				_, is_lazy_prim_op := moPrimOpsLazy[val]
 				return me.exprNever(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, NoticeCodeUndefined, NoticeCodeNotFirstClass), val))
 			}
+			if (found.Sema != nil) && found.Sema.preEnvUnevaled {
+				_ = me.evalAndApply(env, found)
+				now := env.lookup(val)
+				util.Assert(now != found, now)
+				found = now
+			}
 			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
 	case MoValList:

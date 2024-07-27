@@ -53,7 +53,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 	scan.IsIdentRune = func(char rune, i int) bool {
 		last_ident_first_char = util.If(i == 0, char, last_ident_first_char)
 		return (char == '_') || unicode.IsLetter(char) ||
-			((i == 0) && (char == '@')) ||
+			((i == 0) && ((char == '@') || (char == ':'))) ||
 			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
 	scan.Filename = srcFilePath
@@ -84,7 +84,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 			}
 		case '(', ')', '{', '}', '[', ']':
 			tok.Kind = TokKindBrace
-		default: // in case we want back to case-of-op, here's what we had: '<', '>', '+', '-', '*', '/', '\\', '^', '~', '×', '÷', '…', '·', '.', '|', '&', '!', '?', '%', '=':
+		default:
 			tok.Kind = TokKindIdentOpish
 		}
 
@@ -126,7 +126,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 			}
 		}
 
-		// only now can the brace_level be adjusted if needed
+		// only now can the brace_level be adjusted
 		if tok.Kind == TokKindBrace {
 			brace_level += util.If(tok.isBraceOpening(0), 1, -1)
 		}

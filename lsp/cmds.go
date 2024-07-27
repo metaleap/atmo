@@ -76,7 +76,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 								for _, pair := range it {
 									node := &moNode{PrimTypeTag: fake_prim_tag_dictentry, Nodes: []*moNode{convert(pair[0]), convert(pair[1])}}
 									node.ClientInfo.SrcFilePath = node.Nodes[0].ClientInfo.SrcFilePath
-									node.ClientInfo.SrcFileSpan = node.Nodes[0].ClientInfo.SrcFileSpan.ExtendBy(node.Nodes[1].ClientInfo.SrcFileSpan)
+									node.ClientInfo.SrcFileSpan = node.Nodes[0].ClientInfo.SrcFileSpan.Expanded(node.Nodes[1].ClientInfo.SrcFileSpan)
 									node.ClientInfo.SrcFileText = node.Nodes[0].ClientInfo.SrcFileText + ": " + node.Nodes[1].ClientInfo.SrcFileText
 									ret.Nodes = append(ret.Nodes, node)
 								}
