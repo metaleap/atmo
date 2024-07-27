@@ -85,7 +85,7 @@ func (me *Interp) ExprEval(expr *MoExpr, forSema bool) *MoExpr {
 }
 
 func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) *MoExpr {
-	diag_ctx_orig, expr_orig, did_lam_tco := me.diagCtxCall, expr, false
+	diag_ctx_orig, expr_orig, did_call := me.diagCtxCall, expr, false
 	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
 tco_loop:
 	for env != nil {
@@ -118,27 +118,29 @@ tco_loop:
 						break tco_loop
 					}
 					me.diagCtxCall = diag_ctx_cur
-					call = expr.Val.(MoValCall)
-					callee, call_args = call[0], (MoExprs)(call[1:])
-					if callee.IsErr() {
-						break tco_loop
+					evaled_call := expr.Val.(MoValCall)
+					evaled_callee, evaled_call_args := evaled_call[0], (MoExprs)(evaled_call[1:])
+					if evaled_callee.IsErr() {
+						return me.exprErr(evaled_callee.Diag.Err, callee)
+						// break tco_loop
 					}
-					for _, arg := range call_args {
+					for i, arg := range evaled_call_args {
 						if arg.IsErr() {
-							break tco_loop
+							// break tco_loop
+							return me.exprErr(arg.Diag.Err, call_args[i])
 						}
 					}
-					switch fn := callee.Val.(type) {
+					did_call = true
+					switch fn := evaled_callee.Val.(type) {
 					default:
-						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, callee.String()))
+						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, evaled_callee.String()))
 					case MoValFnPrim:
-						expr = fn(me, env, call_args...)
+						expr = fn(me, env, evaled_call_args...)
 						expr.setSrcSpanIfNone(diag_ctx_cur)
 						env, me.diagCtxCall = nil, diag_ctx_prev
 					case *MoValFnLam:
-						did_lam_tco = true
 						var err *SrcFileNotice
-						env, err = me.envWith(fn, call_args)
+						env, err = me.envWith(fn, evaled_call_args)
 						if err != nil {
 							env, expr = nil, me.exprErr(err, diag_ctx_cur)
 						} else {
@@ -150,7 +152,7 @@ tco_loop:
 		}
 	}
 	me.diagCtxCall = diag_ctx_orig
-	if did_lam_tco /* || diag_ctx_orig != nil  */ {
+	if did_call {
 		if err := expr.Err(); (err != nil) && (expr_orig.SrcSpan != nil) {
 			err.Span = *expr_orig.SrcSpan
 		}

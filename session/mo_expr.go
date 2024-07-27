@@ -251,6 +251,7 @@ func (me *Interp) ExprCmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int,
 }
 
 func (me *Interp) exprErr(err *SrcFileNotice, srcSpanCtx ...*MoExpr) *MoExpr {
+	util.Assert(err != nil, nil)
 	ret := me.expr(MoValErr{}, nil, nil, srcSpanCtx...)
 	ret.Diag.Err = err
 	return ret
