@@ -71,6 +71,7 @@ func init() {
 		"@dictGet":     (*Interp).primFnDictGet,
 		"@dictWith":    (*Interp).primFnDictWith,
 		"@dictWithout": (*Interp).primFnDictWithout,
+		"@dictLen":     (*Interp).primFnDictLen,
 		"@strConcat":   (*Interp).primFnStrConcat,
 		"@strLen":      (*Interp).primFnStrLen,
 		"@strCharAt":   (*Interp).primFnStrCharAt,
@@ -721,6 +722,19 @@ func (me *Interp) primFnDictWithout(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	ret := me.exprFrom(args[0], args...)
 	ret.Val = ret.Val.(MoValDict).Without(args[1].Val.(MoValList)...)
 	return ret
+}
+
+func (me *Interp) primFnDictLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
+		return me.exprNever(err)
+	}
+	return me.expr(MoValNumUint(len(args[0].Val.(MoValDict))), nil, nil, args...)
 }
 
 func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) *MoExpr {

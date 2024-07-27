@@ -55,7 +55,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 		last_ident_first_char = util.If(i == 0, char, last_ident_first_char)
 		return (char == '_') || unicode.IsLetter(char) ||
 			// if at start of token: ident can begin with `@` or `:` if separate from prev, so `foo:bar` will not make `:bar` but `foo :bar` will
-			((i == 0) && ((char == '@') || (char == ':')) && ((prev == nil) || prev.isSep() || prev.isBracketing() || ((prev.byteOffset + len(prev.Src)) < scan.Offset))) ||
+			((i == 0) && ((char == '@') || ((char == ':') && ((prev == nil) || (prev.Kind == TokKindIdentOpish) || (prev.isBracketingOpening(0)) || ((prev.byteOffset + len(prev.Src)) < scan.Offset))))) ||
 			// not at start of token: also allow numbers, or `/` if ident started uppercase
 			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
@@ -302,7 +302,7 @@ func (me Toks) split(delimChar byte) (ret []Toks) {
 	var idx int
 	var brac_level int
 	for i, tok := range me {
-		if (tok.Src[0] == delimChar) && (brac_level == 0) {
+		if (tok.Src[0] == delimChar) && (len(tok.Src) == 1) && (brac_level == 0) {
 			ret = append(ret, me[idx:i])
 			idx = i + 1
 		} else if tok.isBracketingOpening(0) {

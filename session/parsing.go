@@ -289,9 +289,12 @@ func (me *AstNode) IsParens() bool         { return me.IsBracketingWith('(') }
 func (me *AstNode) IsIdentOpish() bool {
 	return (me.Kind == AstNodeKindIdent) && (me.Toks[0].Kind == TokKindIdentOpish)
 }
-
-func (me *AstNode) IsIdentSepish() bool {
-	return (me.Kind == AstNodeKindIdent) && me.Toks[0].isSep()
+func (me *AstNode) IsIdentSepish() bool { return (me.Kind == AstNodeKindIdent) && me.Toks[0].isSep() }
+func (me *AstNode) IsIdentPrim() bool {
+	return (me.Kind == AstNodeKindIdent) && (len(me.Src) > 1) && (me.Src[0] == '@')
+}
+func (me *AstNode) IsIdentKeyword() bool {
+	return (me.Kind == AstNodeKindIdent) && (len(me.Src) > 1) && (me.Src[0] == ':')
 }
 
 func (me *AstNode) isWhitespacelesslyRightAfter(it *AstNode) bool {
