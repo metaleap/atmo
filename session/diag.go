@@ -32,8 +32,8 @@ const (
 	NoticeCodeIndentation SrcFileNoticeCode = "Indentation"
 
 	// parsing
-	NoticeCodeBracesMismatch SrcFileNoticeCode = "BracesMismatch"
-	NoticeCodeLitSyntax      SrcFileNoticeCode = "LitSyntax"
+	NoticeCodeBracketingMismatch SrcFileNoticeCode = "BracesMismatch"
+	NoticeCodeLitSyntax          SrcFileNoticeCode = "LitSyntax"
 
 	// semantic
 	NoticeCodeExpectedFoo      SrcFileNoticeCode = "Unexpected"
@@ -61,8 +61,8 @@ var (
 		NoticeCodeLexingError: "invalid token: %s", // actual error msg in %s
 		NoticeCodeIndentation: "incorrect indentation",
 
-		NoticeCodeLitSyntax:      "invalid literal: %s", // actual error msg in %s
-		NoticeCodeBracesMismatch: "opening and closing %s don't match up",
+		NoticeCodeLitSyntax:          "invalid literal: %s", // actual error msg in %s
+		NoticeCodeBracketingMismatch: "opening and closing %s don't match up",
 
 		NoticeCodeExpectedFoo:      "expected %s",
 		NoticeCodeUndefined:        "`%s` is not defined or not in scope",

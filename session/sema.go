@@ -53,14 +53,14 @@ func (me *SrcPack) semaRefresh() (encounteredDiagsRelevantChanges bool) {
 	for _, top_expr := range me.Sema.Pre {
 		if ident := me.Interp.isSetCall(top_expr); ident != "" {
 			dup := *top_expr
-			dup.Sema = &SemaExpr{preEnvUnevaled: true}
+			dup.Sema = &SemaExpr{topLevelPreEnvUnevaled: true}
 			me.Interp.Env.set(ident, &dup)
 		}
 	}
 	// now, we sema
 	for _, top_expr := range me.Sema.Pre {
-		dup := *top_expr
-		if evaled := me.Interp.ExprEval(&dup, true); evaled != nil {
+		dup := top_expr
+		if evaled := me.Interp.ExprEval(dup, true); evaled != nil {
 			me.Sema.Post = append(me.Sema.Post, evaled)
 			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs() || evaled.EqNever()
 		}
@@ -130,5 +130,5 @@ func (me MoExprs) Sorted() MoExprs {
 }
 
 type SemaExpr struct {
-	preEnvUnevaled bool
+	topLevelPreEnvUnevaled bool
 }

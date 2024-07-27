@@ -165,16 +165,14 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 	switch val := expr.Val.(type) {
 	case MoValIdent:
 		if (val[0] != '@') || (moPrimIdents[val] == nil) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
-			found := env.lookup(val)
+			owner_env, found := env.lookupOwner(val)
+			if (found != nil) && (found.Sema != nil) && found.Sema.topLevelPreEnvUnevaled { // top-level @set put unevaluated in env under the name it will set
+				_ = me.evalAndApply(owner_env, found) // eval to put the actual value for the name in env instead, return is ignored because it's just @none or an @Err
+				found = env.lookup(val)
+			}
 			if found == nil {
 				_, is_lazy_prim_op := moPrimOpsLazy[val]
 				return me.exprNever(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, NoticeCodeUndefined, NoticeCodeNotFirstClass), val))
-			}
-			if (found.Sema != nil) && found.Sema.preEnvUnevaled {
-				_ = me.evalAndApply(env, found)
-				now := env.lookup(val)
-				util.Assert(now != found, now)
-				found = now
 			}
 			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags

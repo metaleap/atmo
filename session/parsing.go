@@ -110,8 +110,8 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 		case TokKindIdentWord, TokKindIdentOpish:
 			ret = append(ret, parseLit[string](toks, AstNodeKindIdent, func(src string) (string, error) { return src, nil }))
 			toks = toks[1:]
-		case TokKindBrace:
-			toks_inner, toks_tail, err := toks.braceMatch()
+		case TokKindBracketing:
+			toks_inner, toks_tail, err := toks.bracketingMatch()
 			if err != nil {
 				had_brace_err = true
 				ret = append(ret, &AstNode{Kind: AstNodeKindErr, Toks: toks, Src: toks.src(me.Src.Text), errParsing: err})

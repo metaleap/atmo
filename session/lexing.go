@@ -24,8 +24,8 @@ const (
 	_ TokKind = iota
 	TokKindBegin
 	TokKindEnd
-	TokKindComment // both /* multi-line */ and // single-line
-	TokKindBrace   // parens, square brackets, curly braces
+	TokKindComment    // both /* multi-line */ and // single-line
+	TokKindBracketing // parens, square brackets, curly braces
 	// below: only toks that, if no sep-or-ws between them, will `huddle` together
 	// into their own single contiguous expr as if parensed (above: those that won't)
 	TokKindIdentWord  // lexemes that pass the `IsIdentRune` predicate below
@@ -50,18 +50,18 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 			Message: errMsg(NoticeCodeLexingError, msg), Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
 	}
 	var last_ident_first_char rune
+	var prev *Tok
 	scan.IsIdentRune = func(char rune, i int) bool {
 		last_ident_first_char = util.If(i == 0, char, last_ident_first_char)
 		return (char == '_') || unicode.IsLetter(char) ||
-			((i == 0) && ((char == '@') || (char == ':'))) ||
+			((i == 0) && ((char == '@') || (char == ':')) && ((prev == nil) || prev.isSep() || prev.isBracketing() || ((prev.byteOffset + len(prev.Src)) < scan.Offset))) ||
 			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
 	scan.Filename = srcFilePath
 
 	ret = make(Toks, 0, len(curFullSrcFileContent)/3)
-	var prev *Tok
 	var had_ws_err bool
-	var brace_level int
+	var brac_level int
 	var stack []int
 	for lexeme := scan.Scan(); lexeme != scanner.EOF; lexeme = scan.Scan() {
 		tok := &Tok{Pos: SrcFilePos{Line: scan.Line, Char: scan.Column}, byteOffset: scan.Offset}
@@ -83,7 +83,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 				errs = append(errs, tok.newErr(NoticeCodeLexingError, "separate `"+prev.Src+"` from `"+tok.Src+"`"))
 			}
 		case '(', ')', '{', '}', '[', ']':
-			tok.Kind = TokKindBrace
+			tok.Kind = TokKindBracketing
 		default:
 			tok.Kind = TokKindIdentOpish
 		}
@@ -95,7 +95,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 				ret, errs = append(ret, tok), append(errs, tok.newIndentErr())
 				return
 			}
-		} else if is_new_line := (brace_level <= 0) && (tok.Pos.Line > prev.Pos.Line); is_new_line {
+		} else if is_new_line := (brac_level <= 0) && (tok.Pos.Line > prev.Pos.Line); is_new_line {
 			// on newline: indent/dedent/newline handling, taken from https://docs.python.org/3/reference/lexical_analysis.html#indentation
 			stack_top := stack[len(stack)-1]
 			if tok.Pos.Char < stack_top {
@@ -126,9 +126,9 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 			}
 		}
 
-		// only now can the brace_level be adjusted
-		if tok.Kind == TokKindBrace {
-			brace_level += util.If(tok.isBraceOpening(0), 1, -1)
+		// only now can the brac_level be adjusted
+		if tok.Kind == TokKindBracketing {
+			brac_level += util.If(tok.isBracketingOpening(0), 1, -1)
 		}
 
 		switch {
@@ -165,7 +165,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 	return
 }
 
-func (me *Tok) braceMatch() rune {
+func (me *Tok) bracketingMatch() rune {
 	if len(me.Src) > 0 {
 		switch me.Src[0] {
 		case '(':
@@ -184,7 +184,8 @@ func (me *Tok) braceMatch() rune {
 	}
 	return 0
 }
-func (me *Tok) isBraceClosing(open rune) bool {
+func (me *Tok) isBracketing() bool { return me.isBracketingClosing(0) || me.isBracketingOpening(0) }
+func (me *Tok) isBracketingClosing(open rune) bool {
 	if len(me.Src) == 0 {
 		return false
 	}
@@ -198,7 +199,7 @@ func (me *Tok) isBraceClosing(open rune) bool {
 	}
 	return (me.Src[0] == ')') || (me.Src[0] == ']') || (me.Src[0] == '}')
 }
-func (me *Tok) isBraceOpening(close rune) bool {
+func (me *Tok) isBracketingOpening(close rune) bool {
 	if len(me.Src) == 0 {
 		return false
 	}
@@ -212,7 +213,7 @@ func (me *Tok) isBraceOpening(close rune) bool {
 	}
 	return (me.Src[0] == '(') || (me.Src[0] == '[') || (me.Src[0] == '{')
 }
-func (me *Tok) isBraceMatch(it *Tok) bool {
+func (me *Tok) isBracketingMatch(it *Tok) bool {
 	return (len(me.Src) > 0) && ((me.Src[0] == '(' && it.Src[0] == ')') || (me.Src[0] == '[' && it.Src[0] == ']') || (me.Src[0] == '{' && it.Src[0] == '}'))
 }
 
@@ -244,18 +245,18 @@ func (me *Tok) span() (ret SrcFileSpan) {
 	return
 }
 
-func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
+func (me Toks) bracketingMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 	var level int
-	brace_open := rune(me[0].Src[0])
-	brace_close := me[0].braceMatch()
-	if (brace_close != 0) && me[0].isBraceOpening(brace_close) {
+	brac_open := rune(me[0].Src[0])
+	brac_close := me[0].bracketingMatch()
+	if (brac_close != 0) && me[0].isBracketingOpening(brac_close) {
 		for i, tok := range me {
-			if tok.isBraceOpening(brace_close) {
+			if tok.isBracketingOpening(brac_close) {
 				level++
-			} else if tok.isBraceClosing(brace_open) {
+			} else if tok.isBracketingClosing(brac_open) {
 				level--
 				if level == 0 {
-					if !me[0].isBraceMatch(tok) {
+					if !me[0].isBracketingMatch(tok) {
 						break
 					}
 					return me[1:i], me[i+1:], nil
@@ -263,8 +264,8 @@ func (me Toks) braceMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 			}
 		}
 	}
-	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracesMismatch,
-		Message: errMsg(NoticeCodeBracesMismatch,
+	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracketingMismatch,
+		Message: errMsg(NoticeCodeBracketingMismatch,
 			util.If((me[0].Src[0] == '(') || (me[0].Src[0] == ')'), "parens",
 				util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
 					"braces")))}
@@ -297,15 +298,15 @@ func (me Toks) SpanEnd() (ret SrcFileSpan) {
 
 func (me Toks) split(delimChar byte) (ret []Toks) {
 	var idx int
-	var brace_level int
+	var brac_level int
 	for i, tok := range me {
-		if (tok.Src[0] == delimChar) && (brace_level == 0) {
+		if (tok.Src[0] == delimChar) && (brac_level == 0) {
 			ret = append(ret, me[idx:i])
 			idx = i + 1
-		} else if tok.isBraceOpening(0) {
-			brace_level++
-		} else if tok.isBraceClosing(0) {
-			brace_level--
+		} else if tok.isBracketingOpening(0) {
+			brac_level++
+		} else if tok.isBracketingClosing(0) {
+			brac_level--
 		}
 	}
 	if idx == 0 {
