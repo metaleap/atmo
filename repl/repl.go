@@ -20,6 +20,8 @@ var (
 )
 
 func Main() {
+	os.Stdout.WriteString("(For line-editing, remember to run `atmo repl` with `rlwrap` or similar.)\n\n")
+
 	var sess_msgs []string
 	var mutex sync.Mutex
 
