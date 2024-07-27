@@ -166,8 +166,8 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 	case MoValIdent:
 		if (val[0] != '@') || (moPrimIdents[val] == nil) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
 			owner_env, found := env.lookupOwner(val)
-			if (found != nil) && (found.Sema != nil) && found.Sema.topLevelPreEnvUnevaled { // top-level @set put unevaluated in env under the name it will set
-				_ = me.evalAndApply(owner_env, found) // eval to put the actual value for the name in env instead, return is ignored because it's just @none or an @Err
+			if (found != nil) && (found.Sema != nil) && found.Sema.topLevelPreEnvUnevaled { // top-level @set was put unevaled into env under the name it has yet to set
+				_ = me.evalAndApply(owner_env, found) // eval that @set call, to put the actual value for the name in env instead, return is ignored because it's just @none or an @Err
 				found = env.lookup(val)
 			}
 			if found == nil {

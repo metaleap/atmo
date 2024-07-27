@@ -103,7 +103,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		return nil, me.exprNever(err)
 	}
 	name := args[0].Val.(MoValIdent)
-	if is_reserved := (name[0] == '@') || (name[0] == ':') || (moPrimOpsLazy[name] != nil); is_reserved {
+	if is_reserved := (name[0] == '@') || (name[0] == ':') || (name[0] == '#') || (name[0] == '$'); is_reserved {
 		return nil, me.exprNever(me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0]))))
 	}
 	owner_env, found := env.lookupOwner(name)

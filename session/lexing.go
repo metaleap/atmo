@@ -54,7 +54,9 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 	scan.IsIdentRune = func(char rune, i int) bool {
 		last_ident_first_char = util.If(i == 0, char, last_ident_first_char)
 		return (char == '_') || unicode.IsLetter(char) ||
+			// if at start of token: ident can begin with `@` or `:` if separate from prev, so `foo:bar` will not make `:bar` but `foo :bar` will
 			((i == 0) && ((char == '@') || (char == ':')) && ((prev == nil) || prev.isSep() || prev.isBracketing() || ((prev.byteOffset + len(prev.Src)) < scan.Offset))) ||
+			// not at start of token: also allow numbers, or `/` if ident started uppercase
 			((i > 0) && (unicode.IsDigit(char) || (unicode.IsUpper(last_ident_first_char) && (char == '/'))))
 	}
 	scan.Filename = srcFilePath

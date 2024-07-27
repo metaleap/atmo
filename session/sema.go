@@ -59,8 +59,8 @@ func (me *SrcPack) semaRefresh() (encounteredDiagsRelevantChanges bool) {
 	}
 	// now, we sema
 	for _, top_expr := range me.Sema.Pre {
-		dup := top_expr
-		if evaled := me.Interp.ExprEval(dup, true); evaled != nil {
+		dup := *top_expr
+		if evaled := me.Interp.ExprEval(&dup, true); evaled != nil {
 			me.Sema.Post = append(me.Sema.Post, evaled)
 			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs() || evaled.EqNever()
 		}

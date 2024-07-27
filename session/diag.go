@@ -32,7 +32,7 @@ const (
 	NoticeCodeIndentation SrcFileNoticeCode = "Indentation"
 
 	// parsing
-	NoticeCodeBracketingMismatch SrcFileNoticeCode = "BracesMismatch"
+	NoticeCodeBracketingMismatch SrcFileNoticeCode = "BracketingMismatch"
 	NoticeCodeLitSyntax          SrcFileNoticeCode = "LitSyntax"
 
 	// semantic
