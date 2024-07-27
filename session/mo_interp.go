@@ -28,7 +28,7 @@ type Writer interface {
 
 type Interp struct {
 	Pack           *SrcPack
-	ReplFauxFile   *SrcFile
+	FauxFile       *SrcFile
 	Env            *MoEnv
 	StackTraces    bool
 	LastStackTrace MoExprs
@@ -37,28 +37,28 @@ type Interp struct {
 
 func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 	if replFauxFile == nil {
-		src_file_path := newSrcFilePathFakeAndReplish(inPack.DirPath)
+		src_file_path := newInterpFauxFilePath(inPack.DirPath)
 		_ = ensureSrcFiles(nil, true, src_file_path)
 		replFauxFile = state.srcFiles[src_file_path]
 	}
 
-	me := Interp{Pack: inPack, ReplFauxFile: replFauxFile}
-	me.resetEnv()
+	me := Interp{Pack: inPack, FauxFile: replFauxFile}
+	me.envReset()
 	me.ensureRootEnvPopulated()
 	me.Pack.Interp = &me
 	return &me
 }
 
-func (me *Interp) resetEnv() {
+func (me *Interp) envReset() {
 	me.Env = newMoEnv(&rootEnv, nil, nil)
 }
 
 // for REPL use-cases only!
-func (me *Interp) reset() {
+func (me *Interp) replReset() {
 	LockedDo(func(sess StateAccess) {
 		allNotices = map[string]sl.Of[*SrcFileNotice]{}
 		me.ClearStackTrace()
-		me.resetEnv()
+		me.envReset()
 		me.Pack.Interp, me.Pack.Sema.Pre = me, nil
 		for _, src_file := range me.Pack.Files {
 			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.PreSema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
@@ -73,7 +73,7 @@ func (me *Interp) ClearStackTrace() {
 	me.LastStackTrace = me.LastStackTrace[:0] // keeps currently-already-alloc'd capacity, for reduced GC churn and reduced alloc times
 }
 
-func (me *Interp) Eval(expr *MoExpr) *MoExpr {
+func (me *Interp) ExprEval(expr *MoExpr, forSema bool) *MoExpr {
 	me.ClearStackTrace()
 	me.diagCtxCall = nil
 	if expr == nil {

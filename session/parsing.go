@@ -46,15 +46,17 @@ func (me *SrcFile) parse() AstNodes {
 	})
 
 	// set all `AstNode.parent`s only after above re-arrangements; also
-	// sort all top-level nodes to be in source-file order of appearance
-	parsed = sl.SortedPer(parsed, (*AstNode).cmp)
 	parsed.walk(nil, func(node *AstNode) {
 		for _, it := range node.Nodes {
 			it.parent = node
 		}
 	})
-	if len(parsed) > 0 && str.Begins(parsed[0].Src, "#!/usr/bin/env ") {
-		parsed[0].Kind = AstNodeKindComment
+	// for scripting use-case, a file beginning of `#!/usr/bin/env ` gets commented in AST
+	for _, node := range parsed {
+		if (node.Toks[0].Pos.Line == 1) && (node.Toks[0].Pos.Char == 1) && str.Begins(node.Src, "#!/usr/bin/env ") {
+			node.Kind = AstNodeKindComment
+			break
+		}
 	}
 	return parsed
 }
@@ -213,7 +215,7 @@ func (me *AstNode) canHuddle() bool {
 	return (me.Kind == AstNodeKindLit) || (me.Kind == AstNodeKindGroup)
 }
 
-func (me *AstNode) cmp(it *AstNode) int {
+func (me *AstNode) Cmp(it *AstNode) int {
 	return cmp.Compare(me.Toks[0].byteOffset, it.Toks[0].byteOffset)
 }
 
@@ -368,6 +370,14 @@ func (me *AstNode) walk(onBefore func(node *AstNode) bool, onAfter func(node *As
 	}
 }
 
+func (me AstNodes) AnyErrs() (ret bool) {
+	me.walk(func(node *AstNode) bool {
+		ret = ret || (node.Kind == AstNodeKindErr)
+		return !ret
+	}, nil)
+	return
+}
+
 func (me AstNodes) equals(it AstNodes, includingSpans bool, withoutComments bool) bool {
 	if withoutComments {
 		me, it = me.withoutComments(), it.withoutComments()
@@ -378,12 +388,6 @@ func (me AstNodes) equals(it AstNodes, includingSpans bool, withoutComments bool
 }
 
 func (me AstNodes) first() *AstNode { return me[0] }
-
-func (me AstNodes) hasBraceErrors() bool {
-	return me.has(true, func(node *AstNode) bool {
-		return (node.errParsing != nil) && (node.errParsing.Code == NoticeCodeBracesMismatch)
-	})
-}
 
 func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
 	if !recurse {
@@ -481,4 +485,9 @@ func (me AstNodes) walk(onBefore func(node *AstNode) bool, onAfter func(node *As
 
 func (me AstNodes) withoutComments() AstNodes {
 	return sl.Where(me, func(it *AstNode) bool { return it.Kind != AstNodeKindComment })
+}
+
+// any basic syntax errs from the lexing or parsing stages preclude a sema refresh (the prior sema is kept)
+func (me *SrcFile) HasSemaPrecludingErrs() bool {
+	return (me.notices.LastReadErr != nil) || (len(me.notices.LexErrs) > 0) || me.Src.Ast.AnyErrs()
 }

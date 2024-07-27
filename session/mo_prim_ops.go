@@ -359,7 +359,7 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(0, 0, args); err != nil {
 		return me.exprNever(err)
 	}
-	src_file := me.ReplFauxFile
+	src_file := me.FauxFile
 	if (me.diagCtxCall != nil) && (me.diagCtxCall.SrcFile != nil) {
 		src_file = me.diagCtxCall.SrcFile
 	}
@@ -653,7 +653,7 @@ func (me *Interp) primFnExprParse(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
 		return me.exprNever(err)
 	}
-	ret, err := me.ParseExpr(string(args[0].Val.(MoValStr)))
+	ret, err := me.ExprParse(string(args[0].Val.(MoValStr)))
 	if err != nil {
 		return me.exprNever(err)
 	}
@@ -739,7 +739,7 @@ func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) *MoExpr {
 }
 
 func (me *Interp) primFnSessReset(_ *MoEnv, args ...*MoExpr) *MoExpr {
-	me.reset()
+	me.replReset()
 	return moValNone
 }
 
@@ -813,7 +813,7 @@ func (me *Interp) primCmpHelper(diagMoniker string, args ...*MoExpr) (int, *SrcF
 	if !me.checkNoneArePrimFuncs(args...) {
 		return 0, me.diagSpan(false, true, args...).newDiagErr(NoticeCodeNotComparable, args[0], args[1], diagMoniker)
 	}
-	cmp, err := me.Cmp(args[0], args[1], diagMoniker)
+	cmp, err := me.ExprCmp(args[0], args[1], diagMoniker)
 	if err != nil {
 		return 0, err
 	}

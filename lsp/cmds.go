@@ -61,7 +61,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						convert = func(expr *session.MoExpr) *moNode {
 							ret := moNode{PrimTypeTag: expr.Val.PrimType()}
 							if expr.IsErr() {
-								ret.PrimTypeTag = -2
+								ret.PrimTypeTag = session.MoPrimTypeErr
 							}
 							if is_post {
 								ret.ClientInfo.Str = expr.String()
@@ -72,8 +72,9 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 									ret.Nodes = append(ret.Nodes, convert(item))
 								}
 							case session.MoValDict:
+								const fake_prim_tag_dictentry = -1
 								for _, pair := range it {
-									node := &moNode{PrimTypeTag: -1, Nodes: []*moNode{convert(pair[0]), convert(pair[1])}}
+									node := &moNode{PrimTypeTag: fake_prim_tag_dictentry, Nodes: []*moNode{convert(pair[0]), convert(pair[1])}}
 									node.ClientInfo.SrcFilePath = node.Nodes[0].ClientInfo.SrcFilePath
 									node.ClientInfo.SrcFileSpan = node.Nodes[0].ClientInfo.SrcFileSpan.ExtendBy(node.Nodes[1].ClientInfo.SrcFileSpan)
 									node.ClientInfo.SrcFileText = node.Nodes[0].ClientInfo.SrcFileText + ": " + node.Nodes[1].ClientInfo.SrcFileText
@@ -103,7 +104,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							return &ret
 						}
 						var top_level []*moNode
-						for _, top_expr := range util.If(is_post, src_pkg.Sema.Post, src_pkg.Sema.Pre) {
+						for _, top_expr := range util.If(is_post, src_pkg.Sema.Post, src_pkg.Sema.Pre).Sorted() {
 							top_level = append(top_level, convert(top_expr))
 						}
 						ret = top_level
@@ -130,7 +131,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.LockedDo(func(sess session.StateAccess) {
 					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
-						ret = src_file.Src.Ast
+						ret = sl.SortedPer(src_file.Src.Ast, (*session.AstNode).Cmp)
 					}
 				})
 			}

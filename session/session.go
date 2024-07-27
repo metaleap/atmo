@@ -92,7 +92,7 @@ func (me *stateAccess) Interpreter(packDirPath string) *Interp {
 		return src_pack.Interp
 	}
 
-	src_file_path := newSrcFilePathFakeAndReplish(packDirPath)
+	src_file_path := newInterpFauxFilePath(packDirPath)
 	_ = ensureSrcFiles(nil, true, src_file_path)
 	src_file := state.srcFiles[src_file_path]
 	if src_pack == nil {

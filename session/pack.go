@@ -37,11 +37,11 @@ type SrcFile struct {
 	}
 }
 
-func (me *SrcFile) isReplish() bool { return IsSrcFilePathFakeAndReplish(me.FilePath) }
-func IsSrcFilePathFakeAndReplish(srcFilePath string) bool {
-	return (filepath.Base(srcFilePath) == "<repl>")
+func (me *SrcFile) IsInterpFauxFile() bool { return IsSrcFilePathOfInterpFauxFile(me.FilePath) }
+func IsSrcFilePathOfInterpFauxFile(srcFilePath string) bool {
+	return (filepath.Base(srcFilePath) == "<interp>")
 }
-func newSrcFilePathFakeAndReplish(dirPath string) string { return filepath.Join(dirPath, "<repl>") }
+func newInterpFauxFilePath(dirPath string) string { return filepath.Join(dirPath, "<interp>") }
 
 func IsSrcFilePath(filePath string) bool {
 	return filepath.IsAbs(filePath) && filepath.Ext(filePath) == ".at" &&
@@ -52,7 +52,7 @@ func packsFsRefresh() {
 	var gone_files []string
 	var gone_packs []string
 	for src_file_path := range state.srcFiles {
-		if (!IsSrcFilePathFakeAndReplish(src_file_path)) && !util.FsIsFile(src_file_path) {
+		if (!IsSrcFilePathOfInterpFauxFile(src_file_path)) && !util.FsIsFile(src_file_path) {
 			gone_files = append(gone_files, src_file_path)
 		}
 	}
@@ -74,7 +74,7 @@ func removeSrcFiles(srcFilePaths ...string) {
 	}
 	packs_to_drop, packs_encountered := map[string]*SrcPack{}, map[string]*SrcPack{}
 	for _, src_file_path := range srcFilePaths {
-		if IsSrcFilePathFakeAndReplish(src_file_path) {
+		if IsSrcFilePathOfInterpFauxFile(src_file_path) {
 			continue
 		}
 		src_file := state.srcFiles[src_file_path]
@@ -95,7 +95,7 @@ func removeSrcFiles(srcFilePaths ...string) {
 	}
 	for _, src_pack := range packs_encountered {
 		pack_file_paths = append(pack_file_paths, src_pack.srcFilePaths()...)
-		src_pack.refreshSema()
+		src_pack.semaRefresh()
 	}
 	refreshAndPublishNotices(false, append(pack_file_paths, srcFilePaths...)...)
 }
@@ -108,13 +108,13 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 	util.Assert((curFullContent == nil) || (len(srcFilePaths) == 1), len(srcFilePaths))
 
 	for _, src_file_path := range srcFilePaths {
-		is_replish_fake := IsSrcFilePathFakeAndReplish(src_file_path)
+		is_interp_faux_file := IsSrcFilePathOfInterpFauxFile(src_file_path)
 		flag_for_diags_refr := func() { encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_file_path) }
-		if !is_replish_fake {
+		if !is_interp_faux_file {
 			util.Assert(IsSrcFilePath(src_file_path), src_file_path)
 		}
 
-		if (!is_replish_fake) && !util.FsIsFile(src_file_path) {
+		if (!is_interp_faux_file) && !util.FsIsFile(src_file_path) {
 			removeSrcFiles(src_file_path)
 			flag_for_diags_refr()
 			continue
@@ -134,13 +134,13 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 				state.srcPacks[pack_dir_path] = src_file.pack
 			}
 			src_file.pack.Files = sl.With(src_file.pack.Files, src_file)
-			canSkipFileRead = is_replish_fake
+			canSkipFileRead = is_interp_faux_file
 		}
 
 		old_content, had_last_read_err := src_file.Src.Text, (src_file.notices.LastReadErr != nil)
 		if curFullContent != nil {
 			src_file.Src.Text, src_file.notices.LastReadErr = *curFullContent, nil
-		} else if (!is_replish_fake) && ((!canSkipFileRead) || had_last_read_err) {
+		} else if (!is_interp_faux_file) && ((!canSkipFileRead) || had_last_read_err) {
 			src_file_bytes, err := os.ReadFile(src_file_path)
 			if os.IsNotExist(err) {
 				removeSrcFiles(src_file_path)
@@ -193,7 +193,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 	}
 
 	for src_pack := range packs_to_refresh {
-		if src_pack.refreshSema() {
+		if src_pack.semaRefresh() {
 			encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_pack.srcFilePaths()...)
 		}
 	}
@@ -201,7 +201,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 }
 
 func (me *SrcPack) srcFilePaths() []string {
-	return sl.As(sl.Where(me.Files, func(it *SrcFile) bool { return !it.isReplish() }),
+	return sl.As(sl.Where(me.Files, func(it *SrcFile) bool { return !it.IsInterpFauxFile() }),
 		func(it *SrcFile) string { return it.FilePath })
 }
 

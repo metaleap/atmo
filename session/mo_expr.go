@@ -227,7 +227,7 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	return me.Val == to.Val
 }
 
-func (me *Interp) Cmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *SrcFileNotice) {
+func (me *Interp) ExprCmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *SrcFileNotice) {
 	switch it := it.Val.(type) {
 	case MoValChar:
 		if other, is := to.Val.(MoValChar); is {
@@ -276,8 +276,12 @@ func (me *Interp) exprBool(b bool, srcSpanCtx ...*MoExpr) *MoExpr {
 	return me.exprFrom(util.If(b, moValTrue, moValFalse), srcSpanCtx...)
 }
 
-func (me *Interp) isSetCall(expr *MoExpr) (ret bool) {
-	ret, _ = me.checkIsCallOnIdent(expr, moPrimOpSet, -1)
+func (me *Interp) isSetCall(expr *MoExpr) (ret MoValIdent) {
+	if is, _ := me.checkIsCallOnIdent(expr, moPrimOpSet, -1); is {
+		if call := expr.Val.(MoValCall); len(call) > 1 {
+			ret, _ = call[1].Val.(MoValIdent)
+		}
+	}
 	return
 }
 
@@ -358,37 +362,37 @@ func MoValToString(it MoVal) string {
 	return buf.String()
 }
 
-func (me *Interp) ParseExpr(src string) (*MoExpr, *SrcFileNotice) {
-	me.ReplFauxFile.Src.Ast, me.ReplFauxFile.Src.Toks, me.ReplFauxFile.Src.Text = nil, nil, src
-	toks, errs := tokenize(me.ReplFauxFile.FilePath, src)
+func (me *Interp) ExprParse(src string) (*MoExpr, *SrcFileNotice) {
+	me.FauxFile.Src.Ast, me.FauxFile.Src.Toks, me.FauxFile.Src.Text = nil, nil, src
+	toks, errs := tokenize(me.FauxFile.FilePath, src)
 	if len(errs) > 0 {
 		return nil, errs[0]
 	}
-	me.ReplFauxFile.Src.Toks = toks
-	me.ReplFauxFile.Src.Ast = me.ReplFauxFile.parse()
-	for _, diag := range me.ReplFauxFile.allNotices() {
+	me.FauxFile.Src.Toks = toks
+	me.FauxFile.Src.Ast = me.FauxFile.parse()
+	for _, diag := range me.FauxFile.allNotices() {
 		if diag.Kind == NoticeKindErr {
 			return nil, diag
 		}
 	}
-	if me.ReplFauxFile.Src.Ast = me.ReplFauxFile.Src.Ast.withoutComments(); len(me.ReplFauxFile.Src.Ast) > 1 {
-		return nil, me.ReplFauxFile.Src.Ast.newDiagErr(me.ReplFauxFile, NoticeCodeExpectedFoo, str.Fmt("a single expression only, rather than %d", len(me.ReplFauxFile.Src.Ast)))
-	} else if (len(me.ReplFauxFile.Src.Ast) == 0) || (len(me.ReplFauxFile.Src.Ast[0].Nodes) == 0) {
+	if me.FauxFile.Src.Ast = me.FauxFile.Src.Ast.withoutComments(); len(me.FauxFile.Src.Ast) > 1 {
+		return nil, me.FauxFile.Src.Ast.newDiagErr(me.FauxFile, NoticeCodeExpectedFoo, str.Fmt("a single expression only, rather than %d", len(me.FauxFile.Src.Ast)))
+	} else if (len(me.FauxFile.Src.Ast) == 0) || (len(me.FauxFile.Src.Ast[0].Nodes) == 0) {
 		return nil, nil
 	}
 
-	expr, err := me.ReplFauxFile.ExprFromAstNode(me.ReplFauxFile.Src.Ast[0])
+	expr, err := me.FauxFile.MoExprFromAstNode(me.FauxFile.Src.Ast[0])
 	if err != nil {
 		return nil, err
 	}
 	return expr, nil
 }
 
-func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
+func (me *SrcFile) MoExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
 	if topNode.Kind == AstNodeKindComment || topNode.Kind == AstNodeKindErr {
 		return nil, nil
 	}
-	util.Assert(topNode.Kind == AstNodeKindGroup, len(topNode.Nodes))
+	util.Assert(topNode.Kind == AstNodeKindBlock, len(topNode.Nodes))
 	nodes := topNode.Nodes.withoutComments()
 	if len(nodes) == 0 {
 		return nil, nil
@@ -396,10 +400,10 @@ func (me *SrcFile) ExprFromAstNode(topNode *AstNode) (*MoExpr, *SrcFileNotice) {
 	if len(nodes) > 1 {
 		nodes = AstNodes{nodes.toGroupNode(me, topNode, true, false)}
 	}
-	return me.exprFromAstNode(nodes[0])
+	return me.moExprFromAstNode(nodes[0])
 }
 
-func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
+func (me *SrcFile) moExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	var val MoVal
 	switch node.Kind {
 	case AstNodeKindErr:
@@ -429,7 +433,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 		case node.IsSquareBrackets():
 			list := make(MoValList, 0, len(node.Nodes))
 			for _, node := range node.Nodes.withoutComments() {
-				expr, err := me.exprFromAstNode(node)
+				expr, err := me.moExprFromAstNode(node)
 				if err != nil {
 					return nil, err
 				}
@@ -445,11 +449,11 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 				} else if len(nodes_of_pair) != 2 {
 					return nil, kv_node.newDiagErr(false, NoticeCodeAtmoTodo, str.Fmt("new dict parsing bug: KV node has len %d with kind %d", len(nodes_of_pair), kv_node.Kind))
 				}
-				expr_key, err := me.exprFromAstNode(nodes_of_pair[0])
+				expr_key, err := me.moExprFromAstNode(nodes_of_pair[0])
 				if err != nil {
 					return nil, err
 				}
-				expr_val, err := me.exprFromAstNode(nodes_of_pair[1])
+				expr_val, err := me.moExprFromAstNode(nodes_of_pair[1])
 				if err != nil {
 					return nil, err
 				}
@@ -462,7 +466,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 		default:
 			nodes := node.Nodes.withoutComments()
 			if len(nodes) == 1 {
-				return me.exprFromAstNode(nodes[0])
+				return me.moExprFromAstNode(nodes[0])
 			} else if len(nodes) == 0 {
 				return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression inside these empty parens")
 			}
@@ -471,7 +475,7 @@ func (me *SrcFile) exprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			start_line := nodes[0].Toks.Span().Start.Line
 			var gather MoExprs
 			for _, node := range nodes {
-				expr, err := me.exprFromAstNode(node)
+				expr, err := me.moExprFromAstNode(node)
 				if err != nil {
 					return nil, err
 				}

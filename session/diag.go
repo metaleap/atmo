@@ -114,7 +114,6 @@ func errToNotice(err error, code SrcFileNoticeCode, span SrcFileSpan) *SrcFileNo
 }
 
 func (me *SrcFile) allNotices() (ret SrcFileNotices) {
-	has_brace_errs := me.Src.Ast.hasBraceErrors()
 	if me.notices.LastReadErr != nil {
 		ret.Add(me.notices.LastReadErr)
 	}
@@ -124,7 +123,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 			ret.Add(node.errParsing)
 		}
 	})
-	if !has_brace_errs {
+	if len(ret) == 0 {
 		ret.Add(me.notices.PreSema...)
 		add := func(it *MoExpr) {
 			ret.Add(it.Diag.NonErrNotices...)
@@ -139,7 +138,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 }
 
 // callers have already `sharedState.Lock`ed.
-// `force` is ONLY for repl-reset use-case (fully reload pack), NOT to circumvent any diags-refr/pub bugs for LSP clients!
+// `force` is ONLY for repl-reset use-case (fully reload pack), NOT to work around any possible/future diags-refresh/diags-pub bugs for LSP clients!
 func refreshAndPublishNotices(force bool, provokingFilePaths ...string) {
 	if (len(provokingFilePaths) == 0) && !force {
 		return
