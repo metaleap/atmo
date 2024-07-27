@@ -93,7 +93,7 @@ func (me *SrcFileNotice) equals(it *SrcFileNotice) bool {
 }
 
 func (me *SrcFileNotice) Error() string  { return me.String() }
-func (me *SrcFileNotice) String() string { return util.JsonFrom(me) }
+func (me *SrcFileNotice) String() string { return str.Fmt("[%s] %s", me.Code, me.Message) }
 
 func (me *SrcFileNotice) LocStr(srcFilePath string) string {
 	if tmp, err := filepath.Rel(".", srcFilePath); (srcFilePath != "") && (err != nil) && (tmp != "") {

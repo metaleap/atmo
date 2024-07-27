@@ -1,8 +1,6 @@
 package session
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	"atmo/util"
@@ -39,9 +37,7 @@ func init() {
 	}
 	moPrimOpsEager = map[MoValIdent]moFnEager{
 		"@replEnv":     (*Interp).primFnSessEnv,
-		"@replPrintf":  (*Interp).primFnSessPrintf,
 		"@replPrint":   (*Interp).primFnSessPrint,
-		"@replPrintln": (*Interp).primFnSessPrintln,
 		"@replReset":   (*Interp).primFnSessReset,
 		"@numIntAdd":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) + opr.(MoValNumInt) }),
 		"@numIntSub":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) - opr.(MoValNumInt) }),
@@ -389,28 +385,6 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) *MoExpr {
 	return ret
 }
 
-func (me *Interp) primFnSessPrintf(_ *MoEnv, args ...*MoExpr) *MoExpr {
-	if err := me.checkCount(2, 2, args); err != nil {
-		return me.exprNever(err)
-	}
-	if err := me.checkArgErrs(args...); err != nil {
-		return err
-	}
-	if err := me.checkIs(MoPrimTypeStr, args[0]); err != nil {
-		return me.exprNever(err)
-	}
-	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
-		return me.exprNever(err)
-	}
-	list := args[1].Val.(MoValList)
-	fmt_args := make([]any, 0, len(list))
-	for _, arg := range list {
-		fmt_args = append(fmt_args, arg.Val)
-	}
-	fmt.Fprintf(InterpStdout, string(args[0].Val.(MoValStr)), fmt_args...)
-	return me.exprFrom(moValNone, args...)
-}
-
 func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
@@ -425,15 +399,6 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		args[0].WriteTo(InterpStdout)
 	}
 	return me.exprFrom(moValNone, args...)
-}
-
-func (me *Interp) primFnSessPrintln(env *MoEnv, args ...*MoExpr) *MoExpr {
-	expr := me.primFnSessPrint(env, args...)
-	if !expr.IsErr() {
-		InterpStdout.WriteString("\n")
-	}
-	os.Stdout.Sync()
-	return expr
 }
 
 func (me *Interp) primFnListLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -766,7 +731,12 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		return me.exprFrom(convertee)
 	}
 	if err_val, is := convertee.Val.(MoValErr); is {
-		convertee = err_val.ErrVal
+		switch it := err_val.ErrVal.(type) {
+		case *MoExpr:
+			convertee = it
+		case *SrcFileNotice:
+			convertee = me.expr(MoValStr(it.String()), convertee.SrcFile, convertee.SrcSpan, args...)
+		}
 	}
 	var ret MoVal
 	switch convert_to {
@@ -847,13 +817,14 @@ func (me *Interp) primFnErrVal(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprNever(err)
 	}
-	// if err := me.checkArgErrs(args...); err != nil {
-	// 	return err
-	// }
 	if err := me.checkIs(MoPrimTypeErr, args[0]); err != nil {
 		return me.exprNever(err, args[0])
 	}
-	return me.expr(args[0].Val.(MoValErr).ErrVal.Val, nil, nil, args...)
+	err_val := args[0].Val.(MoValErr).ErrVal
+	if diag, is := err_val.(*SrcFileNotice); is {
+		return me.expr(MoValStr(diag.String()), args[0].SrcFile, args[0].SrcSpan, args...)
+	}
+	return me.exprFrom(err_val.(*MoExpr), args...)
 }
 
 func (me *Interp) primFnSessReset(_ *MoEnv, args ...*MoExpr) *MoExpr {

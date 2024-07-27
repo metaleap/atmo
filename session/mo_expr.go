@@ -90,7 +90,7 @@ type MoValNumUint uint64
 type MoValNumFloat float64
 type MoValChar rune
 type MoValStr string
-type MoValErr struct{ ErrVal *MoExpr }
+type MoValErr struct{ ErrVal any }
 type MoValDict [][2]*MoExpr
 type MoValList MoExprs
 type MoValCall MoExprs
@@ -199,7 +199,17 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	switch it := me.Val.(type) {
 	case MoValErr:
 		other := to.Val.(MoValErr)
-		return it.ErrVal.Eq(other.ErrVal)
+		expr1, is1 := it.ErrVal.(*MoExpr)
+		expr2, is2 := other.ErrVal.(*MoExpr)
+		if is1 && is2 {
+			return expr1.Eq(expr2)
+		}
+		diag1, is1 := it.ErrVal.(*SrcFileNotice)
+		diag2, is2 := other.ErrVal.(*SrcFileNotice)
+		if is1 && is2 {
+			return (diag1 == diag2) || (*diag1 == *diag2)
+		}
+		return it.ErrVal == other.ErrVal
 	case MoValList:
 		other := to.Val.(MoValList)
 		return sl.Eq(it, other, (*MoExpr).Eq)
@@ -316,7 +326,12 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		w.WriteString(str.Q(string(it)))
 	case MoValErr:
 		w.WriteString("(@Err ")
-		it.ErrVal.WriteTo(w)
+		switch err_val := it.ErrVal.(type) {
+		case *MoExpr:
+			err_val.WriteTo(w)
+		case *SrcFileNotice:
+			w.WriteString(str.Q(err_val.String()))
+		}
 		w.WriteString(")")
 	case MoValDict:
 		w.WriteString("{")
@@ -558,7 +573,10 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 			pair[1].Walk(onBefore, onAfter)
 		}
 	case MoValErr:
-		it.ErrVal.Walk(onBefore, onAfter)
+		switch err_val := it.ErrVal.(type) {
+		case *MoExpr:
+			err_val.Walk(onBefore, onAfter)
+		}
 	case *MoValFnLam:
 		for _, item := range it.Params {
 			item.Walk(onBefore, onAfter)

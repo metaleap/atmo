@@ -81,7 +81,17 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 									ret.Nodes = append(ret.Nodes, node)
 								}
 							case session.MoValErr:
-								ret.Nodes = append(ret.Nodes, convert(it.ErrVal))
+								node := moNode{PrimTypeTag: session.MoPrimTypeErr}
+								switch err_val := it.ErrVal.(type) {
+								case *session.MoExpr:
+									node.Nodes = append(node.Nodes, convert(err_val))
+								case *session.SrcFileNotice:
+									node.Nodes = append(node.Nodes, convert(&session.MoExpr{SrcSpan: expr.SrcSpan, SrcFile: expr.SrcFile, Val: session.MoValStr(err_val.String())}))
+								}
+								node.ClientInfo.SrcFilePath = node.Nodes[0].ClientInfo.SrcFilePath
+								node.ClientInfo.SrcFileSpan = node.Nodes[0].ClientInfo.SrcFileSpan.Expanded(node.Nodes[1].ClientInfo.SrcFileSpan)
+								node.ClientInfo.SrcFileText = node.Nodes[0].ClientInfo.SrcFileText + ": " + node.Nodes[1].ClientInfo.SrcFileText
+								ret.Nodes = append(ret.Nodes, &node)
 							case *session.MoValFnLam:
 								param_nodes := sl.As(it.Params, convert)
 								ret.Nodes = append(ret.Nodes, &moNode{PrimTypeTag: session.MoPrimTypeFunc, Nodes: param_nodes}, convert(it.Body))
