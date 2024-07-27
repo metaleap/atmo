@@ -75,6 +75,7 @@ func init() {
 		"@dictWithout": (*Interp).primFnDictWithout,
 		"@dictLen":     (*Interp).primFnDictLen,
 		"@errNew":      (*Interp).primFnErrNew,
+		"@errVal":      (*Interp).primFnErrVal,
 		"@strConcat":   (*Interp).primFnStrConcat,
 		"@strLen":      (*Interp).primFnStrLen,
 		"@strCharAt":   (*Interp).primFnStrCharAt,
@@ -765,7 +766,7 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		return me.exprFrom(convertee)
 	}
 	if err_val, is := convertee.Val.(MoValErr); is {
-		convertee = err_val.Err
+		convertee = err_val.ErrVal
 	}
 	var ret MoVal
 	switch convert_to {
@@ -777,7 +778,7 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 			ret = MoValChar(rune(int32(it)))
 		}
 	case MoPrimTypeErr:
-		ret = MoValErr{Err: convertee}
+		ret = MoValErr{ErrVal: convertee}
 	case MoPrimTypeIdent:
 		switch it := convertee.Val.(type) {
 		case MoValStr:
@@ -833,7 +834,26 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 }
 
 func (me *Interp) primFnErrNew(_ *MoEnv, args ...*MoExpr) *MoExpr {
-	return nil
+	if err := me.checkCount(1, 1, args); err != nil {
+		return me.exprNever(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	return me.expr(MoValErr{ErrVal: args[0]}, nil, nil, args...)
+}
+
+func (me *Interp) primFnErrVal(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return me.exprNever(err)
+	}
+	// if err := me.checkArgErrs(args...); err != nil {
+	// 	return err
+	// }
+	if err := me.checkIs(MoPrimTypeErr, args[0]); err != nil {
+		return me.exprNever(err, args[0])
+	}
+	return me.expr(args[0].Val.(MoValErr).ErrVal.Val, nil, nil, args...)
 }
 
 func (me *Interp) primFnSessReset(_ *MoEnv, args ...*MoExpr) *MoExpr {

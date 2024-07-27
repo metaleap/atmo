@@ -90,7 +90,7 @@ type MoValNumUint uint64
 type MoValNumFloat float64
 type MoValChar rune
 type MoValStr string
-type MoValErr struct{ Err *MoExpr }
+type MoValErr struct{ ErrVal *MoExpr }
 type MoValDict [][2]*MoExpr
 type MoValList MoExprs
 type MoValCall MoExprs
@@ -199,7 +199,7 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	switch it := me.Val.(type) {
 	case MoValErr:
 		other := to.Val.(MoValErr)
-		return it.Err.Eq(other.Err)
+		return it.ErrVal.Eq(other.ErrVal)
 	case MoValList:
 		other := to.Val.(MoValList)
 		return sl.Eq(it, other, (*MoExpr).Eq)
@@ -316,7 +316,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		w.WriteString(str.Q(string(it)))
 	case MoValErr:
 		w.WriteString("(@Err ")
-		it.Err.WriteTo(w)
+		it.ErrVal.WriteTo(w)
 		w.WriteString(")")
 	case MoValDict:
 		w.WriteString("{")
@@ -558,7 +558,7 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 			pair[1].Walk(onBefore, onAfter)
 		}
 	case MoValErr:
-		it.Err.Walk(onBefore, onAfter)
+		it.ErrVal.Walk(onBefore, onAfter)
 	case *MoValFnLam:
 		for _, item := range it.Params {
 			item.Walk(onBefore, onAfter)
