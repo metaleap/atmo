@@ -61,12 +61,12 @@ func (me *Interp) replReset() {
 		allNotices = map[string]sl.Of[*SrcFileNotice]{}
 		me.ClearStackTrace()
 		me.envReset()
-		me.Pack.Interp, me.Pack.Sema.Pre = me, nil
+		me.Pack.Interp, me.Pack.Trees.AstToMo, me.Pack.Trees.MoEvaled = me, nil, nil
 		for _, src_file := range me.Pack.Files {
-			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.PreSema, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
+			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.AstToMo, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
 				nil, nil, nil, nil, nil, ""
 		}
-		_ = ensureSrcFiles(nil, false, me.Pack.srcFilePaths()...) // does refreshSema too
+		_ = ensureSrcFiles(nil, false, me.Pack.srcFilePaths()...) // does `SrcPack.treesRefresh()` too
 		refreshAndPublishNotices(true, me.Pack.srcFilePaths()...)
 	})
 }
@@ -75,7 +75,7 @@ func (me *Interp) ClearStackTrace() {
 	me.SubCallListing.Last = me.SubCallListing.Last[:0] // keeps currently-already-alloc'd capacity, for reduced GC churn and reduced alloc times
 }
 
-func (me *Interp) ExprEval(expr *MoExpr, forSema bool) *MoExpr {
+func (me *Interp) ExprEval(expr *MoExpr) *MoExpr {
 	me.ClearStackTrace()
 	me.diagCtxCall = nil
 	if expr == nil {
@@ -168,7 +168,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 	case MoValIdent:
 		if (val[0] != '@') || (moPrimIdents[val] == nil) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
 			owner_env, found := env.lookupOwner(val)
-			if (found != nil) && (found.Sema != nil) && found.Sema.topLevelPreEnvUnevaled { // top-level @set was put unevaled into env under the name it has yet to set
+			if (found != nil) && found.PreEvalTopLevelPreEnvUnevaledYet { // top-level @set was put unevaled into env under the name it has yet to set
 				_ = me.evalAndApply(owner_env, found) // eval that @set call, to put the actual value for the name in env instead, return is ignored because it's just @none or an @Err
 				found = env.lookup(val)
 			}

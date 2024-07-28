@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval", "pkgsFsRefresh", "getSrcPkgs",
-		"getSrcFileToks", "getSrcFileAst"}
+	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval",
+		"packsFsRefresh", "getSrcPacks", "getSrcFileToks", "getSrcFileAst", "getSrcPackMoOrig", "getSrcPackMoSem"}
 	Server.On_workspace_executeCommand = executeCommand
 }
 
@@ -32,16 +32,16 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			ret, err = str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.LspUriToFsPath(code_action_params.TextDocument.Uri)), err_json
 		}
 
-	case "pkgsFsRefresh":
+	case "packsFsRefresh":
 		session.LockedDo(session.StateAccess.PacksFsRefresh)
 
-	case "getSrcPkgs":
+	case "getSrcPacks":
 		session.LockedDo(func(sess session.StateAccess) {
 			ret = sess.AllCurrentSrcPacks()
 		})
 
-	case "getSrcPkgMoPre", "getSrcPkgMoPost":
-		is_post := (params.Command == "getSrcPkgMoPost")
+	case "getSrcPackMoOrig", "getSrcPackMoSem":
+		is_post := (params.Command == "getSrcPackMoSem")
 		type moNode struct {
 			PrimTypeTag session.MoValPrimType
 			Nodes       []*moNode
@@ -56,7 +56,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.LockedDo(func(sess session.StateAccess) {
-					if src_pkg := sess.GetSrcPack(filepath.Dir(src_file_path), true); src_pkg != nil {
+					if src_pack := sess.GetSrcPack(filepath.Dir(src_file_path), true); src_pack != nil {
 						var convert func(*session.MoExpr) *moNode
 						convert = func(expr *session.MoExpr) *moNode {
 							ret := moNode{PrimTypeTag: expr.Val.PrimType()}
@@ -111,7 +111,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							return &ret
 						}
 						var top_level []*moNode
-						for _, top_expr := range util.If(is_post, src_pkg.Sema.Post, src_pkg.Sema.Pre).Sorted() {
+						for _, top_expr := range util.If(is_post, src_pack.Trees.MoEvaled, src_pack.Trees.AstToMo).Sorted() {
 							top_level = append(top_level, convert(top_expr))
 						}
 						ret = top_level

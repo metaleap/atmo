@@ -171,9 +171,9 @@ type MoExpr struct {
 	Diag struct {
 		Err *SrcFileNotice
 	}
-	SrcSpan *SrcFileSpan // caution: `nil` for prims / builtins
-	SrcFile *SrcFile     // dito
-	Sema    *SemaExpr
+	SrcSpan                          *SrcFileSpan // caution: `nil` for prims / builtins
+	SrcFile                          *SrcFile     // dito
+	PreEvalTopLevelPreEnvUnevaledYet bool
 }
 
 func (me *MoExpr) srcNode() *AstNode {
@@ -394,7 +394,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 	case AstNodeKindComment:
 		return nil, nil
 	case AstNodeKindErr:
-		return nil, node.newDiagErr(false, NoticeCodeAtmoTodo, "newly introduced post-parsing/pre-sema bug (encountered error AST node, when the idea is not to run this at all with any such present in AST)")
+		return nil, node.newDiagErr(false, NoticeCodeAtmoTodo, "newly introduced ast2mo bug (encountered error AST node, when the idea is not to run this at all with any such present in AST)")
 	case AstNodeKindIdent:
 		if node.IsIdentSepish() {
 			return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression instead of `"+node.Src+"` here")

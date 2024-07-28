@@ -494,7 +494,7 @@ func (me AstNodes) withoutComments() AstNodes {
 	return sl.Where(me, func(it *AstNode) bool { return it.Kind != AstNodeKindComment })
 }
 
-// any basic syntax errs from the lexing or parsing stages preclude a sema refresh (the prior sema is kept)
-func (me *SrcFile) HasSemaPrecludingErrs() bool {
+// any basic syntax errs from the lexing or parsing stages preclude a `SrcPack.treesRefresh` (the prior trees are kept)
+func (me *SrcFile) HasMoPrecludingErrs() bool {
 	return (me.notices.LastReadErr != nil) || (len(me.notices.LexErrs) > 0) || me.Src.Ast.AnyErrs()
 }

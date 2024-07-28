@@ -126,14 +126,14 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 		}
 	})
 	if len(ret) == 0 {
-		ret.Add(me.notices.PreSema...)
+		ret.Add(me.notices.AstToMo...)
 		add := func(it *MoExpr) {
 			if it.Diag.Err != nil {
 				ret.Add(it.Diag.Err)
 			}
 		}
-		me.pack.Sema.Pre.Walk(me, nil, add)
-		me.pack.Sema.Post.Walk(me, nil, add)
+		me.pack.Trees.AstToMo.Walk(me, nil, add)
+		me.pack.Trees.MoEvaled.Walk(me, nil, add)
 	}
 	return
 }

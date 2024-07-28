@@ -20,7 +20,9 @@ var (
 )
 
 func Main() {
-	os.Stdout.WriteString("(For line-editing, remember to run `atmo repl` with `rlwrap` or similar.)\n\n")
+	if !checkHaveLineEditing() {
+		os.Stdout.WriteString("(For line-editing, remember to run `atmo repl` with `rlwrap` or similar.)\n\n")
+	}
 
 	var sess_msgs []string
 	var mutex sync.Mutex
@@ -83,14 +85,14 @@ func Main() {
 		interp.ClearStackTrace()
 		expr, diag := interp.ExprParse(string(line))
 		if (diag == nil) && (expr != nil) {
-			if expr = interp.ExprEval(expr, false); expr != nil {
+			if expr = interp.ExprEval(expr); expr != nil {
 				if diag = expr.Err(); diag != nil {
 					expr = nil
 				} else if fn, _ := expr.Val.(session.MoValFnPrim); fn != nil {
 					// REPL-only convenience: Eval nilary builtin prim funcs, handy for @replReset, @replEnv etc
 					src_span := util.Ptr(interp.FauxFile.Span())
 					call := &session.MoExpr{Val: session.MoValCall{&session.MoExpr{Val: fn, SrcSpan: src_span, SrcFile: interp.FauxFile}}, SrcSpan: src_span, SrcFile: interp.FauxFile}
-					if result := interp.ExprEval(call, false); (result != nil) && (result.Err() == nil) {
+					if result := interp.ExprEval(call); (result != nil) && (result.Err() == nil) {
 						expr = result
 					}
 				}
@@ -121,11 +123,21 @@ func diagMsg(srcFilePath string, diag *session.SrcFileNotice) string {
 	icon := '☕'
 	switch diag.Kind {
 	case session.NoticeKindErr:
-		icon = '⛔'
+		icon = '🔥'
 	case session.NoticeKindWarn:
-		icon = '⚠'
+		icon = '🤯'
 	default:
 		icon = '💡'
 	}
 	return fmt.Sprintf("%s %s: [%s] %s", string(icon), diag.LocStr(srcFilePath), diag.Code, diag.Message)
+}
+
+func checkHaveLineEditing() bool {
+	matches, _ := filepath.Glob("/proc/*/exe")
+	for _, file := range matches {
+		if target, _ := os.Readlink(file); (len(target) > 0) && str.Ends(target, "/rlwrap") {
+			return true
+		}
+	}
+	return false
 }

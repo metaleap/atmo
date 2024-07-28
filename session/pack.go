@@ -12,14 +12,14 @@ import (
 type SrcPack struct {
 	DirPath string
 	Files   []*SrcFile
-	Interp  *Interp
-	Sema    struct {
-		Pre  MoExprs
-		Post MoExprs
-		last struct {
+	Interp  *Interp `json:"-"`
+	Trees   struct {
+		AstToMo  MoExprs
+		MoEvaled MoExprs
+		last     struct {
 			files map[string]string
 		}
-	}
+	} `json:"-"`
 }
 
 type SrcFile struct {
@@ -33,7 +33,7 @@ type SrcFile struct {
 	notices struct {
 		LastReadErr *SrcFileNotice
 		LexErrs     SrcFileNotices
-		PreSema     SrcFileNotices
+		AstToMo     SrcFileNotices
 	}
 }
 
@@ -95,7 +95,7 @@ func removeSrcFiles(srcFilePaths ...string) {
 	}
 	for _, src_pack := range packs_encountered {
 		pack_file_paths = append(pack_file_paths, src_pack.srcFilePaths()...)
-		src_pack.semaRefresh()
+		src_pack.treesRefresh()
 	}
 	refreshAndPublishNotices(false, append(pack_file_paths, srcFilePaths...)...)
 }
@@ -130,7 +130,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 			src_file.pack = state.srcPacks[pack_dir_path]
 			if src_file.pack == nil {
 				src_file.pack = &SrcPack{DirPath: pack_dir_path}
-				src_file.pack.Sema.last.files = map[string]string{}
+				src_file.pack.Trees.last.files = map[string]string{}
 				state.srcPacks[pack_dir_path] = src_file.pack
 			}
 			src_file.pack.Files = sl.With(src_file.pack.Files, src_file)
@@ -153,11 +153,11 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 
 		if (src_file.Src.Text != old_content) || had_last_read_err || (src_file.notices.LastReadErr != nil) {
 			old_ast := src_file.Src.Ast
-			had_errs := (len(src_file.notices.LexErrs) > 0) || (len(src_file.notices.PreSema) > 0) || src_file.Src.Ast.has(true, func(node *AstNode) bool { return node.Kind == AstNodeKindErr })
+			had_errs := (len(src_file.notices.LexErrs) > 0) || (len(src_file.notices.AstToMo) > 0) || src_file.Src.Ast.has(true, func(node *AstNode) bool { return node.Kind == AstNodeKindErr })
 			if had_errs {
 				flag_for_diags_refr()
 			}
-			src_file.Src.Ast, src_file.Src.Toks, src_file.notices.LexErrs, src_file.notices.PreSema = nil, nil, nil, nil
+			src_file.Src.Ast, src_file.Src.Toks, src_file.notices.LexErrs, src_file.notices.AstToMo = nil, nil, nil, nil
 			if src_file.notices.LastReadErr != nil {
 				flag_for_diags_refr()
 			} else {
@@ -193,7 +193,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 	}
 
 	for src_pack := range packs_to_refresh {
-		if src_pack.semaRefresh() {
+		if src_pack.treesRefresh() {
 			encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_pack.srcFilePaths()...)
 		}
 	}

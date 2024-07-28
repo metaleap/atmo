@@ -9,36 +9,36 @@ import (
 	"atmo/util/str"
 )
 
-func (me *SrcPack) semaRefresh() (encounteredDiagsRelevantChanges bool) {
-	if me.semaRefreshCanSkip() {
+func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
+	if me.treesRefreshCanSkip() {
 		return
 	}
 	defer func(timeStarted time.Time) {
-		OnLogMsg(true, "SEMA %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
+		OnLogMsg(true, "TR %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
 	}(time.Now())
 
 	var top_level MoExprs
 	var any_pre_errs bool
 	for _, src_file := range me.Files {
 		if !src_file.IsInterpFauxFile() {
-			had_errs := (len(src_file.notices.PreSema) > 0)
-			src_file.notices.PreSema = nil
+			had_errs := (len(src_file.notices.AstToMo) > 0)
+			src_file.notices.AstToMo = nil
 			for _, top_node := range src_file.Src.Ast {
 				expr, err := src_file.MoExprFromAstNode(top_node)
 				if err != nil {
-					src_file.notices.PreSema = append(src_file.notices.PreSema, err)
+					src_file.notices.AstToMo = append(src_file.notices.AstToMo, err)
 				} else if expr != nil {
 					top_level = append(top_level, expr)
 				}
 			}
-			any_pre_errs = any_pre_errs || (len(src_file.notices.PreSema) > 0)
-			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.PreSema) > 0) || had_errs
+			any_pre_errs = any_pre_errs || (len(src_file.notices.AstToMo) > 0)
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.AstToMo) > 0) || had_errs
 		}
 	}
-	me.Sema.Pre = top_level
+	me.Trees.AstToMo = top_level
 
-	old_had_errs := me.Sema.Post.AnyErrs()
-	if any_pre_errs && !old_had_errs { // bug out & leave the old `.Sema.Post` intact in this case, for editor clients
+	old_had_errs := me.Trees.MoEvaled.AnyErrs()
+	if any_pre_errs && !old_had_errs { // bug out & leave the old `.Trees.MoEvaled` intact in this case, for editor clients
 		return
 	}
 
@@ -47,47 +47,47 @@ func (me *SrcPack) semaRefresh() (encounteredDiagsRelevantChanges bool) {
 		util.Assert(me.Interp != nil, nil)
 	}
 
-	me.Sema.Post = nil
+	me.Trees.MoEvaled = nil
 	me.Interp.envReset()
-	// first, handle top-level `@set` exprs: we add them to env but un-evaled, just so sema evals will find them
-	for _, top_expr := range me.Sema.Pre {
+	// first, handle top-level `@set` exprs: we add them to env but un-evaled, just so ident evals (env lookups) will find them (and eval them)
+	for _, top_expr := range me.Trees.AstToMo {
 		if ident := me.Interp.isSetCall(top_expr); ident != "" {
 			dup := *top_expr
-			dup.Sema = &SemaExpr{topLevelPreEnvUnevaled: true}
+			dup.PreEvalTopLevelPreEnvUnevaledYet = true
 			me.Interp.Env.set(ident, &dup)
 		}
 	}
-	// now, we sema
-	for _, top_expr := range me.Sema.Pre {
+	// now, we eval
+	for _, top_expr := range me.Trees.AstToMo {
 		dup := *top_expr
-		if evaled := me.Interp.ExprEval(&dup, true); evaled != nil {
-			me.Sema.Post = append(me.Sema.Post, evaled)
+		if evaled := me.Interp.ExprEval(&dup); evaled != nil {
+			me.Trees.MoEvaled = append(me.Trees.MoEvaled, evaled)
 			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs()
 		}
 	}
-	encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_errs || me.Sema.Post.AnyErrs()
+	encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_errs || me.Trees.MoEvaled.AnyErrs()
 	return
 }
 
-func (me *SrcPack) semaRefreshCanSkip() bool {
+func (me *SrcPack) treesRefreshCanSkip() bool {
 	cur_paths := me.srcFilePaths()
-	can_skip := (len(cur_paths) == len(me.Sema.last.files))
+	can_skip := (len(cur_paths) == len(me.Trees.last.files))
 	if can_skip {
 		cur_paths := cur_paths
 		for _, path := range cur_paths {
-			if _, ok := me.Sema.last.files[path]; !ok {
+			if _, ok := me.Trees.last.files[path]; !ok {
 				can_skip = false
 				break
 			}
 		}
-		for path := range me.Sema.last.files {
+		for path := range me.Trees.last.files {
 			if can_skip && !sl.Has(cur_paths, path) {
 				can_skip = false
 				break
 			}
 		}
 		for _, src_file := range me.Files {
-			if can_skip && (!src_file.IsInterpFauxFile()) && (me.Sema.last.files[src_file.FilePath] != util.ContentHash(src_file.Src.Text)) {
+			if can_skip && (!src_file.IsInterpFauxFile()) && (me.Trees.last.files[src_file.FilePath] != util.ContentHash(src_file.Src.Text)) {
 				can_skip = false
 				break
 			}
@@ -95,17 +95,17 @@ func (me *SrcPack) semaRefreshCanSkip() bool {
 	}
 	if !can_skip {
 		for _, src_file := range me.Files {
-			if (!src_file.IsInterpFauxFile()) && src_file.HasSemaPrecludingErrs() {
+			if (!src_file.IsInterpFauxFile()) && src_file.HasMoPrecludingErrs() {
 				can_skip = true
 				break
 			}
 		}
 	}
 	if !can_skip {
-		me.Sema.last.files = map[string]string{}
+		me.Trees.last.files = map[string]string{}
 		for _, src_file := range me.Files {
 			if !src_file.IsInterpFauxFile() {
-				me.Sema.last.files[src_file.FilePath] = util.ContentHash(src_file.Src.Text)
+				me.Trees.last.files[src_file.FilePath] = util.ContentHash(src_file.Src.Text)
 			}
 		}
 	}
@@ -127,8 +127,4 @@ func (me MoExprs) Sorted() MoExprs {
 		// we shouldn't really ever get to here, since we only sort top-level exprs and there are no two of them on the same line in the same file
 		return cmp.Compare(node1.Toks[0].Pos.Char, node2.Toks[0].Pos.Char)
 	})
-}
-
-type SemaExpr struct {
-	topLevelPreEnvUnevaled bool
 }
