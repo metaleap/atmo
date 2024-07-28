@@ -29,7 +29,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 	case "eval":
 		if len(params.Arguments) == 1 {
 			code_action_params, err_json := util.JsonAs[lsp.CodeActionParams](params.Arguments[0])
-			ret, err = str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lsp.LspUriToFsPath(code_action_params.TextDocument.Uri)), err_json
+			ret, err = str.Fmt("TODO: summon le Eval overlord for '%s' @ %d,%d", lspUriToFsPath(code_action_params.TextDocument.Uri)), err_json
 		}
 
 	case "packsFsRefresh":

@@ -1,18 +1,5 @@
 package lsp
 
-import (
-	"atmo/session"
-	"atmo/util/str"
-)
-
-func LspUriToFsPath(lspUri string) string { return str.TrimPref(lspUri, "file://") }
-func LspPosToPos(lspPos *Position) session.SrcFilePos {
-	return session.SrcFilePos{Line: lspPos.Line + 1, Char: lspPos.Character + 1}
-}
-func LspRangeToSpan(lspRange *Range) session.SrcFileSpan {
-	return session.SrcFileSpan{Start: LspPosToPos(&lspRange.Start), End: LspPosToPos(&lspRange.End)}
-}
-
 type Position struct {
 	Line      int `json:"line"`
 	Character int `json:"character"`

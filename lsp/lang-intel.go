@@ -14,7 +14,7 @@ func init() {
 	Server.Lang.TriggerChars.Signature = []string{" "}
 
 	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) (ret []lsp.DocumentSymbol, _ error) {
-		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
 		session.Access(func(sess session.StateAccess, intel session.Intel) {
 			if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 				ret = sl.As(intel.Decls(nil, src_file, false, ""), toLspDocumentSymbol)
@@ -42,34 +42,49 @@ func init() {
 		return
 	}
 
-	Server.On_textDocument_definition = func(params *lsp.DefinitionParams) (any, error) {
-		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
+	Server.On_textDocument_definition = func(params *lsp.DefinitionParams) ([]lsp.Location, error) {
+		return intelLookup(session.IntelLookupKindDefs, &params.TextDocumentPositionParams), nil
 	}
 
-	Server.On_textDocument_declaration = func(params *lsp.DeclarationParams) (any, error) {
-		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
+	Server.On_textDocument_declaration = func(params *lsp.DeclarationParams) ([]lsp.Location, error) {
+		return intelLookup(session.IntelLookupKindDecls, &params.TextDocumentPositionParams), nil
 	}
 
-	Server.On_textDocument_typeDefinition = func(params *lsp.TypeDefinitionParams) (any, error) {
-		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
+	Server.On_textDocument_typeDefinition = func(params *lsp.TypeDefinitionParams) ([]lsp.Location, error) {
+		return intelLookup(session.IntelLookupKindTypes, &params.TextDocumentPositionParams), nil
 	}
 
-	Server.On_textDocument_implementation = func(params *lsp.ImplementationParams) (any, error) {
-		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
+	Server.On_textDocument_implementation = func(params *lsp.ImplementationParams) ([]lsp.Location, error) {
+		return intelLookup(session.IntelLookupKindImpls, &params.TextDocumentPositionParams), nil
 	}
 
-	Server.On_textDocument_references = func(params *lsp.ReferenceParams) (any, error) {
-		return dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), nil
+	Server.On_textDocument_references = func(params *lsp.ReferenceParams) ([]lsp.Location, error) {
+		return intelLookup(session.IntelLookupKindRefs, &params.TextDocumentPositionParams), nil
 	}
 
-	Server.On_textDocument_documentHighlight = func(params *lsp.DocumentHighlightParams) (any, error) {
-		return util.If(params.Position.Line > 0, nil, sl.As(dummyLocs(lsp.LspUriToFsPath(params.TextDocument.Uri)), func(it lsp.Location) lsp.DocumentHighlight {
-			return lsp.DocumentHighlight{Range: it.Range, Kind: lsp.DocumentHighlightKindText}
-		})), nil
+	Server.On_textDocument_documentHighlight = func(params *lsp.DocumentHighlightParams) (ret []lsp.DocumentHighlight, _ error) {
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
+		session.Access(func(sess session.StateAccess, intel session.Intel) {
+			if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+				for _, locs := range intel.Lookup(session.IntelLookupKindRefs, src_file, lspPosToPos(&params.Position), true) {
+					for i, span := range locs.Spans {
+						it := lsp.DocumentHighlight{Range: lspRangeFromSpan(span), Kind: lsp.DocumentHighlightKindText}
+						if (len(locs.IsGet) == len(locs.Spans)) && (locs.IsGet[i]) {
+							it.Kind = lsp.DocumentHighlightKindRead
+						}
+						if (len(locs.IsSet) == len(locs.Spans)) && (locs.IsSet[i]) {
+							it.Kind = lsp.DocumentHighlightKindWrite
+						}
+						ret = append(ret, it)
+					}
+				}
+			}
+		})
+		return
 	}
 
-	Server.On_textDocument_completion = func(params *lsp.CompletionParams) (any, error) {
-		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
+	Server.On_textDocument_completion = func(params *lsp.CompletionParams) ([]lsp.CompletionItem, error) {
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
 		return sl.As([]lsp.CompletionItemKind{
 			lsp.CompletionItemKindClass,
 			lsp.CompletionItemKindColor,
@@ -112,23 +127,23 @@ func init() {
 	}
 
 	Server.On_textDocument_hover = func(params *lsp.HoverParams) (*lsp.Hover, error) {
-		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
 		str := str.Fmt("**TODO** _Hover_ for `%s` @ %d,%d", src_file_path, params.Position.Line, params.Position.Character)
 		return &lsp.Hover{
 			Contents: lsp.MarkupContent{Kind: lsp.MarkupKindMarkdown, Value: str},
 		}, nil
 	}
 
-	Server.On_textDocument_prepareRename = func(params *lsp.PrepareRenameParams) (any, error) {
+	Server.On_textDocument_prepareRename = func(params *lsp.PrepareRenameParams) (*lsp.Range, error) {
 		// src_file_path := srcFilePath(params.TextDocument.Uri)
-		return lsp.Range{Start: params.Position, End: lsp.Position{Line: params.Position.Line, Character: 4 + params.Position.Character}}, nil
+		return &lsp.Range{Start: params.Position, End: lsp.Position{Line: params.Position.Line, Character: 4 + params.Position.Character}}, nil
 	}
 
-	Server.On_textDocument_rename = func(params *lsp.RenameParams) (any, error) {
-		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
-		return lsp.WorkspaceEdit{
+	Server.On_textDocument_rename = func(params *lsp.RenameParams) (*lsp.WorkspaceEdit, error) {
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
+		return &lsp.WorkspaceEdit{
 			Changes: map[string][]lsp.TextEdit{
-				lsp.FsPathToLspUri(src_file_path): {{
+				lspUriFromFsPath(src_file_path): {{
 					NewText: params.NewName,
 					Range:   lsp.Range{Start: params.Position, End: lsp.Position{Line: params.Position.Line, Character: 4 + params.Position.Character}},
 				}},
@@ -136,9 +151,9 @@ func init() {
 		}, nil
 	}
 
-	Server.On_textDocument_signatureHelp = func(params *lsp.SignatureHelpParams) (any, error) {
-		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
-		return lsp.SignatureHelp{
+	Server.On_textDocument_signatureHelp = func(params *lsp.SignatureHelpParams) (*lsp.SignatureHelp, error) {
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
+		return &lsp.SignatureHelp{
 			Signatures: util.If(params.Position.Line > 0,
 				nil,
 				[]lsp.SignatureInformation{{
@@ -150,19 +165,19 @@ func init() {
 		}, nil
 	}
 
-	Server.On_textDocument_selectionRange = func(params *lsp.SelectionRangeParams) (any, error) {
-		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
+	Server.On_textDocument_selectionRange = func(params *lsp.SelectionRangeParams) ([]*lsp.SelectionRange, error) {
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
 		var ret []*lsp.SelectionRange
 		if len(params.Positions) > 0 && session.IsSrcFilePath(src_file_path) {
 			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 					for _, pos := range params.Positions {
-						if node := src_file.NodeAtPos(lsp.LspPosToPos(&pos), true); node == nil {
+						if node := src_file.NodeAtPos(lspPosToPos(&pos), true); node == nil {
 							ret = nil
 							break
 						} else {
 							all := sl.As(node.SelfAndAncestors(), func(it *session.AstNode) *lsp.SelectionRange {
-								return &lsp.SelectionRange{Range: lsp.SpanToLspRange(it.Toks.Span())}
+								return &lsp.SelectionRange{Range: lspRangeFromSpan(util.Ptr(it.Toks.Span()))}
 							})
 							for i, it := range all[:len(all)-1] {
 								it.Parent = all[i+1]
@@ -173,31 +188,37 @@ func init() {
 				}
 			})
 		}
-		return util.If[any](len(ret) > 0, ret, nil), nil
+		return util.If(len(ret) > 0, ret, nil), nil
 	}
 
+}
+
+func intelLookup(kind session.IntelLookupKind, params *lsp.TextDocumentPositionParams) (ret []lsp.Location) {
+	src_file_path := lspUriToFsPath(params.TextDocument.Uri)
+	session.Access(func(sess session.StateAccess, intel session.Intel) {
+		if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+			for _, locs := range intel.Lookup(kind, src_file, lspPosToPos(&params.Position), false) {
+				ret = append(ret, toLspLocations(locs)...)
+			}
+		}
+	})
+	return
 }
 
 func dummyLocs(srcFilePath string) []lsp.Location {
 	return []lsp.Location{
-		{Uri: lsp.FsPathToLspUri(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}}},
-		{Uri: lsp.FsPathToLspUri(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 4, Character: 1}, End: lsp.Position{Line: 4, Character: 8}}},
+		{Uri: lspUriFromFsPath(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}}},
+		{Uri: lspUriFromFsPath(srcFilePath), Range: lsp.Range{Start: lsp.Position{Line: 4, Character: 1}, End: lsp.Position{Line: 4, Character: 8}}},
 	}
 }
 
-func toLspDiagSeverity(kind session.SrcFileNoticeKind) lsp.DiagnosticSeverity {
-	switch kind {
-	case session.NoticeKindErr:
-		return lsp.DiagnosticSeverityError
-	case session.NoticeKindWarn:
-		return lsp.DiagnosticSeverityWarning
-	case session.NoticeKindInfo:
-		return lsp.DiagnosticSeverityInformation
-	case session.NoticeKindHint:
-		return lsp.DiagnosticSeverityHint
-	default:
-		panic(kind)
+func toLspLocations(from ...*session.SrcFileLocs) (ret []lsp.Location) {
+	for _, loc := range from {
+		for _, span := range loc.Spans {
+			ret = append(ret, lsp.Location{Range: lspRangeFromSpan(span), Uri: lspUriFromFsPath(loc.File.FilePath)})
+		}
 	}
+	return
 }
 
 func toLspDocumentSymbol(info *session.IntelInfo) (sym lsp.DocumentSymbol) {
@@ -206,8 +227,8 @@ func toLspDocumentSymbol(info *session.IntelInfo) (sym lsp.DocumentSymbol) {
 		sym.Detail = descr.Value
 	}
 	if (info.SpanIdent != nil) && (info.SpanFull != nil) {
-		sym.SelectionRange = toLspRange(*info.SpanIdent)
-		sym.Range = toLspRange(*info.SpanFull)
+		sym.SelectionRange = lspRangeFromSpan(info.SpanIdent)
+		sym.Range = lspRangeFromSpan(info.SpanFull)
 	}
 	for _, item := range info.Infos.Where(session.IntelItemKindKind) {
 		switch item.Value {
@@ -226,8 +247,8 @@ func toLspWorkspaceSymbol(info *session.IntelInfo) (sym lsp.WorkspaceSymbol) {
 	}
 	if src_file_path := info.Infos.First(session.IntelItemKindSrcFilePath); (src_file_path != nil) && (info.SpanIdent != nil) {
 		sym.Location = lsp.Location{
-			Uri:   lsp.FsPathToLspUri(src_file_path.Value),
-			Range: toLspRange(*info.SpanIdent),
+			Uri:   lspUriFromFsPath(src_file_path.Value),
+			Range: lspRangeFromSpan(info.SpanIdent),
 		}
 	}
 	for _, item := range info.Infos.Where(session.IntelItemKindKind) {

@@ -1,17 +1,8 @@
 package lsp
 
 import (
-	"atmo/session"
 	"atmo/util/str"
 )
-
-func FsPathToLspUri(fsPath string) string { return "file://" + fsPath }
-func PosToLspPos(pos *session.SrcFilePos) Position {
-	return Position{Line: pos.Line - 1, Character: pos.Char - 1}
-}
-func SpanToLspRange(span session.SrcFileSpan) Range {
-	return Range{Start: PosToLspPos(&span.Start), End: PosToLspPos(&span.End)}
-}
 
 type Registration struct {
 	Id              string `json:"id,omitempty"`

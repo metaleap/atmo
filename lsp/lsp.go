@@ -59,10 +59,19 @@ func init() {
 	}
 }
 
-func toLspPos(pos session.SrcFilePos) lsp.Position {
+func lspUriFromFsPath(fsPath string) string { return "file://" + fsPath }
+func lspUriToFsPath(lspUri string) string   { return str.TrimPref(lspUri, "file://") }
+
+func lspPosFromPos(pos *session.SrcFilePos) lsp.Position {
 	return lsp.Position{Line: util.If(pos.Line <= 0, 0, pos.Line-1), Character: util.If(pos.Char <= 0, 0, pos.Char-1)}
 }
+func lspPosToPos(lspPos *lsp.Position) session.SrcFilePos {
+	return session.SrcFilePos{Line: lspPos.Line + 1, Char: lspPos.Character + 1}
+}
 
-func toLspRange(span session.SrcFileSpan) lsp.Range {
-	return lsp.Range{Start: toLspPos(span.Start), End: toLspPos(span.End)}
+func lspRangeFromSpan(span *session.SrcFileSpan) lsp.Range {
+	return lsp.Range{Start: lspPosFromPos(&span.Start), End: lspPosFromPos(&span.End)}
+}
+func lspRangeToSpan(lspRange *lsp.Range) session.SrcFileSpan {
+	return session.SrcFileSpan{Start: lspPosToPos(&lspRange.Start), End: lspPosToPos(&lspRange.End)}
 }

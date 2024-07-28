@@ -19,7 +19,7 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 		return
 	}
 	defer func(timeStarted time.Time) {
-		OnLogMsg(true, "TR %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
+		OnLogMsg(true, "treesRefresh: %s for %s", str.DurationMs(time.Since(timeStarted).Nanoseconds()), me.DirPath)
 	}(time.Now())
 
 	var top_level MoExprs

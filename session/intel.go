@@ -10,6 +10,8 @@ const (
 	IntelLookupKindDefs IntelLookupKind = iota
 	IntelLookupKindDecls
 	IntelLookupKindRefs
+	IntelLookupKindTypes
+	IntelLookupKindImpls
 )
 
 type IntelItemFormat int
@@ -50,7 +52,7 @@ const (
 
 type Intel interface {
 	Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []*IntelInfo)
-	Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []SrcFileLocs)
+	Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []*SrcFileLocs)
 	Completions(file *SrcFile, pos SrcFilePos) (ret []*IntelInfo)
 	Infos(file *SrcFile, pos SrcFilePos) *IntelInfo
 	CanRename(file *SrcFile, pos SrcFilePos) *SrcFileSpan
@@ -73,14 +75,9 @@ type IntelInfo struct {
 }
 
 // temporary fake impl
-func (intel) Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []*IntelInfo) {
+func (me intel) Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []*IntelInfo) {
 	if file == nil { // for temporary fake impl
-		for _, src_file := range state.srcFiles {
-			if !src_file.IsInterpFauxFile() {
-				file = src_file
-				break
-			}
-		}
+		file = me.dummyFile()
 	}
 	if (pack == nil) && (file != nil) {
 		pack = file.pack
@@ -113,8 +110,8 @@ func (intel) Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string
 }
 
 // temporary fake impl
-func (intel) Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []SrcFileLocs) {
-	return
+func (me intel) Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []*SrcFileLocs) {
+	return me.dummyLocs()
 }
 
 // temporary fake impl
@@ -147,4 +144,21 @@ func (me IntelItems) Where(kind IntelItemKind) IntelItems {
 
 func (me IntelItems) Name() *IntelItem {
 	return me.First(IntelItemKindName)
+}
+
+func (intel) dummyFile() *SrcFile {
+	for _, src_file := range state.srcFiles {
+		if !src_file.IsInterpFauxFile() {
+			return src_file
+		}
+	}
+	return nil
+}
+
+func (me intel) dummyLocs() []*SrcFileLocs {
+	file := me.dummyFile()
+	return []*SrcFileLocs{
+		{File: file, Spans: []*SrcFileSpan{{Start: SrcFilePos{Line: 2, Char: 1}, End: SrcFilePos{Line: 2, Char: 8}}}},
+		{File: file, Spans: []*SrcFileSpan{{Start: SrcFilePos{Line: 4, Char: 1}, End: SrcFilePos{Line: 4, Char: 8}}}},
+	}
 }

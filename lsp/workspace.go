@@ -29,7 +29,7 @@ func init() {
 	}
 
 	Server.On_textDocument_didChange = func(params *lsp.DidChangeTextDocumentParams) (any, error) {
-		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
 		if session.IsSrcFilePath(src_file_path) && len(params.ContentChanges) == 1 {
 			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				sess.OnSrcFileEdit(src_file_path, params.ContentChanges[0].Text)
@@ -41,7 +41,7 @@ func init() {
 	}
 
 	Server.On_textDocument_didSave = func(params *lsp.DidSaveTextDocumentParams) (any, error) {
-		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
+		if src_file_path := lspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
 			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				sess.OnSrcFileEvents(nil, false, src_file_path)
 			})
@@ -50,7 +50,7 @@ func init() {
 	}
 
 	Server.On_textDocument_didClose = func(params *lsp.DidCloseTextDocumentParams) (any, error) {
-		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
+		if src_file_path := lspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
 			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				sess.OnSrcFileEvents(nil, true, src_file_path)
 			})
@@ -59,7 +59,7 @@ func init() {
 	}
 
 	Server.On_textDocument_didOpen = func(params *lsp.DidOpenTextDocumentParams) (any, error) {
-		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
+		if src_file_path := lspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
 			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				sess.OnSrcFileEvents(nil, true, src_file_path)
 			})
@@ -89,7 +89,7 @@ func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 
 		var removed, added, changed []string
 		for _, it := range fileEvents {
-			switch path := lsp.LspUriToFsPath(it.Uri); it.Type {
+			switch path := lspUriToFsPath(it.Uri); it.Type {
 			case lsp.FileChangeTypeDeleted:
 				removed = append(removed, all_src_file_paths(path)...)
 			case lsp.FileChangeTypeCreated:
@@ -105,9 +105,9 @@ func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 func onWorkspaceFoldersChanged(rootFoldersRemoved []lsp.WorkspaceFolder, rootFoldersAdded []lsp.WorkspaceFolder) {
 	onWorkspaceDidChangeWatchedFiles(append(
 		sl.As(rootFoldersRemoved, func(it lsp.WorkspaceFolder) lsp.FileEvent {
-			return lsp.FileEvent{Type: lsp.FileChangeTypeDeleted, Uri: lsp.LspUriToFsPath(it.Uri)}
+			return lsp.FileEvent{Type: lsp.FileChangeTypeDeleted, Uri: lspUriToFsPath(it.Uri)}
 		}),
 		sl.As(rootFoldersAdded, func(it lsp.WorkspaceFolder) lsp.FileEvent {
-			return lsp.FileEvent{Type: lsp.FileChangeTypeCreated, Uri: lsp.LspUriToFsPath(it.Uri)}
+			return lsp.FileEvent{Type: lsp.FileChangeTypeCreated, Uri: lspUriToFsPath(it.Uri)}
 		})...))
 }

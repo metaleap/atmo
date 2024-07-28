@@ -15,16 +15,15 @@ func init() {
 			all_notices := sess.AllCurrentSrcFileNotices()
 			for file_path, diags := range all_notices {
 				Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
-					Uri:         lsp.FsPathToLspUri(file_path),
+					Uri:         lspUriFromFsPath(file_path),
 					Diagnostics: sl.As(diags, srcFileNoticeToLspDiag),
 				})
 			}
 		})
 	}
 
-	Server.On_textDocument_codeAction = func(params *lsp.CodeActionParams) (any, error) {
-		var ret []lsp.CodeAction
-		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
+	Server.On_textDocument_codeAction = func(params *lsp.CodeActionParams) (ret []lsp.CodeAction, _ error) {
+		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
 
 		if session.IsSrcFilePath(src_file_path) {
 			// if a text selection and not our VSCode extension, offer an Eval command
@@ -56,7 +55,7 @@ func init() {
 								Kind:        lsp.CodeActionKindQuickFix,
 								Diagnostics: diags,
 								Edit: &lsp.WorkspaceEdit{Changes: map[string][]lsp.TextEdit{
-									src_file_path: {{NewText: str.Trim(src_file.Src.Text), Range: lsp.SpanToLspRange(src_file.Span())}},
+									src_file_path: {{NewText: str.Trim(src_file.Src.Text), Range: lspRangeFromSpan(util.Ptr(src_file.Span()))}},
 								}},
 							})
 						}
@@ -84,8 +83,7 @@ func init() {
 				}
 			})
 		}
-
-		return ret, nil
+		return
 	}
 }
 
@@ -93,8 +91,23 @@ func srcFileNoticeToLspDiag(it *session.SrcFileNotice) lsp.Diagnostic {
 	return lsp.Diagnostic{
 		Code:            string(it.Code),
 		CodeDescription: &lsp.CodeDescription{Href: "https://github.com/atmo-lang/atmo/docs/err-codes.md#" + string(it.Code)},
-		Range:           toLspRange(it.Span),
+		Range:           lspRangeFromSpan(&it.Span),
 		Message:         it.Message,
 		Severity:        toLspDiagSeverity(it.Kind),
+	}
+}
+
+func toLspDiagSeverity(kind session.SrcFileNoticeKind) lsp.DiagnosticSeverity {
+	switch kind {
+	case session.NoticeKindErr:
+		return lsp.DiagnosticSeverityError
+	case session.NoticeKindWarn:
+		return lsp.DiagnosticSeverityWarning
+	case session.NoticeKindInfo:
+		return lsp.DiagnosticSeverityInformation
+	case session.NoticeKindHint:
+		return lsp.DiagnosticSeverityHint
+	default:
+		panic(kind)
 	}
 }
