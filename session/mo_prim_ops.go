@@ -104,8 +104,8 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		return nil, me.exprErr(err)
 	}
 	name := args[0].Val.(MoValIdent)
-	if is_reserved := (name[0] == '@') || (name[0] == ':') || (name[0] == '#') || (name[0] == '$'); is_reserved {
-		return nil, me.exprErr(me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0]))))
+	if name.IsReserved() {
+		return nil, me.exprErr(me.diagSpan(false, true, args[0]).newDiagErr(NoticeCodeReserved, name, string(rune(name[0]))), args[0])
 	}
 	owner_env, found := env.lookupOwner(name)
 	if owner_env == nil {
@@ -157,6 +157,11 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	}
 	if err := me.checkIsListOf(MoPrimTypeIdent, args[0]); err != nil {
 		return nil, me.exprErr(err)
+	}
+	for _, param := range args[0].Val.(MoValList) {
+		if ident := param.Val.(MoValIdent); ident.IsReserved() {
+			return nil, me.exprErr(param.SrcNode.newDiagErr(false, NoticeCodeReserved, ident), param)
+		}
 	}
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
 		return nil, me.exprErr(err)

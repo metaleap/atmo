@@ -170,6 +170,10 @@ func (me *MoValDict) Set(key *MoExpr, val *MoExpr) {
 	*me = this
 }
 
+func (me MoValIdent) IsReserved() bool {
+	return (me[0] == '@') || (me[0] == ':') || (me[0] == '#') || (me[0] == '$')
+}
+
 type MoExpr struct {
 	Val  MoVal
 	Diag struct {

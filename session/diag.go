@@ -71,7 +71,7 @@ var (
 		NoticeCodeUndefined:        "`%s` is not defined or not in scope",
 		NoticeCodeNotFirstClass:    "`%s` cannot be used as a value",
 		NoticeCodeUncallable:       "`%s` is not callable",
-		NoticeCodeReserved:         "cannot assign to `%s` or any other `%s`-prefixed identifier",
+		NoticeCodeReserved:         "cannot declare or assign to `%s` or any other `%s`-prefixed identifier",
 		NoticeCodeNoElseCase:       "missing a fallback case",
 		NoticeCodeIndexOutOfBounds: "index %d out of bounds, given length %d",
 		NoticeCodeRangeNegative:    "range end %d is smaller than range start %d",

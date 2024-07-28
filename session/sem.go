@@ -19,28 +19,34 @@ type SemScope struct {
 	Parent *SemScope
 }
 
-func (me *SemScope) Lookup(ident MoValIdent) (ret SemExprs) {
+func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, recursivelyResolveUntilNonIdent bool) (ret SemExprs) {
 	if resolved := me.Own[ident]; resolved != nil {
-		ret = append(ret, resolved)
+		if !recursivelyResolveUntilNonIdent {
+			ret = append(ret, resolved)
+		} else if alias, _ := resolved.Val.(*SemValIdent); alias == nil {
+			ret = append(ret, resolved)
+		} else {
+			ret = append(ret, me.Lookup(resolved.From.Val.(MoValIdent), ownOnly, true)...)
+		}
 	}
-	if me.Parent != nil {
-		ret = append(ret, me.Parent.Lookup(ident)...)
+	if (!ownOnly) && (me.Parent != nil) {
+		ret = append(ret, me.Parent.Lookup(ident, false, recursivelyResolveUntilNonIdent)...)
 	}
 	return
 }
 
 type SemValIdent struct {
-	Refs SemExprs
+	Orig          SemExprs // these may be idents as well
+	Full          SemExprs // these are fully-resolved, ie. never idents
+	IsParamOfFunc *SemExpr
 }
 
 type SemValCall struct {
 	Callee   *SemExpr
 	Args     SemExprs
-	Callable *SemValCallable
+	Callable *SemExpr
+	Inert    bool
 	Decl     bool
-}
-
-type SemValCallable struct {
 }
 
 type SemValErr struct {
@@ -54,6 +60,12 @@ type SemValList struct {
 type SemValDict struct {
 	Keys SemExprs
 	Vals SemExprs
+}
+
+type SemValFunc struct {
+	Scope  *SemScope
+	Params SemExprs
+	Body   *SemExpr
 }
 
 func (me *SrcPack) semRefresh() {
@@ -96,15 +108,13 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 	case MoValCall:
 		me.semPopulateCall(ret, it)
 	case *MoValFnLam:
+		me.semPopulateFunc(ret, it)
 	}
 	return ret
 }
 
 func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
-	ident := &SemValIdent{Refs: self.Scope.Lookup(it)}
-	if len(ident.Refs) == 0 {
-		self.ErrsOwn = append(self.ErrsOwn, self.From.SrcNode.newDiagErr(false, NoticeCodeUndefined, it))
-	}
+	ident := &SemValIdent{Orig: self.Scope.Lookup(it, false, false), Full: self.Scope.Lookup(it, false, true)}
 	self.Val = ident
 }
 
@@ -114,40 +124,65 @@ func (me *SrcPack) semPopulateErr(self *SemExpr, it MoValErr) {
 
 func (me *SrcPack) semPopulateList(self *SemExpr, it MoValList) {
 	list := &SemValList{Items: make(SemExprs, len(it))}
+	self.Val = list
 	for i, item := range it {
 		list.Items[i] = me.semExprFromMoExpr(self.Scope, item, self)
 	}
-	self.Val = list
 }
 
 func (me *SrcPack) semPopulateDict(self *SemExpr, it MoValDict) {
 	dict := &SemValDict{Keys: make(SemExprs, len(it)), Vals: make(SemExprs, len(it))}
+	self.Val = dict
 	for i, item := range it {
 		dict.Keys[i] = me.semExprFromMoExpr(self.Scope, item.Key, self)
 		dict.Vals[i] = me.semExprFromMoExpr(self.Scope, item.Val, self)
 	}
-	self.Val = dict
 }
 
 func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	call := &SemValCall{Callee: me.semExprFromMoExpr(self.Scope, it[0], self)}
-	for _, arg := range it[1:] {
-		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
-	}
-	call.Callable, _ = call.Callee.Val.(*SemValCallable)
+	self.Val = call
+
 	var err_non_callable bool
-	if call.Callable == nil {
-		if ident, _ := call.Callee.Val.(*SemValIdent); ident == nil {
-			err_non_callable = true
-		} else if len(ident.Refs) > 0 {
-			call.Callable, _ = ident.Refs[0].Val.(*SemValCallable)
-			err_non_callable = (call.Callable == nil)
+	switch callee := call.Callee.Val.(type) {
+	case *SemValFunc:
+		call.Callable = call.Callee
+	case *SemValIdent:
+		if len(callee.Orig) == 0 {
+			call.Callee.ErrsOwn.Add(call.Callee.From.SrcNode.newDiagErr(false, NoticeCodeUndefined, it))
+		} else if len(callee.Full) > 0 {
+			call.Callable = callee.Full[0]
+			if _, is := call.Callable.Val.(*SemValFunc); !is {
+				err_non_callable = true
+			}
 		}
+	default:
+		err_non_callable = true
 	}
 	if err_non_callable {
 		self.ErrsOwn.Add(self.From.SrcNode.newDiagErr(false, NoticeCodeUncallable, self.From.SrcNode.Src))
 	}
-	self.Val = call
+
+	for _, arg := range it[1:] {
+		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
+	}
+	// TODO!
+
+	call.Inert = call.Callee.HasErrs() || call.Args.AnyErrs() || (call.Callable == nil) || call.Callable.HasErrs()
+}
+
+func (me *SrcPack) semPopulateFunc(self *SemExpr, it *MoValFnLam) {
+	fn := &SemValFunc{
+		Scope:  &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemExpr{}},
+		Params: make(SemExprs, len(it.Params)),
+	}
+	self.Val = fn
+	for i, param := range it.Params {
+		fn.Params[i] = me.semExprFromMoExpr(self.Scope, param, self)
+		fn.Scope.Own[param.Val.(MoValIdent)] = fn.Params[i]
+		fn.Params[i].Val.(*SemValIdent).IsParamOfFunc = self
+	}
+	fn.Body = me.semExprFromMoExpr(fn.Scope, it.Body, self)
 }
 
 func (me *SrcPack) semIndexAddLit(it *SemExpr) {
@@ -210,6 +245,11 @@ func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExp
 			key.Walk(onBefore, onAfter)
 			it.Vals[i].Walk(onBefore, onAfter)
 		}
+	case *SemValFunc:
+		for _, param := range it.Params {
+			param.Walk(onBefore, onAfter)
+		}
+		it.Body.Walk(onBefore, onAfter)
 	}
 	if onAfter != nil {
 		onAfter(me)
