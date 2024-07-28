@@ -3,7 +3,6 @@ package lsp
 import (
 	"io"
 	"os"
-	"strconv"
 	"time"
 
 	lsp "atmo/lsp/sdk"
@@ -27,7 +26,7 @@ func Main() {
 	session.InterpStderr = (any(io.Discard)).(session.Writer)
 	session.InterpStdout = (any(io.Discard)).(session.Writer)
 	if redirectStderrTemporarilyTo != "" {
-		file, err := os.Create(redirectStderrTemporarilyTo + "." + strconv.FormatInt(time.Now().UnixNano(), 10))
+		file, err := os.Create(redirectStderrTemporarilyTo + "." + str.FromI64(time.Now().UnixNano(), 10))
 		if err != nil {
 			panic(err)
 		}

@@ -9,7 +9,7 @@ type SemExpr struct {
 	From             *MoExpr
 	Parent           *SemExpr
 	Scope            *SemScope
-	ErrsOwn          SrcFileNotices
+	ErrOwn           *SrcFileNotice
 	Val              any
 	DefinitelyUnused bool
 }
@@ -19,9 +19,9 @@ type SemScope struct {
 	Parent *SemScope
 }
 
-func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, recursivelyResolveUntilNonIdent bool) (ret SemExprs) {
+func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) (ret SemExprs) {
 	if resolved := me.Own[ident]; resolved != nil {
-		if !recursivelyResolveUntilNonIdent {
+		if !deepResolveUntilNonIdent {
 			ret = append(ret, resolved)
 		} else if alias, _ := resolved.Val.(*SemValIdent); alias == nil {
 			ret = append(ret, resolved)
@@ -30,23 +30,21 @@ func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, recursivelyResolveUnt
 		}
 	}
 	if (!ownOnly) && (me.Parent != nil) {
-		ret = append(ret, me.Parent.Lookup(ident, false, recursivelyResolveUntilNonIdent)...)
+		ret = append(ret, me.Parent.Lookup(ident, false, deepResolveUntilNonIdent)...)
 	}
 	return
 }
 
+type SemValScalar struct {
+}
+
 type SemValIdent struct {
-	Orig          SemExprs // these may be idents as well
-	Full          SemExprs // these are fully-resolved, ie. never idents
 	IsParamOfFunc *SemExpr
 }
 
 type SemValCall struct {
-	Callee   *SemExpr
-	Args     SemExprs
-	Callable *SemExpr
-	Inert    bool
-	Decl     bool
+	Callee *SemExpr
+	Args   SemExprs
 }
 
 type SemValErr struct {
@@ -86,35 +84,37 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 	default:
 		panic(it)
 	case MoValPrimTypeTag:
-		me.semIndexAddLit(ret)
+		me.semPopulateScalar(ret, it)
 	case MoValNumInt:
-		me.semIndexAddLit(ret)
+		me.semPopulateScalar(ret, it)
 	case MoValNumUint:
-		me.semIndexAddLit(ret)
+		me.semPopulateScalar(ret, it)
 	case MoValNumFloat:
-		me.semIndexAddLit(ret)
+		me.semPopulateScalar(ret, it)
 	case MoValChar:
-		me.semIndexAddLit(ret)
+		me.semPopulateScalar(ret, it)
 	case MoValStr:
-		me.semIndexAddLit(ret)
+		me.semPopulateScalar(ret, it)
 	case MoValIdent:
 		me.semPopulateIdent(ret, it)
-	case MoValErr:
-		me.semPopulateErr(ret, it)
 	case MoValList:
 		me.semPopulateList(ret, it)
 	case MoValDict:
 		me.semPopulateDict(ret, it)
 	case MoValCall:
 		me.semPopulateCall(ret, it)
-	case *MoValFnLam:
-		me.semPopulateFunc(ret, it)
 	}
 	return ret
 }
 
-func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
-	ident := &SemValIdent{Orig: self.Scope.Lookup(it, false, false), Full: self.Scope.Lookup(it, false, true)}
+func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
+	scalar := &SemValScalar{}
+	self.Val = scalar
+	me.Trees.Sem.Index.Lits[it] = append(me.Trees.Sem.Index.Lits[it], self)
+}
+
+func (me *SrcPack) semPopulateIdent(self *SemExpr, _ MoValIdent) {
+	ident := &SemValIdent{}
 	self.Val = ident
 }
 
@@ -143,24 +143,11 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	call := &SemValCall{Callee: me.semExprFromMoExpr(self.Scope, it[0], self)}
 	self.Val = call
 
-	var err_non_callable bool
-	switch callee := call.Callee.Val.(type) {
-	case *SemValFunc:
-		call.Callable = call.Callee
-	case *SemValIdent:
-		if len(callee.Orig) == 0 {
-			call.Callee.ErrsOwn.Add(call.Callee.From.SrcNode.newDiagErr(false, NoticeCodeUndefined, it))
-		} else if len(callee.Full) > 0 {
-			call.Callable = callee.Full[0]
-			if _, is := call.Callable.Val.(*SemValFunc); !is {
-				err_non_callable = true
-			}
+	if callee := call.Callee.ResolvedIfIdent(); callee != nil {
+		fn, _ := callee.Val.(*SemValFunc)
+		if fn == nil {
+			self.ErrOwn = self.From.SrcNode.newDiagErr(false, NoticeCodeUncallable, self.From.SrcNode.Src)
 		}
-	default:
-		err_non_callable = true
-	}
-	if err_non_callable {
-		self.ErrsOwn.Add(self.From.SrcNode.newDiagErr(false, NoticeCodeUncallable, self.From.SrcNode.Src))
 	}
 
 	for _, arg := range it[1:] {
@@ -168,7 +155,6 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	}
 	// TODO!
 
-	call.Inert = call.Callee.HasErrs() || call.Args.AnyErrs() || (call.Callable == nil) || call.Callable.HasErrs()
 }
 
 func (me *SrcPack) semPopulateFunc(self *SemExpr, it *MoValFnLam) {
@@ -178,21 +164,44 @@ func (me *SrcPack) semPopulateFunc(self *SemExpr, it *MoValFnLam) {
 	}
 	self.Val = fn
 	for i, param := range it.Params {
-		fn.Params[i] = me.semExprFromMoExpr(self.Scope, param, self)
-		fn.Scope.Own[param.Val.(MoValIdent)] = fn.Params[i]
-		fn.Params[i].Val.(*SemValIdent).IsParamOfFunc = self
+		ident := me.semExprFromMoExpr(self.Scope, param, self)
+		fn.Scope.Own[ident.IdentIfSo()] = ident
+		ident.Val.(*SemValIdent).IsParamOfFunc = self
+		fn.Params[i] = ident
 	}
 	fn.Body = me.semExprFromMoExpr(fn.Scope, it.Body, self)
 }
 
-func (me *SrcPack) semIndexAddLit(it *SemExpr) {
-	lit_val := it.From.Val
-	me.Trees.Sem.Index.Lits[lit_val] = append(me.Trees.Sem.Index.Lits[lit_val], it)
+func (me *SemExpr) IdentIfSo() MoValIdent {
+	ident, _ := me.Val.(*SemValIdent)
+	if ident != nil {
+		return me.From.Val.(MoValIdent)
+	}
+	return ""
+}
+
+func (me *SemExpr) ResolvedIfIdent() *SemExpr {
+	if me.ErrOwn != nil {
+		return nil
+	}
+	ident := me.IdentIfSo()
+	if ident == "" {
+		return nil
+	}
+	ret := me.Scope.Lookup(ident, false, true)
+	if len(ret) == 1 {
+		return ret[0]
+	} else if len(ret) > 0 {
+		me.ErrOwn = me.From.SrcNode.newDiagErr(false, NoticeCodeAtmoTodo, "resolved to multiple")
+	} else {
+		me.ErrOwn = me.From.SrcNode.newDiagErr(false, NoticeCodeUndefined, ident)
+	}
+	return nil
 }
 
 func (me *SemExpr) HasErrs() (ret bool) {
 	me.Walk(func(it *SemExpr) bool {
-		ret = ret || (len(it.ErrsOwn) > 0)
+		ret = ret || (it.ErrOwn != nil)
 		return !ret
 	}, nil)
 	return
@@ -200,7 +209,9 @@ func (me *SemExpr) HasErrs() (ret bool) {
 
 func (me *SemExpr) Errs() (ret SrcFileNotices) {
 	me.Walk(nil, func(it *SemExpr) {
-		ret.Add(it.ErrsOwn...)
+		if it.ErrOwn != nil {
+			ret.Add(it.ErrOwn)
+		}
 	})
 	return
 }

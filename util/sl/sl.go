@@ -331,6 +331,10 @@ func (me *Of[T]) Add(items ...T) {
 	*me = append(*me, items...)
 }
 
+func (me *Of[T]) Set(items ...T) {
+	*me = items
+}
+
 func (me *Of[T]) BufDone(push func([]T)) {
 	if this := *me; len(this) > 0 {
 		push(this)

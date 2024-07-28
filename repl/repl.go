@@ -104,7 +104,7 @@ func Main() {
 			for _, item := range interp.SubCallListing.Last {
 				os.Stderr.WriteString(str.Fmt("\t%s\t\t%s\n", item.SrcSpan.LocStr(""), item))
 			}
-			os.Stderr.WriteString(errMsg("", diag) + "\n")
+			os.Stderr.WriteString(diagMsg("", diag) + "\n")
 		} else if expr != nil {
 			expr.WriteTo(os.Stdout)
 		}
@@ -113,23 +113,13 @@ func Main() {
 	}
 }
 
-func errMsg(srcFilePath string, err error) string {
-	diag, _ := err.(*session.SrcFileNotice)
-	if diag != nil {
-		return diagMsg(srcFilePath, diag)
-	}
-	return "⛔ " + err.Error()
-}
-
 func diagMsg(srcFilePath string, diag *session.SrcFileNotice) string {
-	icon := '☕'
+	icon := '💡' // ☕
 	switch diag.Kind {
 	case session.NoticeKindErr:
 		icon = '🔥'
 	case session.NoticeKindWarn:
 		icon = '🤯'
-	default:
-		icon = '💡'
 	}
 	return fmt.Sprintf("%s %s: [%s] %s", string(icon), diag.LocStr(srcFilePath), diag.Code, diag.Message)
 }
