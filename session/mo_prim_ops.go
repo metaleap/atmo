@@ -204,18 +204,17 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 	// dict? call ourselves on each key and value
 	if dict, is := args[0].Val.(MoValDict); is {
 		ret := make(MoValDict, 0, len(dict))
-		for _, pair := range dict {
-			k, v := pair[0], pair[1]
-			_, key := me.primOpQuasiQuote(env, k)
+		for _, entry := range dict {
+			_, key := me.primOpQuasiQuote(env, entry.Key)
 			if err := key.Err(); err != nil {
-				return nil, me.exprErr(err, k)
+				return nil, me.exprErr(err, entry.Key)
 			}
-			_, val := me.primOpQuasiQuote(env, v)
+			_, val := me.primOpQuasiQuote(env, entry.Val)
 			if err := val.Err(); err != nil {
-				return nil, me.exprErr(err, v)
+				return nil, me.exprErr(err, entry.Val)
 			}
 			if dict.Has(key) {
-				return nil, me.exprErr(k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
+				return nil, me.exprErr(entry.Key.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
 			}
 			ret.Set(key, val)
 		}
@@ -288,16 +287,15 @@ func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.check(MoPrimTypeDict, 1, 1, args...); err != nil {
 		return nil, me.exprErr(err)
 	}
-	pairs := args[0].Val.(MoValDict)
-	for _, pair := range pairs {
-		key, val := pair[0], pair[1]
-		pred := me.evalAndApply(env, key)
+	entries := args[0].Val.(MoValDict)
+	for _, entry := range entries {
+		pred := me.evalAndApply(env, entry.Key)
 		if err := pred.Err(); err != nil {
-			return nil, me.exprErr(err, key)
+			return nil, me.exprErr(err, entry.Key)
 		} else if pred.EqTrue() {
-			return env, me.exprFrom(val, val)
+			return env, me.exprFrom(entry.Val, entry.Val)
 		} else if !pred.EqFalse() {
-			return nil, me.exprErr(me.newErrExpectedBool(key))
+			return nil, me.exprErr(me.newErrExpectedBool(entry.Key))
 		}
 	}
 	return nil, me.exprErr(me.diagSpan(true, false, args...).newDiagErr(NoticeCodeNoElseCase))
@@ -584,7 +582,7 @@ func (me *Interp) primFnStr(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		str = MoValStr(string(it))
 	case MoValStr:
 		str = MoValStr(it)
-	case MoValType:
+	case MoValPrimTypeTag:
 		str = MoValStr(((MoValPrimType)(it)).Str(true))
 	default:
 		str = MoValStr(MoValToString(it))
@@ -712,7 +710,7 @@ func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkArgErrs(args...); err != nil {
 		return err
 	}
-	return me.expr(MoValType(args[0].Val.PrimType()), nil, nil, args...)
+	return me.expr(MoValPrimTypeTag(args[0].Val.PrimType()), nil, nil, args...)
 }
 
 func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -725,7 +723,7 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypePrimTypeTag, args[0]); err != nil {
 		return me.exprErr(err)
 	}
-	convert_to, convertee := MoValPrimType(args[0].Val.(MoValType)), args[1]
+	convert_to, convertee := MoValPrimType(args[0].Val.(MoValPrimTypeTag)), args[1]
 	if check := me.checkIs(convert_to, convertee); check == nil {
 		return me.exprFrom(convertee)
 	}
@@ -784,7 +782,7 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	case MoPrimTypePrimTypeTag:
 		switch it := convertee.Val.(type) {
 		case MoValNumUint:
-			ret = MoValType(it)
+			ret = MoValPrimTypeTag(it)
 		}
 	case MoPrimTypeStr:
 		ret = MoValStr(convertee.String())

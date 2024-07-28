@@ -38,7 +38,7 @@ func (me *Interp) ensureRootEnvPopulated() {
 		MoPrimTypeCall,
 		MoPrimTypeFunc,
 	} {
-		rootEnv.set(MoValIdent(prim_type_tag.Str(false)), me.expr(MoValType(prim_type_tag), nil, nil))
+		rootEnv.set(MoValIdent(prim_type_tag.Str(false)), me.expr(MoValPrimTypeTag(prim_type_tag), nil, nil))
 	}
 }
 

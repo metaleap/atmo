@@ -14,9 +14,15 @@ type SrcPack struct {
 	Files   []*SrcFile
 	Interp  *Interp `json:"-"`
 	Trees   struct {
-		AstToMo  MoExprs
+		MoOrig   MoExprs
 		MoEvaled MoExprs
-		last     struct {
+		MoSem    struct {
+			TopLevel SemExprs
+			Index    struct {
+				Lits map[any]SemExprs
+			}
+		}
+		last struct {
 			files map[string]string
 		}
 	} `json:"-"`
@@ -129,8 +135,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 			pack_dir_path := filepath.Dir(src_file.FilePath)
 			src_file.pack = state.srcPacks[pack_dir_path]
 			if src_file.pack == nil {
-				src_file.pack = &SrcPack{DirPath: pack_dir_path}
-				src_file.pack.Trees.last.files = map[string]string{}
+				src_file.pack = newSrcPack(pack_dir_path)
 				state.srcPacks[pack_dir_path] = src_file.pack
 			}
 			src_file.pack.Files = sl.With(src_file.pack.Files, src_file)
@@ -198,6 +203,14 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 		}
 	}
 	return
+}
+
+// there should be only 1 caller of this! just extracted for ease of code navigation here
+func newSrcPack(dirPath string) *SrcPack {
+	ret := &SrcPack{DirPath: dirPath}
+	ret.Trees.last.files = map[string]string{}
+	ret.Trees.MoSem.Index.Lits = map[any]SemExprs{}
+	return ret
 }
 
 func (me *SrcPack) srcFilePaths() []string {

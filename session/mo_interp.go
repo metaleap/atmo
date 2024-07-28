@@ -61,7 +61,7 @@ func (me *Interp) replReset() {
 		allNotices = map[string]sl.Of[*SrcFileNotice]{}
 		me.ClearStackTrace()
 		me.envReset()
-		me.Pack.Interp, me.Pack.Trees.AstToMo, me.Pack.Trees.MoEvaled = me, nil, nil
+		me.Pack.Interp, me.Pack.Trees.MoOrig, me.Pack.Trees.MoEvaled = me, nil, nil
 		for _, src_file := range me.Pack.Files {
 			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.AstToMo, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
 				nil, nil, nil, nil, nil, ""
@@ -186,12 +186,11 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 		return me.expr(list, expr.SrcFile, expr.SrcSpan)
 	case MoValDict:
 		dict := make(MoValDict, 0, len(val))
-		for _, pair := range val {
-			k, v := pair[0], pair[1]
-			key := me.evalAndApply(env, k)
-			val := me.evalAndApply(env, v)
+		for _, entry := range val {
+			key := me.evalAndApply(env, entry.Key)
+			val := me.evalAndApply(env, entry.Val)
 			if (!key.IsErr()) && dict.Has(key) {
-				return me.exprErr(k.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
+				return me.exprErr(entry.Key.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
 			}
 			dict.Set(key, val)
 		}

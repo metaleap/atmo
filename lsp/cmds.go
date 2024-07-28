@@ -74,7 +74,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							case session.MoValDict:
 								const fake_prim_tag_dictentry = -1
 								for _, pair := range it {
-									node := &moNode{PrimTypeTag: fake_prim_tag_dictentry, Nodes: []*moNode{convert(pair[0]), convert(pair[1])}}
+									node := &moNode{PrimTypeTag: fake_prim_tag_dictentry, Nodes: []*moNode{convert(pair.Key), convert(pair.Val)}}
 									node.ClientInfo.SrcFilePath = node.Nodes[0].ClientInfo.SrcFilePath
 									node.ClientInfo.SrcFileSpan = node.Nodes[0].ClientInfo.SrcFileSpan.Expanded(node.Nodes[1].ClientInfo.SrcFileSpan)
 									node.ClientInfo.SrcFileText = node.Nodes[0].ClientInfo.SrcFileText + ": " + node.Nodes[1].ClientInfo.SrcFileText
@@ -111,7 +111,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							return &ret
 						}
 						var top_level []*moNode
-						for _, top_expr := range util.If(is_post, src_pack.Trees.MoEvaled, src_pack.Trees.AstToMo).Sorted() {
+						for _, top_expr := range util.If(is_post, src_pack.Trees.MoEvaled, src_pack.Trees.MoOrig).Sorted() {
 							top_level = append(top_level, convert(top_expr))
 						}
 						ret = top_level

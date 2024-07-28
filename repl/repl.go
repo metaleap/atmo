@@ -20,6 +20,8 @@ var (
 )
 
 func Main() {
+	session.DoSrcPackEvals, session.DoSrcPackSems = true, false
+
 	if !checkHaveLineEditing() {
 		os.Stdout.WriteString("(For line-editing, remember to run `atmo repl` with `rlwrap` or similar.)\n\n")
 	}
@@ -135,7 +137,7 @@ func diagMsg(srcFilePath string, diag *session.SrcFileNotice) string {
 func checkHaveLineEditing() bool {
 	matches, _ := filepath.Glob("/proc/*/exe")
 	for _, file := range matches {
-		if target, _ := os.Readlink(file); (len(target) > 0) && str.Ends(target, "/rlwrap") {
+		if target, _ := os.Readlink(file); str.Ends(target, "/rlwrap") {
 			return true
 		}
 	}

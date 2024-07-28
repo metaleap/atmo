@@ -132,7 +132,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 				ret.Add(it.Diag.Err)
 			}
 		}
-		me.pack.Trees.AstToMo.Walk(me, nil, add)
+		me.pack.Trees.MoOrig.Walk(me, nil, add)
 		me.pack.Trees.MoEvaled.Walk(me, nil, add)
 	}
 	return

@@ -23,6 +23,7 @@ var (
 )
 
 func Main() {
+	session.DoSrcPackEvals, session.DoSrcPackSems = false, true
 	session.InterpStderr = (any(io.Discard)).(session.Writer)
 	session.InterpStdout = (any(io.Discard)).(session.Writer)
 	if redirectStderrTemporarilyTo != "" {

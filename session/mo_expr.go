@@ -81,7 +81,7 @@ type MoVal interface {
 	PrimType() MoValPrimType
 }
 
-type MoValType MoValPrimType
+type MoValPrimTypeTag MoValPrimType
 type MoValIdent string
 type MoValNumInt int64
 type MoValNumUint uint64
@@ -89,7 +89,7 @@ type MoValNumFloat float64
 type MoValChar rune
 type MoValStr string
 type MoValErr struct{ ErrVal *MoExpr }
-type MoValDict [][2]*MoExpr
+type MoValDict []moDictEntry
 type MoValList MoExprs
 type MoValCall MoExprs
 type MoValFnPrim moFnEager
@@ -100,23 +100,28 @@ type MoValFnLam struct {
 	IsMacro bool
 }
 
-func (MoValType) PrimType() MoValPrimType     { return MoPrimTypePrimTypeTag }
-func (MoValIdent) PrimType() MoValPrimType    { return MoPrimTypeIdent }
-func (MoValNumInt) PrimType() MoValPrimType   { return MoPrimTypeNumInt }
-func (MoValNumUint) PrimType() MoValPrimType  { return MoPrimTypeNumUint }
-func (MoValNumFloat) PrimType() MoValPrimType { return MoPrimTypeNumFloat }
-func (MoValChar) PrimType() MoValPrimType     { return MoPrimTypeChar }
-func (MoValStr) PrimType() MoValPrimType      { return MoPrimTypeStr }
-func (MoValErr) PrimType() MoValPrimType      { return MoPrimTypeErr }
-func (MoValDict) PrimType() MoValPrimType     { return MoPrimTypeDict }
-func (MoValList) PrimType() MoValPrimType     { return MoPrimTypeList }
-func (MoValCall) PrimType() MoValPrimType     { return MoPrimTypeCall }
-func (MoValFnPrim) PrimType() MoValPrimType   { return MoPrimTypeFunc }
-func (*MoValFnLam) PrimType() MoValPrimType   { return MoPrimTypeFunc }
+type moDictEntry struct {
+	Key *MoExpr
+	Val *MoExpr
+}
+
+func (MoValPrimTypeTag) PrimType() MoValPrimType { return MoPrimTypePrimTypeTag }
+func (MoValIdent) PrimType() MoValPrimType       { return MoPrimTypeIdent }
+func (MoValNumInt) PrimType() MoValPrimType      { return MoPrimTypeNumInt }
+func (MoValNumUint) PrimType() MoValPrimType     { return MoPrimTypeNumUint }
+func (MoValNumFloat) PrimType() MoValPrimType    { return MoPrimTypeNumFloat }
+func (MoValChar) PrimType() MoValPrimType        { return MoPrimTypeChar }
+func (MoValStr) PrimType() MoValPrimType         { return MoPrimTypeStr }
+func (MoValErr) PrimType() MoValPrimType         { return MoPrimTypeErr }
+func (MoValDict) PrimType() MoValPrimType        { return MoPrimTypeDict }
+func (MoValList) PrimType() MoValPrimType        { return MoPrimTypeList }
+func (MoValCall) PrimType() MoValPrimType        { return MoPrimTypeCall }
+func (MoValFnPrim) PrimType() MoValPrimType      { return MoPrimTypeFunc }
+func (*MoValFnLam) PrimType() MoValPrimType      { return MoPrimTypeFunc }
 
 func (me MoValDict) Has(key *MoExpr) bool {
-	for _, pair := range me {
-		if found := pair[0].Eq(key); found {
+	for _, entry := range me {
+		if found := entry.Key.Eq(key); found {
 			return true
 		}
 	}
@@ -124,9 +129,9 @@ func (me MoValDict) Has(key *MoExpr) bool {
 }
 
 func (me MoValDict) Get(key *MoExpr) *MoExpr {
-	for _, pair := range me {
-		if found := pair[0].Eq(key); found {
-			return pair[1]
+	for _, entry := range me {
+		if found := entry.Key.Eq(key); found {
+			return entry.Val
 		}
 	}
 	return nil
@@ -136,16 +141,15 @@ func (me MoValDict) Without(keys ...*MoExpr) MoValDict {
 	if len(keys) == 0 {
 		return me
 	}
-	return sl.Where(me, func(pair [2]*MoExpr) bool {
-		return !sl.HasWhere(keys, func(k *MoExpr) bool { return k.Eq(pair[0]) })
+	return sl.Where(me, func(entry moDictEntry) bool {
+		return !sl.HasWhere(keys, func(k *MoExpr) bool { return k.Eq(entry.Key) })
 	})
 }
 
 func (me MoValDict) With(key *MoExpr, val *MoExpr) MoValDict {
 	ret := make(MoValDict, len(me))
-	for i, pair := range me {
-		k, v := *pair[0], *pair[1]
-		ret[i][0], ret[i][1] = &k, &v
+	for i, entry := range me {
+		ret[i].Key, ret[i].Val = entry.Key, entry.Val
 	}
 	ret.Set(key, val)
 	return ret
@@ -154,14 +158,14 @@ func (me MoValDict) With(key *MoExpr, val *MoExpr) MoValDict {
 func (me *MoValDict) Set(key *MoExpr, val *MoExpr) {
 	this := *me
 	var found bool
-	for i, pair := range this {
-		if found = pair[0].Eq(key); found {
-			this[i][1] = val
+	for i, entry := range this {
+		if found = entry.Key.Eq(key); found {
+			this[i].Val = val
 			break
 		}
 	}
 	if !found {
-		this = append(this, [2]*MoExpr{key, val})
+		this = append(this, moDictEntry{key, val})
 	}
 	*me = this
 }
@@ -215,7 +219,7 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 			return false
 		}
 		for i := range it {
-			if !sl.HasWhere(other, func(other_pair [2]*MoExpr) bool { return other_pair[0].Eq(it[i][0]) && other_pair[1].Eq(it[i][1]) }) {
+			if !sl.HasWhere(other, func(other moDictEntry) bool { return other.Key.Eq(it[i].Key) && other.Val.Eq(it[i].Val) }) {
 				return false
 			}
 		}
@@ -298,7 +302,7 @@ func (me *MoExpr) String() string {
 func (me *MoExpr) WriteTo(w io.StringWriter) { moValWriteTo(me.Val, w) }
 func moValWriteTo(it MoVal, w io.StringWriter) {
 	switch it := it.(type) {
-	case MoValType:
+	case MoValPrimTypeTag:
 		w.WriteString(MoValPrimType(it).Str(false))
 	case MoValIdent:
 		w.WriteString(string(it))
@@ -320,14 +324,13 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		w.WriteString(")")
 	case MoValDict:
 		w.WriteString("{")
-		for i, pair := range it {
+		for i, item := range it {
 			if i > 0 {
 				w.WriteString(", ")
 			}
-			k, v := pair[0], pair[1]
-			k.WriteTo(w)
+			item.Key.WriteTo(w)
 			w.WriteString(": ")
-			v.WriteTo(w)
+			item.Val.WriteTo(w)
 		}
 		w.WriteString("}")
 	case MoValList:
@@ -467,17 +470,17 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			nodes := node.Nodes.withoutComments()
 			dict := make(MoValDict, 0, len(nodes))
 			for _, kv_node := range nodes {
-				nodes_of_pair := kv_node.Nodes.withoutComments()
+				nodes_of_dict_entry := kv_node.Nodes.withoutComments()
 				if kv_node.Kind == AstNodeKindErr {
 					continue
-				} else if len(nodes_of_pair) != 2 {
-					return nil, kv_node.newDiagErr(false, NoticeCodeAtmoTodo, str.Fmt("new dict parsing bug: KV node has len %d with kind %d", len(nodes_of_pair), kv_node.Kind))
+				} else if len(nodes_of_dict_entry) != 2 {
+					return nil, kv_node.newDiagErr(false, NoticeCodeAtmoTodo, str.Fmt("new dict parsing bug: KV node has len %d with kind %d", len(nodes_of_dict_entry), kv_node.Kind))
 				}
-				expr_key, err := me.MoExprFromAstNode(nodes_of_pair[0])
+				expr_key, err := me.MoExprFromAstNode(nodes_of_dict_entry[0])
 				if err != nil {
 					return nil, err
 				}
-				expr_val, err := me.MoExprFromAstNode(nodes_of_pair[1])
+				expr_val, err := me.MoExprFromAstNode(nodes_of_dict_entry[1])
 				if err != nil {
 					return nil, err
 				}
@@ -544,9 +547,9 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 			item.Walk(onBefore, onAfter)
 		}
 	case MoValDict:
-		for _, pair := range it {
-			pair[0].Walk(onBefore, onAfter)
-			pair[1].Walk(onBefore, onAfter)
+		for _, item := range it {
+			item.Key.Walk(onBefore, onAfter)
+			item.Val.Walk(onBefore, onAfter)
 		}
 	case MoValErr:
 		if it.ErrVal != nil {
