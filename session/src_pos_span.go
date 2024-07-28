@@ -2,7 +2,9 @@ package session
 
 import (
 	"atmo/util"
+	"atmo/util/sl"
 	"atmo/util/str"
+	"cmp"
 	"fmt"
 )
 
@@ -117,4 +119,19 @@ func (me *SrcFileSpan) newDiagWarn(code SrcFileNoticeCode, args ...any) *SrcFile
 }
 func (me *SrcFileSpan) newDiagErr(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
 	return me.newDiag(NoticeKindErr, code, args...)
+}
+func (me *SrcFileSpan) Cmp(to *SrcFileSpan) int {
+	if me.Start.Line == to.Start.Line {
+		return cmp.Compare(me.Start.Char, to.Start.Char)
+	}
+	return cmp.Compare(me.Start.Line, to.Start.Line)
+}
+
+func (me *SrcFileLocs) SortSpans(reversed bool) {
+	me.Spans = sl.SortedPer(me.Spans, func(lhs *SrcFileSpan, rhs *SrcFileSpan) int {
+		if reversed {
+			lhs, rhs = rhs, lhs
+		}
+		return lhs.Cmp(rhs)
+	})
 }

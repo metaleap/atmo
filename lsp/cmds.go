@@ -127,7 +127,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.Access(func(sess session.StateAccess, _ session.Intel) {
-					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+					if src_file := sess.SrcFile(src_file_path); src_file != nil {
 						ret = src_file.Src.Toks
 					}
 				})
@@ -139,7 +139,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
 				session.Access(func(sess session.StateAccess, _ session.Intel) {
-					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+					if src_file := sess.SrcFile(src_file_path); src_file != nil {
 						ret = sl.SortedPer(src_file.Src.Ast, (*session.AstNode).Cmp)
 					}
 				})

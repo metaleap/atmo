@@ -1,7 +1,6 @@
 package session
 
 import (
-	"cmp"
 	"path/filepath"
 	"slices"
 
@@ -157,10 +156,7 @@ func refreshAndPublishNotices(force bool, provokingFilePaths ...string) {
 	// sorting is mainly for the later equality-comparison further down below
 	for src_file_path := range new_notices {
 		new_notices[src_file_path] = sl.SortedPer(new_notices[src_file_path], func(diag1 *SrcFileNotice, diag2 *SrcFileNotice) int {
-			if diag1.Span.Start.Line == diag2.Span.Start.Line {
-				return cmp.Compare(diag1.Span.Start.Char, diag2.Span.Start.Char)
-			}
-			return cmp.Compare(diag1.Span.Start.Line, diag2.Span.Start.Line)
+			return diag1.Span.Cmp(&diag2.Span)
 		})
 	}
 

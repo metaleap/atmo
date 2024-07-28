@@ -28,7 +28,7 @@ type StateAccess interface {
 	PacksFsRefresh()
 	GetSrcPack(dirPath string, loadIfMissing bool) *SrcPack
 	Interpreter(dirPath string) *Interp
-	SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile
+	SrcFile(srcFilePath string) *SrcFile
 }
 
 func init() {
@@ -108,8 +108,8 @@ func (me *stateAccess) Interpreter(packDirPath string) *Interp {
 	return newInterp(src_pack, src_file)
 }
 
-func (*stateAccess) SrcFile(srcFilePath string, canSkipFileRead bool) *SrcFile {
-	refr_diags_for := ensureSrcFiles(nil, canSkipFileRead, srcFilePath)
+func (*stateAccess) SrcFile(srcFilePath string) *SrcFile {
+	refr_diags_for := ensureSrcFiles(nil, true, srcFilePath)
 	src_file := state.srcFiles[srcFilePath]
 	if (src_file == nil) || (len(refr_diags_for) > 0) { // the latter, if non-empty, WILL have srcFilePath
 		refreshAndPublishNotices(false, refr_diags_for...)

@@ -40,7 +40,7 @@ func init() {
 				if len(notices) == 0 {
 					return
 				}
-				src_file := sess.SrcFile(src_file_path, true)
+				src_file := sess.SrcFile(src_file_path)
 				if src_file == nil {
 					return
 				}

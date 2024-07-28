@@ -31,7 +31,6 @@ const (
 	IntelItemKindKind // func, lit, var etc
 	IntelItemKindSrcPackDirPath
 	IntelItemKindSrcFilePath
-	IntelItemKindSignature
 	IntelItemKindPrimType
 	IntelItemKindExpansion
 	IntelItemKindImport
@@ -54,7 +53,7 @@ type Intel interface {
 	Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []*IntelInfo)
 	Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []*SrcFileLocs)
 	Completions(file *SrcFile, pos SrcFilePos) (ret []*IntelInfo)
-	Infos(file *SrcFile, pos SrcFilePos) *IntelInfo
+	Info(file *SrcFile, pos SrcFilePos) *IntelInfo
 	CanRename(file *SrcFile, pos SrcFilePos) *SrcFileSpan
 }
 
@@ -120,13 +119,13 @@ func (intel) Completions(file *SrcFile, pos SrcFilePos) (ret []*IntelInfo) {
 }
 
 // temporary fake impl
-func (intel) Infos(file *SrcFile, pos SrcFilePos) *IntelInfo {
+func (intel) Info(file *SrcFile, pos SrcFilePos) *IntelInfo {
 	return nil
 }
 
 // temporary fake impl
 func (intel) CanRename(file *SrcFile, pos SrcFilePos) *SrcFileSpan {
-	return nil
+	return &SrcFileSpan{Start: pos, End: SrcFilePos{Line: pos.Line, Char: 4 + pos.Char}}
 }
 
 func (me IntelItems) First(kind IntelItemKind) *IntelItem {
