@@ -6,6 +6,15 @@ import (
 	"fmt"
 )
 
+type SrcFileLoc struct {
+	File *SrcFile
+	Span *SrcFileSpan
+}
+type SrcFileLocs struct {
+	File  *SrcFile
+	Spans []*SrcFileSpan
+}
+
 // SrcFilePos Line and Char both start at 1
 type SrcFilePos struct {
 	// Line starts at 1
