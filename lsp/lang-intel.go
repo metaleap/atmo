@@ -13,7 +13,7 @@ func init() {
 	Server.Lang.TriggerChars.Completion = []string{".", "/"}
 	Server.Lang.TriggerChars.Signature = []string{" "}
 
-	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) (ret []lsp.DocumentSymbol, err error) {
+	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) (ret []lsp.DocumentSymbol, _ error) {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		session.Access(func(sess session.StateAccess, intel session.Intel) {
 			if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
@@ -35,16 +35,11 @@ func init() {
 		return
 	}
 
-	Server.On_workspace_symbol = func(params *lsp.WorkspaceSymbolParams) ([]lsp.WorkspaceSymbol, error) {
-		return []lsp.WorkspaceSymbol{{
-			Name:          "Atmo",
-			Kind:          lsp.SymbolKindInterface,
-			ContainerName: "Container",
-			Location: lsp.Location{
-				Uri:   lsp.FsPathToLspUri("/home/_/c/at/foo.at"),
-				Range: lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}},
-			},
-		}}, nil
+	Server.On_workspace_symbol = func(params *lsp.WorkspaceSymbolParams) (ret []lsp.WorkspaceSymbol, _ error) {
+		session.Access(func(sess session.StateAccess, intel session.Intel) {
+			ret = sl.As(intel.Decls(nil, nil, true, params.Query), toLspWorkspaceSymbol)
+		})
+		return
 	}
 
 	Server.On_textDocument_definition = func(params *lsp.DefinitionParams) (any, error) {
@@ -221,5 +216,25 @@ func toLspDocumentSymbol(info *session.IntelInfo) (sym lsp.DocumentSymbol) {
 		}
 	}
 	sym.Children = sl.As(info.Sub, toLspDocumentSymbol)
+	return
+}
+
+func toLspWorkspaceSymbol(info *session.IntelInfo) (sym lsp.WorkspaceSymbol) {
+	sym.Kind, sym.Name = lsp.SymbolKindVariable, info.Infos.Name().Value
+	if pack_dir_path := info.Infos.First(session.IntelItemKindSrcPackDirPath); pack_dir_path != nil {
+		sym.ContainerName = pack_dir_path.Value
+	}
+	if src_file_path := info.Infos.First(session.IntelItemKindSrcFilePath); (src_file_path != nil) && (info.SpanIdent != nil) {
+		sym.Location = lsp.Location{
+			Uri:   lsp.FsPathToLspUri(src_file_path.Value),
+			Range: toLspRange(*info.SpanIdent),
+		}
+	}
+	for _, item := range info.Infos.Where(session.IntelItemKindKind) {
+		switch item.Value {
+		case string(session.IntelDeclKindFunc):
+			sym.Kind = lsp.SymbolKindFunction
+		}
+	}
 	return
 }
