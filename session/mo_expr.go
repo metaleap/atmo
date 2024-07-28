@@ -177,6 +177,7 @@ type MoExpr struct {
 	}
 	SrcSpan                          *SrcFileSpan // caution: `nil` for prims / builtins
 	SrcFile                          *SrcFile     // dito
+	SrcNode                          *AstNode     // dito
 	PreEvalTopLevelPreEnvUnevaledYet bool
 }
 

@@ -125,7 +125,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 		}
 	})
 	if len(ret) == 0 {
-		ret.Add(me.notices.AstToMo...)
+		ret.Add(me.notices.MoOrig...)
 		add := func(it *MoExpr) {
 			if it.Diag.Err != nil {
 				ret.Add(it.Diag.Err)
@@ -133,6 +133,9 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 		}
 		me.pack.Trees.MoOrig.Walk(me, nil, add)
 		me.pack.Trees.MoEvaled.Walk(me, nil, add)
+	}
+	if len(ret) == 0 {
+		ret.Add(me.pack.Trees.Sem.TopLevel.Errs()...)
 	}
 	return
 }

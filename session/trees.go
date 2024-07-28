@@ -26,18 +26,18 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 	var any_pre_errs bool
 	for _, src_file := range me.Files {
 		if !src_file.IsInterpFauxFile() {
-			had_errs := (len(src_file.notices.AstToMo) > 0)
-			src_file.notices.AstToMo = nil
+			had_errs := (len(src_file.notices.MoOrig) > 0)
+			src_file.notices.MoOrig = nil
 			for _, top_node := range src_file.Src.Ast {
 				expr, err := src_file.MoExprFromAstNode(top_node)
 				if err != nil {
-					src_file.notices.AstToMo = append(src_file.notices.AstToMo, err)
+					src_file.notices.MoOrig = append(src_file.notices.MoOrig, err)
 				} else if expr != nil {
 					top_level = append(top_level, expr)
 				}
 			}
-			any_pre_errs = any_pre_errs || (len(src_file.notices.AstToMo) > 0)
-			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.AstToMo) > 0) || had_errs
+			any_pre_errs = any_pre_errs || (len(src_file.notices.MoOrig) > 0)
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.MoOrig) > 0) || had_errs
 		}
 	}
 	me.Trees.MoOrig = top_level
@@ -45,6 +45,10 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 	old_had_errs := me.Trees.MoEvaled.AnyErrs()
 	if any_pre_errs && !old_had_errs { // bug out & leave the old `.Trees.MoEvaled` intact in this case, for editor clients
 		return
+	}
+
+	if DoSrcPackSems {
+		me.semRefresh()
 	}
 
 	if DoSrcPackEvals {
@@ -72,10 +76,6 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 			}
 		}
 		encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_errs || me.Trees.MoEvaled.AnyErrs()
-	}
-
-	if DoSrcPackSems {
-		me.semRefresh()
 	}
 
 	return
