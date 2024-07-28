@@ -36,6 +36,16 @@ const (
 	IntelItemNameNumDec
 )
 
+type Intel interface {
+	Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []IntelInfo)
+	Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []SrcFileLocs)
+	Completions(file *SrcFile, pos SrcFilePos) (ret []IntelInfo)
+	Infos(file *SrcFile, pos SrcFilePos) *IntelInfo
+	CanRename(file *SrcFile, pos SrcFilePos) *SrcFileSpan
+}
+
+type intel struct{}
+
 type IntelItem struct {
 	Name   IntelItemName
 	Format IntelItemFormat
@@ -49,26 +59,22 @@ type IntelInfo struct {
 	SpanFull  *SrcFileSpan
 }
 
-func IntelDecls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []IntelInfo) {
+func (intel) Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []IntelInfo) {
 	return
 }
 
-func IntelLookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []SrcFileLocs) {
+func (intel) Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []SrcFileLocs) {
 	return
 }
 
-func IntelCompletions(file *SrcFile, pos SrcFilePos) (ret []IntelInfo) {
+func (intel) Completions(file *SrcFile, pos SrcFilePos) (ret []IntelInfo) {
 	return
 }
 
-func IntelInfos(file *SrcFile, pos SrcFilePos) *IntelInfo {
+func (intel) Infos(file *SrcFile, pos SrcFilePos) *IntelInfo {
 	return nil
 }
 
-func IntelCanRename(file *SrcFile, pos SrcFilePos) *SrcFileSpan {
+func (intel) CanRename(file *SrcFile, pos SrcFilePos) *SrcFileSpan {
 	return nil
-}
-
-func IntelSignatures(file *SrcFile, pos SrcFilePos) (ret []IntelItem) {
-	return
 }

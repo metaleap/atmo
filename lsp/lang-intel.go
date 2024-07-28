@@ -15,8 +15,15 @@ func init() {
 	Server.Lang.TriggerChars.Completion = []string{".", "/"}
 	Server.Lang.TriggerChars.Signature = []string{" "}
 
-	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) ([]lsp.DocumentSymbol, error) {
+	Server.On_textDocument_documentSymbol = func(params *lsp.DocumentSymbolParams) (ret []lsp.DocumentSymbol, err error) {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
+		session.Access(func(sess session.StateAccess, intel session.Intel) {
+			if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
+				for _, info := range intel.Decls(nil, src_file, false, "") {
+					_ = info
+				}
+			}
+		})
 		return sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
 			func(it lsp.SymbolKind) lsp.DocumentSymbol {
 				return lsp.DocumentSymbol{
@@ -153,7 +160,7 @@ func init() {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		var ret []*lsp.SelectionRange
 		if len(params.Positions) > 0 && session.IsSrcFilePath(src_file_path) {
-			session.LockedDo(func(sess session.StateAccess) {
+			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 					for _, pos := range params.Positions {
 						if node := src_file.NodeAtPos(lsp.LspPosToPos(&pos), true); node == nil {

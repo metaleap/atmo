@@ -33,10 +33,12 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 		}
 
 	case "packsFsRefresh":
-		session.LockedDo(session.StateAccess.PacksFsRefresh)
+		session.Access(func(sess session.StateAccess, _ session.Intel) {
+			sess.PacksFsRefresh()
+		})
 
 	case "getSrcPacks":
-		session.LockedDo(func(sess session.StateAccess) {
+		session.Access(func(sess session.StateAccess, _ session.Intel) {
 			ret = sess.AllCurrentSrcPacks()
 		})
 
@@ -55,7 +57,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
-				session.LockedDo(func(sess session.StateAccess) {
+				session.Access(func(sess session.StateAccess, _ session.Intel) {
 					if src_pack := sess.GetSrcPack(filepath.Dir(src_file_path), true); src_pack != nil {
 						var convert func(*session.MoExpr) *moNode
 						convert = func(expr *session.MoExpr) *moNode {
@@ -124,7 +126,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
-				session.LockedDo(func(sess session.StateAccess) {
+				session.Access(func(sess session.StateAccess, _ session.Intel) {
 					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 						ret = src_file.Src.Toks
 					}
@@ -136,7 +138,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
 			if ok && session.IsSrcFilePath(src_file_path) {
-				session.LockedDo(func(sess session.StateAccess) {
+				session.Access(func(sess session.StateAccess, _ session.Intel) {
 					if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 						ret = sl.SortedPer(src_file.Src.Ast, (*session.AstNode).Cmp)
 					}

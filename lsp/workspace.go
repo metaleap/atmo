@@ -31,7 +31,7 @@ func init() {
 	Server.On_textDocument_didChange = func(params *lsp.DidChangeTextDocumentParams) (any, error) {
 		src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri)
 		if session.IsSrcFilePath(src_file_path) && len(params.ContentChanges) == 1 {
-			session.LockedDo(func(sess session.StateAccess) {
+			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				sess.OnSrcFileEdit(src_file_path, params.ContentChanges[0].Text)
 			})
 		} else if len(params.ContentChanges) > 1 {
@@ -42,8 +42,8 @@ func init() {
 
 	Server.On_textDocument_didSave = func(params *lsp.DidSaveTextDocumentParams) (any, error) {
 		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
-			session.LockedDo(func(sess session.StateAccess) {
-				sess.OnSrcFileEvents(nil, true, src_file_path)
+			session.Access(func(sess session.StateAccess, _ session.Intel) {
+				sess.OnSrcFileEvents(nil, false, src_file_path)
 			})
 		}
 		return nil, nil
@@ -51,7 +51,7 @@ func init() {
 
 	Server.On_textDocument_didClose = func(params *lsp.DidCloseTextDocumentParams) (any, error) {
 		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
-			session.LockedDo(func(sess session.StateAccess) {
+			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				sess.OnSrcFileEvents(nil, true, src_file_path)
 			})
 		}
@@ -60,7 +60,7 @@ func init() {
 
 	Server.On_textDocument_didOpen = func(params *lsp.DidOpenTextDocumentParams) (any, error) {
 		if src_file_path := lsp.LspUriToFsPath(params.TextDocument.Uri); session.IsSrcFilePath(src_file_path) {
-			session.LockedDo(func(sess session.StateAccess) {
+			session.Access(func(sess session.StateAccess, _ session.Intel) {
 				sess.OnSrcFileEvents(nil, true, src_file_path)
 			})
 		}
@@ -69,7 +69,7 @@ func init() {
 }
 
 func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
-	session.LockedDo(func(sess session.StateAccess) {
+	session.Access(func(sess session.StateAccess, _ session.Intel) {
 		all_src_file_paths := func(fsPath string) (ret []string) {
 			if session.IsSrcFilePath(fsPath) {
 				ret = append(ret, fsPath)

@@ -35,10 +35,10 @@ func init() {
 	state.srcFiles, state.srcPacks = map[string]*SrcFile{}, map[string]*SrcPack{}
 }
 
-func LockedDo(do func(sess StateAccess)) {
+func Access(do func(sess StateAccess, intel Intel)) {
 	state.Lock()
 	defer state.Unlock()
-	do(&state.stateAccess)
+	do(&state.stateAccess, intel{})
 }
 
 type stateAccess struct{ sync.Mutex }

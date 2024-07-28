@@ -57,7 +57,7 @@ func (me *Interp) envReset() {
 
 // for REPL use-cases only!
 func (me *Interp) replReset() {
-	LockedDo(func(sess StateAccess) {
+	Access(func(sess StateAccess, _ Intel) {
 		allNotices = map[string]sl.Of[*SrcFileNotice]{}
 		me.ClearStackTrace()
 		me.envReset()

@@ -30,7 +30,7 @@ func main() {
 		if !session.IsSrcFilePath(src_file_path) {
 			panic("not an Atmo source file: " + src_file_path)
 		}
-		session.LockedDo(func(sess session.StateAccess) {
+		session.Access(func(sess session.StateAccess, _ session.Intel) {
 			_ = sess.SrcFile(src_file_path, false)
 		})
 	}

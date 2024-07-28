@@ -38,7 +38,7 @@ func Main() {
 	}
 	session.OnDbgMsg, session.OnLogMsg = on_msg, on_msg
 	session.OnNoticesChanged = func() {
-		session.LockedDo(func(sess session.StateAccess) {
+		session.Access(func(sess session.StateAccess, _ session.Intel) {
 			mutex.Lock()
 			defer mutex.Unlock()
 			for src_file_path, diags := range sess.AllCurrentSrcFileNotices() {
@@ -51,7 +51,7 @@ func Main() {
 		})
 	}
 
-	session.LockedDo(func(sess session.StateAccess) {
+	session.Access(func(sess session.StateAccess, _ session.Intel) {
 		dir_path, err := filepath.Abs(".")
 		if err != nil {
 			panic(err)

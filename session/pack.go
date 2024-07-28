@@ -32,9 +32,10 @@ type SrcFile struct {
 	FilePath string
 	pack     *SrcPack
 	Src      struct {
-		Text string
-		Toks Toks
-		Ast  AstNodes
+		Text         string
+		Toks         Toks
+		Ast          AstNodes
+		everOnceRead bool
 	} `json:"-"`
 	notices struct {
 		LastReadErr *SrcFileNotice
@@ -145,7 +146,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 		old_content, had_last_read_err := src_file.Src.Text, (src_file.notices.LastReadErr != nil)
 		if curFullContent != nil {
 			src_file.Src.Text, src_file.notices.LastReadErr = *curFullContent, nil
-		} else if (!is_interp_faux_file) && ((!canSkipFileRead) || had_last_read_err) {
+		} else if (!is_interp_faux_file) && ((!canSkipFileRead) || had_last_read_err || !src_file.Src.everOnceRead) {
 			src_file_bytes, err := os.ReadFile(src_file_path)
 			if os.IsNotExist(err) {
 				removeSrcFiles(src_file_path)
@@ -153,6 +154,9 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 				continue
 			} else {
 				src_file.Src.Text, src_file.notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, src_file.Span())
+				if src_file.notices.LastReadErr == nil {
+					src_file.Src.everOnceRead = true
+				}
 			}
 		}
 
