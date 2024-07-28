@@ -43,13 +43,13 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 	me.Trees.MoOrig = top_level
 
 	old_had_errs := me.Trees.MoEvaled.AnyErrs() || me.Trees.Sem.TopLevel.AnyErrs()
-	if any_pre_errs && !old_had_errs { // bug out & leave the old `.Trees.MoEvaled` intact in this case, for editor clients
+	if any_pre_errs && !old_had_errs { // bug out & leave the old trees intact in this case, for editor clients (go2def etc)
 		return
 	}
 
 	if DoSrcPackSems {
 		me.semRefresh()
-		encounteredDiagsRelevantChanges = true // encounteredDiagsRelevantChanges || old_had_errs || me.Trees.Sem.TopLevel.AnyErrs()
+		encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_errs || me.Trees.Sem.TopLevel.AnyErrs()
 	}
 
 	if DoSrcPackEvals {

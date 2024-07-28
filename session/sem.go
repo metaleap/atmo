@@ -6,16 +6,27 @@ import (
 
 type SemExprs sl.Of[*SemExpr]
 type SemExpr struct {
-	From    *MoExpr
-	Parent  *SemExpr
-	Scope   *SemScope
-	ErrsOwn SrcFileNotices
-	Val     any
+	From             *MoExpr
+	Parent           *SemExpr
+	Scope            *SemScope
+	ErrsOwn          SrcFileNotices
+	Val              any
+	DefinitelyUnused bool
 }
 
 type SemScope struct {
 	Own    map[MoValIdent]*SemExpr
 	Parent *SemScope
+}
+
+func (me *SemScope) Lookup(ident MoValIdent) (ret SemExprs) {
+	if resolved := me.Own[ident]; resolved != nil {
+		ret = append(ret, resolved)
+	}
+	if me.Parent != nil {
+		ret = append(ret, me.Parent.Lookup(ident)...)
+	}
+	return
 }
 
 type SemValIdent struct {
@@ -26,6 +37,7 @@ type SemValCall struct {
 	Callee   *SemExpr
 	Args     SemExprs
 	Callable *SemValCallable
+	Decl     bool
 }
 
 type SemValCallable struct {
@@ -35,10 +47,27 @@ type SemValErr struct {
 	Val *SemExpr
 }
 
+type SemValList struct {
+	Items SemExprs
+}
+
+type SemValDict struct {
+	Keys SemExprs
+	Vals SemExprs
+}
+
 func (me *SrcPack) semRefresh() {
+	me.Trees.Sem.TopLevel = nil
 	me.Trees.Sem.Scope = SemScope{Own: map[MoValIdent]*SemExpr{}}
 	for _, top_expr := range me.Trees.MoOrig {
-		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil))
+		it := me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil)
+		if top_expr.String() == "123" {
+			panic(top_expr.String())
+		}
+		if call, _ := it.Val.(*SemValCall); call == nil {
+			it.DefinitelyUnused = true
+		}
+		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, it)
 	}
 }
 
@@ -61,12 +90,14 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 		me.semIndexAddLit(ret)
 	case MoValIdent:
 		me.semPopulateIdent(ret, it)
-	case MoValCall:
-		me.semPopulateCall(ret, it)
 	case MoValErr:
 		me.semPopulateErr(ret, it)
-	case MoValDict:
 	case MoValList:
+		me.semPopulateList(ret, it)
+	case MoValDict:
+		me.semPopulateDict(ret, it)
+	case MoValCall:
+		me.semPopulateCall(ret, it)
 	case MoValFnPrim:
 	case *MoValFnLam:
 	}
@@ -74,10 +105,8 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 }
 
 func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
-	ident := &SemValIdent{}
-	if resolved := self.Scope.Own[it]; resolved != nil {
-		ident.Refs = append(ident.Refs, resolved)
-	} else {
+	ident := &SemValIdent{Refs: self.Scope.Lookup(it)}
+	if len(ident.Refs) == 0 {
 		self.ErrsOwn = append(self.ErrsOwn, self.From.SrcNode.newDiagErr(false, NoticeCodeUndefined, it))
 	}
 	self.Val = ident
@@ -85,6 +114,23 @@ func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
 
 func (me *SrcPack) semPopulateErr(self *SemExpr, it MoValErr) {
 	self.Val = &SemValErr{Val: me.semExprFromMoExpr(self.Scope, it.ErrVal, self)}
+}
+
+func (me *SrcPack) semPopulateList(self *SemExpr, it MoValList) {
+	list := &SemValList{Items: make(SemExprs, len(it))}
+	for i, item := range it {
+		list.Items[i] = me.semExprFromMoExpr(self.Scope, item, self)
+	}
+	self.Val = list
+}
+
+func (me *SrcPack) semPopulateDict(self *SemExpr, it MoValDict) {
+	dict := &SemValDict{Keys: make(SemExprs, len(it)), Vals: make(SemExprs, len(it))}
+	for i, item := range it {
+		dict.Keys[i] = me.semExprFromMoExpr(self.Scope, item.Key, self)
+		dict.Vals[i] = me.semExprFromMoExpr(self.Scope, item.Val, self)
+	}
+	self.Val = dict
 }
 
 func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
@@ -159,6 +205,15 @@ func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExp
 		}
 	case *SemValErr:
 		it.Val.Walk(onBefore, onAfter)
+	case *SemValList:
+		for _, item := range it.Items {
+			item.Walk(onBefore, onAfter)
+		}
+	case *SemValDict:
+		for i, key := range it.Keys {
+			key.Walk(onBefore, onAfter)
+			it.Vals[i].Walk(onBefore, onAfter)
+		}
 	}
 	if onAfter != nil {
 		onAfter(me)
