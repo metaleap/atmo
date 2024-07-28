@@ -1,5 +1,7 @@
 package session
 
+import "atmo/util/sl"
+
 type IntelLookupKind int
 
 const (
@@ -17,23 +19,23 @@ const (
 	IntelItemFormatPrimTypeTag
 )
 
-type IntelItemName int
+type IntelItemKind int
 
 const (
-	IntelItemNameKind IntelItemName = iota
-	IntelItemNameName
-	IntelItemNameDescription
-	IntelItemNameSignature
-	IntelItemNamePrimType
-	IntelItemNameExpansion
-	IntelItemNameImport
-	IntelItemNameUnused
-	IntelItemNameTag // userland annotations like deprecated
-	IntelItemNameStrBytesLen
-	IntelItemNameStrUtf8RunesLen
-	IntelItemNameNumHex
-	IntelItemNameNumOct
-	IntelItemNameNumDec
+	IntelItemKindName IntelItemKind = iota
+	IntelItemKindDescription
+	IntelItemKindKind // func, lit, var etc
+	IntelItemKindSignature
+	IntelItemKindPrimType
+	IntelItemKindExpansion
+	IntelItemKindImport
+	IntelItemKindUnused
+	IntelItemKindTag // userland annotations like deprecated
+	IntelItemKindStrBytesLen
+	IntelItemKindStrUtf8RunesLen
+	IntelItemKindNumHex
+	IntelItemKindNumOct
+	IntelItemKindNumDec
 )
 
 type Intel interface {
@@ -47,13 +49,14 @@ type Intel interface {
 type intel struct{}
 
 type IntelItem struct {
-	Name   IntelItemName
+	Kind   IntelItemKind
 	Format IntelItemFormat
 	Value  string
 }
+type IntelItems sl.Of[IntelItem]
 
 type IntelInfo struct {
-	Infos     []IntelItem
+	Infos     IntelItems
 	Sub       []*IntelInfo
 	SpanIdent *SrcFileSpan
 	SpanFull  *SrcFileSpan
@@ -77,4 +80,21 @@ func (intel) Infos(file *SrcFile, pos SrcFilePos) *IntelInfo {
 
 func (intel) CanRename(file *SrcFile, pos SrcFilePos) *SrcFileSpan {
 	return nil
+}
+
+func (me IntelItems) First(kind IntelItemKind) *IntelItem {
+	for i := range me {
+		if item := &me[i]; item.Kind == kind {
+			return item
+		}
+	}
+	return nil
+}
+
+func (me IntelItems) Where(kind IntelItemKind) IntelItems {
+	return sl.Where(me, func(item IntelItem) bool { return item.Kind == kind })
+}
+
+func (me IntelItems) Name() *IntelItem {
+	return me.First(IntelItemKindName)
 }

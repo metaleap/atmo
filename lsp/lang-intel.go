@@ -1,8 +1,6 @@
 package lsp
 
 import (
-	"fmt"
-
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
 	"atmo/util"
@@ -20,20 +18,24 @@ func init() {
 		session.Access(func(sess session.StateAccess, intel session.Intel) {
 			if src_file := sess.SrcFile(src_file_path, true); src_file != nil {
 				for _, info := range intel.Decls(nil, src_file, false, "") {
-					_ = info
+					sym := lsp.DocumentSymbol{Name: info.Infos.Name().Value}
+					if descr := info.Infos.First(session.IntelItemKindDescription); descr != nil {
+						sym.Detail = descr.Value
+					}
+					ret = append(ret, sym)
 				}
 			}
 		})
-		return sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
-			func(it lsp.SymbolKind) lsp.DocumentSymbol {
-				return lsp.DocumentSymbol{
-					Name:           it.String(),
-					Detail:         fmt.Sprintf("**TODO:** documentSymbols for `%v`", src_file_path),
-					Kind:           it,
-					Range:          lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}},
-					SelectionRange: lsp.Range{Start: lsp.Position{Line: 2, Character: 3}, End: lsp.Position{Line: 2, Character: 6}},
-				}
-			}), nil
+		return /*sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
+		func(it lsp.SymbolKind) lsp.DocumentSymbol {
+			return lsp.DocumentSymbol{
+				Name:           it.String(),
+				Detail:         fmt.Sprintf("**TODO:** documentSymbols for `%v`", src_file_path),
+				Kind:           it,
+				Range:          lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}},
+				SelectionRange: lsp.Range{Start: lsp.Position{Line: 2, Character: 3}, End: lsp.Position{Line: 2, Character: 6}},
+			}
+		}), nil*/
 	}
 
 	Server.On_workspace_symbol = func(params *lsp.WorkspaceSymbolParams) ([]lsp.WorkspaceSymbol, error) {
