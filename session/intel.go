@@ -1,6 +1,7 @@
 package session
 
 import (
+	"atmo/util"
 	"atmo/util/sl"
 )
 
@@ -67,7 +68,7 @@ type IntelItem struct {
 type IntelItems sl.Of[IntelItem]
 
 type IntelInfo struct {
-	Infos     IntelItems
+	Items     IntelItems
 	Sub       []*IntelInfo
 	SpanIdent *SrcFileSpan
 	SpanFull  *SrcFileSpan
@@ -84,7 +85,7 @@ func (me intel) Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query str
 	ret = append(ret, &IntelInfo{
 		SpanIdent: &SrcFileSpan{Start: SrcFilePos{Line: 1, Char: 4}, End: SrcFilePos{Line: 1, Char: 11}},
 		SpanFull:  &SrcFileSpan{Start: SrcFilePos{Line: 1, Char: 1}, End: SrcFilePos{Line: 4, Char: 123}},
-		Infos: IntelItems{
+		Items: IntelItems{
 			IntelItem{Kind: IntelItemKindName, Value: "FakeSym1"},
 			IntelItem{Kind: IntelItemKindDescription, Value: "Fake symbol 1"},
 			IntelItem{Kind: IntelItemKindKind, Value: string(IntelDeclKindVar)},
@@ -96,7 +97,7 @@ func (me intel) Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query str
 		ret[0].Sub = []*IntelInfo{{
 			SpanIdent: &SrcFileSpan{Start: SrcFilePos{Line: 3, Char: 4}, End: SrcFilePos{Line: 3, Char: 11}},
 			SpanFull:  &SrcFileSpan{Start: SrcFilePos{Line: 3, Char: 4}, End: SrcFilePos{Line: 3, Char: 123}},
-			Infos: IntelItems{
+			Items: IntelItems{
 				IntelItem{Kind: IntelItemKindName, Value: "FakeSym2"},
 				IntelItem{Kind: IntelItemKindDescription, Value: "Fake symbol 2"},
 				IntelItem{Kind: IntelItemKindKind, Value: string(IntelDeclKindFunc)},
@@ -120,7 +121,15 @@ func (intel) Completions(file *SrcFile, pos SrcFilePos) (ret []*IntelInfo) {
 
 // temporary fake impl
 func (intel) Info(file *SrcFile, pos SrcFilePos) *IntelInfo {
-	return nil
+	return &IntelInfo{
+		SpanFull: util.Ptr(pos.ToSpan()),
+		Items: IntelItems{
+			IntelItem{Kind: IntelItemKindName, Value: "FakeInfo"},
+			IntelItem{Kind: IntelItemKindDescription, Value: "TODO: **unfake** it all _stat_"},
+			IntelItem{Kind: IntelItemKindKind, Value: string(IntelDeclKindFunc)},
+			IntelItem{Kind: IntelItemKindSrcFilePath, Value: file.FilePath},
+		},
+	}
 }
 
 // temporary fake impl
