@@ -1,6 +1,8 @@
 package session
 
-import "atmo/util/sl"
+import (
+	"atmo/util/sl"
+)
 
 type IntelLookupKind int
 
@@ -38,10 +40,17 @@ const (
 	IntelItemKindNumDec
 )
 
+type IntelDeclKind string
+
+const (
+	IntelDeclKindFunc IntelDeclKind = "func"
+	IntelDeclKindVar  IntelDeclKind = "var"
+)
+
 type Intel interface {
-	Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []IntelInfo)
+	Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []*IntelInfo)
 	Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileOnly bool) (ret []SrcFileLocs)
-	Completions(file *SrcFile, pos SrcFilePos) (ret []IntelInfo)
+	Completions(file *SrcFile, pos SrcFilePos) (ret []*IntelInfo)
 	Infos(file *SrcFile, pos SrcFilePos) *IntelInfo
 	CanRename(file *SrcFile, pos SrcFilePos) *SrcFileSpan
 }
@@ -62,17 +71,20 @@ type IntelInfo struct {
 	SpanFull  *SrcFileSpan
 }
 
-func (intel) Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []IntelInfo) {
-	/*sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
-	func(it lsp.SymbolKind) lsp.DocumentSymbol {
-		return lsp.DocumentSymbol{
-			Name:           it.String(),
-			Detail:         fmt.Sprintf("**TODO:** documentSymbols for `%v`", src_file_path),
-			Kind:           it,
-			Range:          lsp.Range{Start: lsp.Position{Line: 2, Character: 1}, End: lsp.Position{Line: 2, Character: 8}},
-			SelectionRange: lsp.Range{Start: lsp.Position{Line: 2, Character: 3}, End: lsp.Position{Line: 2, Character: 6}},
-		}
-	}), nil*/
+func (intel) Decls(pack *SrcPack, file *SrcFile, topLevelOnly bool, query string) (ret []*IntelInfo) {
+	ret = append(ret, &IntelInfo{
+		SpanIdent: &SrcFileSpan{Start: SrcFilePos{Line: 1, Char: 4}, End: SrcFilePos{Line: 1, Char: 11}},
+		SpanFull:  &SrcFileSpan{Start: SrcFilePos{Line: 1, Char: 1}, End: SrcFilePos{Line: 4, Char: 123}},
+		Infos:     IntelItems{IntelItem{Kind: IntelItemKindName, Value: "FakeSym1"}},
+	})
+	ret[0].Sub = []*IntelInfo{{
+		SpanIdent: &SrcFileSpan{Start: SrcFilePos{Line: 3, Char: 4}, End: SrcFilePos{Line: 3, Char: 11}},
+		SpanFull:  &SrcFileSpan{Start: SrcFilePos{Line: 3, Char: 4}, End: SrcFilePos{Line: 3, Char: 123}},
+		Infos: IntelItems{
+			IntelItem{Kind: IntelItemKindName, Value: "FakeSym2"},
+			IntelItem{Kind: IntelItemKindKind, Value: string(IntelDeclKindFunc)},
+		},
+	}}
 	return
 }
 
@@ -80,7 +92,7 @@ func (intel) Lookup(kind IntelLookupKind, file *SrcFile, pos SrcFilePos, inFileO
 	return
 }
 
-func (intel) Completions(file *SrcFile, pos SrcFilePos) (ret []IntelInfo) {
+func (intel) Completions(file *SrcFile, pos SrcFilePos) (ret []*IntelInfo) {
 	return
 }
 
