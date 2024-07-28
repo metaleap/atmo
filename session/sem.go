@@ -61,9 +61,6 @@ func (me *SrcPack) semRefresh() {
 	me.Trees.Sem.Scope = SemScope{Own: map[MoValIdent]*SemExpr{}}
 	for _, top_expr := range me.Trees.MoOrig {
 		it := me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil)
-		if top_expr.String() == "123" {
-			panic(top_expr.String())
-		}
 		if call, _ := it.Val.(*SemValCall); call == nil {
 			it.DefinitelyUnused = true
 		}
@@ -98,7 +95,6 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 		me.semPopulateDict(ret, it)
 	case MoValCall:
 		me.semPopulateCall(ret, it)
-	case MoValFnPrim:
 	case *MoValFnLam:
 	}
 	return ret

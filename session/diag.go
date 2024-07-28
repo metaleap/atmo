@@ -34,7 +34,7 @@ const (
 	NoticeCodeBracketingMismatch SrcFileNoticeCode = "BracketingMismatch"
 	NoticeCodeLitSyntax          SrcFileNoticeCode = "LitSyntax"
 
-	// semantic
+	// semantic (errors)
 	NoticeCodeExpectedFoo      SrcFileNoticeCode = "Unexpected"
 	NoticeCodeUndefined        SrcFileNoticeCode = "Unresolved"
 	NoticeCodeNotFirstClass    SrcFileNoticeCode = "NotFirstClass"
@@ -46,6 +46,9 @@ const (
 	NoticeCodeDictDuplKey      SrcFileNoticeCode = "DictDuplKey"
 	NoticeCodeNotComparable    SrcFileNoticeCode = "NotComparable"
 	NoticeCodeNotConvertible   SrcFileNoticeCode = "NotConvertible"
+
+	// semantic (warnings / infos / hints)
+	NoticeCodeUnused SrcFileNoticeCode = "Unused"
 )
 
 var (
@@ -75,6 +78,8 @@ var (
 		NoticeCodeDictDuplKey:      "duplicate key `%s` in dict constructor",
 		NoticeCodeNotComparable:    "operands `%s` and `%s` cannot be compared in %s terms",
 		NoticeCodeNotConvertible:   "cannot convert `%s` to %s",
+
+		NoticeCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}
 )
 
@@ -134,7 +139,17 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 		me.pack.Trees.MoOrig.Walk(me, nil, add)
 		me.pack.Trees.MoEvaled.Walk(me, nil, add)
 		ret.Add(me.pack.Trees.Sem.TopLevel.Errs()...)
+		ret.Add(me.pack.semNonErrNotices()...)
 	}
+	return
+}
+
+func (me *SrcPack) semNonErrNotices() (ret SrcFileNotices) {
+	me.Trees.Sem.TopLevel.Walk(nil, nil, func(it *SemExpr) {
+		if it.DefinitelyUnused {
+			ret.Add(it.From.SrcSpan.newDiag(NoticeKindHint, NoticeCodeUnused))
+		}
+	})
 	return
 }
 

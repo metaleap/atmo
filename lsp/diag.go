@@ -88,13 +88,17 @@ func init() {
 }
 
 func srcFileNoticeToLspDiag(it *session.SrcFileNotice) lsp.Diagnostic {
-	return lsp.Diagnostic{
+	ret := lsp.Diagnostic{
 		Code:            string(it.Code),
 		CodeDescription: &lsp.CodeDescription{Href: "https://github.com/atmo-lang/atmo/docs/err-codes.md#" + string(it.Code)},
 		Range:           lspRangeFromSpan(&it.Span),
 		Message:         it.Message,
 		Severity:        toLspDiagSeverity(it.Kind),
 	}
+	if it.Code == session.NoticeCodeUnused {
+		ret.Tags = append(ret.Tags, lsp.DiagnosticTagUnnecessary)
+	}
+	return ret
 }
 
 func toLspDiagSeverity(kind session.SrcFileNoticeKind) lsp.DiagnosticSeverity {
