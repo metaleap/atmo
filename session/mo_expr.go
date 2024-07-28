@@ -181,13 +181,6 @@ type MoExpr struct {
 	PreEvalTopLevelPreEnvUnevaledYet bool
 }
 
-func (me *MoExpr) srcNode() *AstNode {
-	if (me.SrcFile != nil) && (me.SrcSpan != nil) {
-		me.SrcFile.NodeAtPos(me.SrcSpan.Start, false)
-	}
-	return nil
-}
-
 func (me *MoExpr) EqTrue() bool  { return (me == moValTrue) || (me.Val == moValTrue.Val) }
 func (me *MoExpr) EqFalse() bool { return (me == moValFalse) || (me.Val == moValFalse.Val) }
 func (me *MoExpr) EqNone() bool  { return (me == moValNone) || (me.Val == moValNone.Val) }
@@ -513,7 +506,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			val = call_form
 		}
 	}
-	return &MoExpr{SrcFile: me, SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
+	return &MoExpr{SrcNode: node, SrcFile: me, SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
 }
 
 func (me *MoExpr) IsErr() (ret bool) {

@@ -23,17 +23,23 @@ type SrcFilePos struct {
 	Char int
 }
 
-func (me *SrcFilePos) after(it *SrcFilePos) bool {
+func (me *SrcFilePos) After(it *SrcFilePos) bool {
 	return util.If(me.Line == it.Line, me.Char > it.Char, me.Line > it.Line)
 }
-func (me *SrcFilePos) afterOrAt(it *SrcFilePos) bool {
+func (me *SrcFilePos) AfterOrAt(it *SrcFilePos) bool {
 	return util.If(me.Line == it.Line, me.Char >= it.Char, me.Line > it.Line)
 }
-func (me *SrcFilePos) before(it *SrcFilePos) bool {
+func (me *SrcFilePos) Before(it *SrcFilePos) bool {
 	return util.If(me.Line == it.Line, me.Char < it.Char, me.Line < it.Line)
 }
-func (me *SrcFilePos) beforeOrAt(it *SrcFilePos) bool {
+func (me *SrcFilePos) BeforeOrAt(it *SrcFilePos) bool {
 	return util.If(me.Line == it.Line, me.Char <= it.Char, me.Line < it.Line)
+}
+func (me *SrcFilePos) Cmp(to *SrcFilePos) int {
+	if me.Line == to.Line {
+		return cmp.Compare(me.Char, to.Char)
+	}
+	return cmp.Compare(me.Line, to.Line)
 }
 func (me *SrcFilePos) String() string { return str.Fmt("%d,%d", me.Line, me.Char) }
 func (me SrcFilePos) ToSpan() (ret SrcFileSpan) {
@@ -47,7 +53,7 @@ type SrcFileSpan struct {
 }
 
 func (me SrcFileSpan) Contains(it *SrcFilePos) bool {
-	return it.afterOrAt(&me.Start) && it.beforeOrAt(&me.End)
+	return it.AfterOrAt(&me.Start) && it.BeforeOrAt(&me.End)
 }
 
 func (me *SrcFileSpan) IsSinglePos() bool { return me.Start == me.End }
@@ -60,8 +66,8 @@ func (me *SrcFileSpan) Expanded(to *SrcFileSpan) *SrcFileSpan {
 	if me == to {
 		return me
 	}
-	return &SrcFileSpan{Start: util.If(to.Start.before(&me.Start), to.Start, me.Start),
-		End: util.If(to.End.after(&me.End), to.End, me.End)}
+	return &SrcFileSpan{Start: util.If(to.Start.Before(&me.Start), to.Start, me.Start),
+		End: util.If(to.End.After(&me.End), to.End, me.End)}
 }
 
 func (me SrcFileSpan) String() string {
@@ -121,10 +127,7 @@ func (me *SrcFileSpan) newDiagErr(code SrcFileNoticeCode, args ...any) *SrcFileN
 	return me.newDiag(NoticeKindErr, code, args...)
 }
 func (me *SrcFileSpan) Cmp(to *SrcFileSpan) int {
-	if me.Start.Line == to.Start.Line {
-		return cmp.Compare(me.Start.Char, to.Start.Char)
-	}
-	return cmp.Compare(me.Start.Line, to.Start.Line)
+	return me.Start.Cmp(&to.Start)
 }
 
 func (me *SrcFileLocs) SortSpans(reversed bool) {

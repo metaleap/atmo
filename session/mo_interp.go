@@ -63,7 +63,7 @@ func (me *Interp) replReset() {
 		me.envReset()
 		me.Pack.Interp, me.Pack.Trees.MoOrig, me.Pack.Trees.MoEvaled = me, nil, nil
 		for _, src_file := range me.Pack.Files {
-			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.MoOrig, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
+			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.Ast2Mo, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
 				nil, nil, nil, nil, nil, ""
 		}
 		_ = ensureSrcFiles(nil, false, me.Pack.srcFilePaths()...) // does `SrcPack.treesRefresh()` too

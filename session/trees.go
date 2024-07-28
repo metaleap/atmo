@@ -26,29 +26,30 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 	var any_pre_errs bool
 	for _, src_file := range me.Files {
 		if !src_file.IsInterpFauxFile() {
-			had_errs := (len(src_file.notices.MoOrig) > 0)
-			src_file.notices.MoOrig = nil
+			had_errs := (len(src_file.notices.Ast2Mo) > 0)
+			src_file.notices.Ast2Mo = nil
 			for _, top_node := range src_file.Src.Ast {
 				expr, err := src_file.MoExprFromAstNode(top_node)
 				if err != nil {
-					src_file.notices.MoOrig = append(src_file.notices.MoOrig, err)
+					src_file.notices.Ast2Mo = append(src_file.notices.Ast2Mo, err)
 				} else if expr != nil {
 					top_level = append(top_level, expr)
 				}
 			}
-			any_pre_errs = any_pre_errs || (len(src_file.notices.MoOrig) > 0)
-			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.MoOrig) > 0) || had_errs
+			any_pre_errs = any_pre_errs || (len(src_file.notices.Ast2Mo) > 0)
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.Ast2Mo) > 0) || had_errs
 		}
 	}
 	me.Trees.MoOrig = top_level
 
-	old_had_errs := me.Trees.MoEvaled.AnyErrs()
+	old_had_errs := me.Trees.MoEvaled.AnyErrs() || me.Trees.Sem.TopLevel.AnyErrs()
 	if any_pre_errs && !old_had_errs { // bug out & leave the old `.Trees.MoEvaled` intact in this case, for editor clients
 		return
 	}
 
 	if DoSrcPackSems {
 		me.semRefresh()
+		encounteredDiagsRelevantChanges = true // encounteredDiagsRelevantChanges || old_had_errs || me.Trees.Sem.TopLevel.AnyErrs()
 	}
 
 	if DoSrcPackEvals {
@@ -128,15 +129,11 @@ func (me MoExprs) Sorted() MoExprs {
 	return sl.SortedPer(me, func(expr1 *MoExpr, expr2 *MoExpr) int {
 		var node1, node2 *AstNode
 		if expr1.SrcFile.FilePath == expr2.SrcFile.FilePath {
-			node1, node2 = expr1.srcNode(), expr2.srcNode()
+			node1, node2 = expr1.SrcNode, expr2.SrcNode
 		}
 		if (node1 == nil) || (node2 == nil) {
 			return cmp.Compare(expr1.SrcFile.FilePath, expr2.SrcFile.FilePath)
 		}
-		if node1.Toks[0].Pos.Line != node2.Toks[0].Pos.Line {
-			return cmp.Compare(node1.Toks[0].Pos.Line, node2.Toks[0].Pos.Line)
-		}
-		// we shouldn't really ever get to here, since we only sort top-level exprs and there are no two of them on the same line in the same file
-		return cmp.Compare(node1.Toks[0].Pos.Char, node2.Toks[0].Pos.Char)
+		return node1.Toks[0].Pos.Cmp(&node2.Toks[0].Pos)
 	})
 }

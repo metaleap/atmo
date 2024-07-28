@@ -41,7 +41,7 @@ type SrcFile struct {
 	notices struct {
 		LastReadErr *SrcFileNotice
 		LexErrs     SrcFileNotices
-		MoOrig      SrcFileNotices
+		Ast2Mo      SrcFileNotices
 	}
 }
 
@@ -163,11 +163,11 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 
 		if (src_file.Src.Text != old_content) || had_last_read_err || (src_file.notices.LastReadErr != nil) {
 			old_ast := src_file.Src.Ast
-			had_errs := (len(src_file.notices.LexErrs) > 0) || (len(src_file.notices.MoOrig) > 0) || src_file.Src.Ast.has(true, func(node *AstNode) bool { return node.Kind == AstNodeKindErr })
+			had_errs := (len(src_file.notices.LexErrs) > 0) || (len(src_file.notices.Ast2Mo) > 0) || src_file.Src.Ast.has(true, func(node *AstNode) bool { return node.Kind == AstNodeKindErr })
 			if had_errs {
 				flag_for_diags_refr()
 			}
-			src_file.Src.Ast, src_file.Src.Toks, src_file.notices.LexErrs, src_file.notices.MoOrig = nil, nil, nil, nil
+			src_file.Src.Ast, src_file.Src.Toks, src_file.notices.LexErrs, src_file.notices.Ast2Mo = nil, nil, nil, nil
 			if src_file.notices.LastReadErr != nil {
 				flag_for_diags_refr()
 			} else {
