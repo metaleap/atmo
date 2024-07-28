@@ -12,11 +12,10 @@ import (
 type SrcPack struct {
 	DirPath string
 	Files   []*SrcFile
-	Interp  *Interp `json:"-"`
 	Trees   struct {
 		MoOrig   MoExprs
 		MoEvaled MoExprs
-		MoSem    struct {
+		Sem      struct {
 			TopLevel SemExprs
 			Index    struct {
 				Lits map[any]SemExprs
@@ -26,6 +25,7 @@ type SrcPack struct {
 			files map[string]string
 		}
 	} `json:"-"`
+	Interp *Interp `json:"-"`
 }
 
 type SrcFile struct {
@@ -209,7 +209,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 func newSrcPack(dirPath string) *SrcPack {
 	ret := &SrcPack{DirPath: dirPath}
 	ret.Trees.last.files = map[string]string{}
-	ret.Trees.MoSem.Index.Lits = map[any]SemExprs{}
+	ret.Trees.Sem.Index.Lits = map[any]SemExprs{}
 	return ret
 }
 

@@ -4,18 +4,19 @@ import "atmo/util/sl"
 
 type SemExprs sl.Of[*SemExpr]
 type SemExpr struct {
-	Mo      *MoExpr
+	Src     *MoExpr
+	Parent  *SemExpr
 	ErrsOwn []*SrcFileNotice
 }
 
 func (me *SrcPack) semRefresh() {
 	for _, top_expr := range me.Trees.MoOrig {
-		me.Trees.MoSem.TopLevel = append(me.Trees.MoSem.TopLevel, me.semExprFromMoExpr(top_expr))
+		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, me.semExprFromMoExpr(top_expr, nil))
 	}
 }
 
-func (me *SrcPack) semExprFromMoExpr(moExpr *MoExpr) *SemExpr {
-	ret := &SemExpr{Mo: moExpr}
+func (me *SrcPack) semExprFromMoExpr(moExpr *MoExpr, parent *SemExpr) *SemExpr {
+	ret := &SemExpr{Src: moExpr, Parent: parent}
 	switch it := moExpr.Val.(type) {
 	default:
 		panic(it)
@@ -31,11 +32,11 @@ func (me *SrcPack) semExprFromMoExpr(moExpr *MoExpr) *SemExpr {
 		me.semIndexAddLit(ret)
 	case MoValStr:
 		me.semIndexAddLit(ret)
+	case MoValIdent:
 	case MoValErr:
 	case MoValDict:
 	case MoValList:
 	case MoValCall:
-	case MoValIdent:
 	case MoValFnPrim:
 	case *MoValFnLam:
 	}
@@ -43,8 +44,8 @@ func (me *SrcPack) semExprFromMoExpr(moExpr *MoExpr) *SemExpr {
 }
 
 func (me *SrcPack) semIndexAddLit(it *SemExpr) {
-	lit_val := it.Mo.Val
-	me.Trees.MoSem.Index.Lits[lit_val] = append(me.Trees.MoSem.Index.Lits[lit_val], it)
+	lit_val := it.Src.Val
+	me.Trees.Sem.Index.Lits[lit_val] = append(me.Trees.Sem.Index.Lits[lit_val], it)
 }
 
 func (me *SemExpr) Errs() (ret SrcFileNotices) {
@@ -63,7 +64,7 @@ func (me SemExprs) Errs() (ret SrcFileNotices) {
 
 func (me SemExprs) Walk(filterBy *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
 	for _, expr := range me {
-		if (filterBy == nil) || (expr.Mo.SrcFile == filterBy) {
+		if (filterBy == nil) || (expr.Src.SrcFile == filterBy) {
 			expr.Walk(onBefore, onAfter)
 		}
 	}
