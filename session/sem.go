@@ -19,20 +19,25 @@ type SemScope struct {
 	Parent *SemScope
 }
 
-func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) (ret SemExprs) {
+func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) *SemExpr {
+	// if( ident[0]=='@')||(ident[0]=='#')||(ident[0]=='$') {
+	// 	if prim_op,_:=semPrimOps[ident].(*SemPrimOp); prim_op!=nil {
+
+	// 	}
+	// }
 	if resolved := me.Own[ident]; resolved != nil {
 		if !deepResolveUntilNonIdent {
-			ret = append(ret, resolved)
+			return resolved
 		} else if alias, _ := resolved.Val.(*SemValIdent); alias == nil {
-			ret = append(ret, resolved)
-		} else {
-			ret = append(ret, me.Lookup(resolved.From.Val.(MoValIdent), ownOnly, true)...)
+			return resolved
+		} else if resolved = me.Lookup(resolved.From.Val.(MoValIdent), ownOnly, true); resolved != nil {
+			return resolved
 		}
 	}
 	if (!ownOnly) && (me.Parent != nil) {
-		ret = append(ret, me.Parent.Lookup(ident, false, deepResolveUntilNonIdent)...)
+		return me.Parent.Lookup(ident, false, deepResolveUntilNonIdent)
 	}
-	return
+	return nil
 }
 
 type SemValScalar struct {
@@ -186,17 +191,13 @@ func (me *SemExpr) ResolvedIfIdent() *SemExpr {
 	}
 	ident := me.IdentIfSo()
 	if ident == "" {
-		return nil
+		return me
 	}
-	ret := me.Scope.Lookup(ident, false, true)
-	if len(ret) == 1 {
-		return ret[0]
-	} else if len(ret) > 0 {
-		me.ErrOwn = me.From.SrcNode.newDiagErr(false, NoticeCodeAtmoTodo, "resolved to multiple")
-	} else {
+	resolved := me.Scope.Lookup(ident, false, true)
+	if resolved == nil {
 		me.ErrOwn = me.From.SrcNode.newDiagErr(false, NoticeCodeUndefined, ident)
 	}
-	return nil
+	return resolved
 }
 
 func (me *SemExpr) HasErrs() (ret bool) {

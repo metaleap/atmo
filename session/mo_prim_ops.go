@@ -19,67 +19,119 @@ const (
 	moPrimOpSpliceUnquote MoValIdent = "$$"
 	moPrimOpDo            MoValIdent = "@do"
 	moPrimOpSet           MoValIdent = "@set"
+	moPrimOpCaseOf        MoValIdent = "@caseOf"
+	moPrimOpAnd           MoValIdent = "@and"
+	moPrimOpOr            MoValIdent = "@or"
+	moPrimOpMacro         MoValIdent = "@macro"
+	moPrimOpExpand        MoValIdent = "@expand"
+	moPrimOpFn            MoValIdent = "@fn"
+	moPrimOpFnCall        MoValIdent = "@fnCall"
+
+	moPrimFnReplEnv     MoValIdent = "@replEnv"
+	moPrimFnReplPrint   MoValIdent = "@replPrint"
+	moPrimFnReplReset   MoValIdent = "@replReset"
+	moPrimFnNumIntAdd   MoValIdent = "@numIntAdd"
+	moPrimFnNumIntSub   MoValIdent = "@numIntSub"
+	moPrimFnNumIntMul   MoValIdent = "@numIntMul"
+	moPrimFnNumIntDiv   MoValIdent = "@numIntDiv"
+	moPrimFnNumIntMod   MoValIdent = "@numIntMod"
+	moPrimFnNumUintAdd  MoValIdent = "@numUintAdd"
+	moPrimFnNumUintSub  MoValIdent = "@numUintSub"
+	moPrimFnNumUintMul  MoValIdent = "@numUintMul"
+	moPrimFnNumUintDiv  MoValIdent = "@numUintDiv"
+	moPrimFnNumUintMod  MoValIdent = "@numUintMod"
+	moPrimFnNumFloatAdd MoValIdent = "@numFloatAdd"
+	moPrimFnNumFloatSub MoValIdent = "@numFloatSub"
+	moPrimFnNumFloatMul MoValIdent = "@numFloatMul"
+	moPrimFnNumFloatDiv MoValIdent = "@numFloatDiv"
+	moPrimFnCast        MoValIdent = "@cast"
+	moPrimFnEq          MoValIdent = "@eq"
+	moPrimFnNeq         MoValIdent = "@neq"
+	moPrimFnGeq         MoValIdent = "@geq"
+	moPrimFnLeq         MoValIdent = "@leq"
+	moPrimFnLt          MoValIdent = "@lt"
+	moPrimFnGt          MoValIdent = "@gt"
+	moPrimFnPrimTypeTag MoValIdent = "@primTypeTag"
+	moPrimFnListItemAt  MoValIdent = "@listItemAt"
+	moPrimFnListRange   MoValIdent = "@listRange"
+	moPrimFnListLen     MoValIdent = "@listLen"
+	moPrimFnListConcat  MoValIdent = "@listConcat"
+	moPrimFnDictHas     MoValIdent = "@dictHas"
+	moPrimFnDictGet     MoValIdent = "@dictGet"
+	moPrimFnDictWith    MoValIdent = "@dictWith"
+	moPrimFnDictWithout MoValIdent = "@dictWithout"
+	moPrimFnDictLen     MoValIdent = "@dictLen"
+	moPrimFnErrNew      MoValIdent = "@errNew"
+	moPrimFnErrVal      MoValIdent = "@errVal"
+	moPrimFnStrConcat   MoValIdent = "@strConcat"
+	moPrimFnStrLen      MoValIdent = "@strLen"
+	moPrimFnStrCharAt   MoValIdent = "@strCharAt"
+	moPrimFnStrRange    MoValIdent = "@strRange"
+	moPrimFnStr         MoValIdent = "@str"
+	moPrimFnExprStr     MoValIdent = "@exprStr"
+	moPrimFnExprParse   MoValIdent = "@exprParse"
+	moPrimFnExprEval    MoValIdent = "@exprEval"
 )
 
 func init() {
 	moPrimOpsLazy = map[MoValIdent]moFnLazy{
-		"@fn":          (*Interp).primOpFn,
-		"@fnCall":      (*Interp).primOpFnCall,
-		"@caseOf":      (*Interp).primOpCaseOf,
-		"@and":         (*Interp).primOpBoolAnd,
-		"@or":          (*Interp).primOpBoolOr,
-		"@macro":       (*Interp).primOpMacro,
-		"@expand":      (*Interp).primOpMacroExpand,
+		moPrimOpFn:     (*Interp).primOpFn,
+		moPrimOpFnCall: (*Interp).primOpFnCall,
+		moPrimOpCaseOf: (*Interp).primOpCaseOf,
+		moPrimOpAnd:    (*Interp).primOpBoolAnd,
+		moPrimOpOr:     (*Interp).primOpBoolOr,
+		moPrimOpMacro:  (*Interp).primOpMacro,
+		moPrimOpExpand: (*Interp).primOpMacroExpand,
 		moPrimOpQuote:  (*Interp).primOpQuote,
 		moPrimOpQQuote: (*Interp).primOpQuasiQuote,
 		moPrimOpSet:    (*Interp).primOpSet,
 		moPrimOpDo:     (*Interp).primOpDo,
 	}
 	moPrimOpsEager = map[MoValIdent]moFnEager{
-		"@replEnv":     (*Interp).primFnSessEnv,
-		"@replPrint":   (*Interp).primFnSessPrint,
-		"@replReset":   (*Interp).primFnSessReset,
-		"@numIntAdd":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) + opr.(MoValNumInt) }),
-		"@numIntSub":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) - opr.(MoValNumInt) }),
-		"@numIntMul":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) * opr.(MoValNumInt) }),
-		"@numIntDiv":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) / opr.(MoValNumInt) }),
-		"@numIntMod":   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) % opr.(MoValNumInt) }),
-		"@numUintAdd":  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) + opr.(MoValNumUint) }),
-		"@numUintSub":  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) - opr.(MoValNumUint) }),
-		"@numUintMul":  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) * opr.(MoValNumUint) }),
-		"@numUintDiv":  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) / opr.(MoValNumUint) }),
-		"@numUintMod":  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) % opr.(MoValNumUint) }),
-		"@numFloatAdd": makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) + opr.(MoValNumFloat) }),
-		"@numFloatSub": makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) - opr.(MoValNumFloat) }),
-		"@numFloatMul": makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
-		"@numFloatDiv": makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
-		"@cast":        (*Interp).primFnCast,
-		"@eq":          (*Interp).primFnEq,
-		"@neq":         (*Interp).primFnNeq,
-		"@geq":         (*Interp).primFnGeq,
-		"@leq":         (*Interp).primFnLeq,
-		"@lt":          (*Interp).primFnLt,
-		"@gt":          (*Interp).primFnGt,
-		"@primTypeTag": (*Interp).primFnPrimTypeTag,
-		"@listItemAt":  (*Interp).primFnListItemAt,
-		"@listRange":   (*Interp).primFnListRange,
-		"@listLen":     (*Interp).primFnListLen,
-		"@listConcat":  (*Interp).primFnListConcat,
-		"@dictHas":     (*Interp).primFnDictHas,
-		"@dictGet":     (*Interp).primFnDictGet,
-		"@dictWith":    (*Interp).primFnDictWith,
-		"@dictWithout": (*Interp).primFnDictWithout,
-		"@dictLen":     (*Interp).primFnDictLen,
-		"@errNew":      (*Interp).primFnErrNew,
-		"@errVal":      (*Interp).primFnErrVal,
-		"@strConcat":   (*Interp).primFnStrConcat,
-		"@strLen":      (*Interp).primFnStrLen,
-		"@strCharAt":   (*Interp).primFnStrCharAt,
-		"@strRange":    (*Interp).primFnStrRange,
-		"@str":         (*Interp).primFnStr,
-		"@exprStr":     (*Interp).primFnExprStr,
-		"@exprParse":   (*Interp).primFnExprParse,
-		"@exprEval":    (*Interp).primFnExprEval,
+		moPrimFnReplEnv:     (*Interp).primFnSessEnv,
+		moPrimFnReplPrint:   (*Interp).primFnSessPrint,
+		moPrimFnReplReset:   (*Interp).primFnSessReset,
+		moPrimFnNumIntAdd:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) + opr.(MoValNumInt) }),
+		moPrimFnNumIntSub:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) - opr.(MoValNumInt) }),
+		moPrimFnNumIntMul:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) * opr.(MoValNumInt) }),
+		moPrimFnNumIntDiv:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) / opr.(MoValNumInt) }),
+		moPrimFnNumIntMod:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) % opr.(MoValNumInt) }),
+		moPrimFnNumUintAdd:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) + opr.(MoValNumUint) }),
+		moPrimFnNumUintSub:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) - opr.(MoValNumUint) }),
+		moPrimFnNumUintMul:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) * opr.(MoValNumUint) }),
+		moPrimFnNumUintDiv:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) / opr.(MoValNumUint) }),
+		moPrimFnNumUintMod:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) % opr.(MoValNumUint) }),
+		moPrimFnNumFloatAdd: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) + opr.(MoValNumFloat) }),
+		moPrimFnNumFloatSub: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) - opr.(MoValNumFloat) }),
+		moPrimFnNumFloatMul: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
+		moPrimFnNumFloatDiv: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
+		moPrimFnCast:        (*Interp).primFnCast,
+		moPrimFnEq:          (*Interp).primFnEq,
+		moPrimFnNeq:         (*Interp).primFnNeq,
+		moPrimFnGeq:         (*Interp).primFnGeq,
+		moPrimFnLeq:         (*Interp).primFnLeq,
+		moPrimFnLt:          (*Interp).primFnLt,
+		moPrimFnGt:          (*Interp).primFnGt,
+		moPrimFnPrimTypeTag: (*Interp).primFnPrimTypeTag,
+		moPrimFnListItemAt:  (*Interp).primFnListItemAt,
+		moPrimFnListRange:   (*Interp).primFnListRange,
+		moPrimFnListLen:     (*Interp).primFnListLen,
+		moPrimFnListConcat:  (*Interp).primFnListConcat,
+		moPrimFnDictHas:     (*Interp).primFnDictHas,
+		moPrimFnDictGet:     (*Interp).primFnDictGet,
+		moPrimFnDictWith:    (*Interp).primFnDictWith,
+		moPrimFnDictWithout: (*Interp).primFnDictWithout,
+		moPrimFnDictLen:     (*Interp).primFnDictLen,
+		moPrimFnErrNew:      (*Interp).primFnErrNew,
+		moPrimFnErrVal:      (*Interp).primFnErrVal,
+		moPrimFnStrConcat:   (*Interp).primFnStrConcat,
+		moPrimFnStrLen:      (*Interp).primFnStrLen,
+		moPrimFnStrCharAt:   (*Interp).primFnStrCharAt,
+		moPrimFnStrRange:    (*Interp).primFnStrRange,
+		moPrimFnStr:         (*Interp).primFnStr,
+		moPrimFnExprStr:     (*Interp).primFnExprStr,
+		moPrimFnExprParse:   (*Interp).primFnExprParse,
+		moPrimFnExprEval:    (*Interp).primFnExprEval,
 	}
 }
 
