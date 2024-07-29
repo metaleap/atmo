@@ -52,7 +52,8 @@ const (
 	moPrimFnLt          MoValIdent = "@lt"
 	moPrimFnGt          MoValIdent = "@gt"
 	moPrimFnPrimTypeTag MoValIdent = "@primTypeTag"
-	moPrimFnListItemAt  MoValIdent = "@listItemAt"
+	moPrimFnListGet     MoValIdent = "@listGet"
+	moPrimFnListSet     MoValIdent = "@listSet"
 	moPrimFnListRange   MoValIdent = "@listRange"
 	moPrimFnListLen     MoValIdent = "@listLen"
 	moPrimFnListConcat  MoValIdent = "@listConcat"
@@ -113,7 +114,8 @@ func init() {
 		moPrimFnLt:          (*Interp).primFnLt,
 		moPrimFnGt:          (*Interp).primFnGt,
 		moPrimFnPrimTypeTag: (*Interp).primFnPrimTypeTag,
-		moPrimFnListItemAt:  (*Interp).primFnListItemAt,
+		moPrimFnListGet:     (*Interp).primFnListGet,
+		moPrimFnListSet:     (*Interp).primFnListSet,
 		moPrimFnListRange:   (*Interp).primFnListRange,
 		moPrimFnListLen:     (*Interp).primFnListLen,
 		moPrimFnListConcat:  (*Interp).primFnListConcat,
@@ -144,8 +146,8 @@ func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
 		return nil, me.exprErr(err)
 	}
-	callee, args_list := args[0], args[1].Val.(MoValList)
-	return env, me.expr(append(MoValCall{callee}, args_list...), nil, nil, args...)
+	callee, args_list := args[0], args[1].Val.(*MoValList)
+	return env, me.expr(append(MoValCall{callee}, (*args_list)...), nil, nil, args...)
 }
 
 func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
@@ -185,7 +187,7 @@ func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return nil, me.exprErr(err)
 	}
-	list := args[0].Val.(MoValList)
+	list := *(args[0].Val.(*MoValList))
 	for _, item := range list[:len(list)-1] {
 		evaled := me.evalAndApply(env, item)
 		if err := evaled.Err(); err != nil {
@@ -210,7 +212,7 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkIsListOf(MoPrimTypeIdent, args[0]); err != nil {
 		return nil, me.exprErr(err)
 	}
-	for _, param := range args[0].Val.(MoValList) {
+	for _, param := range *(args[0].Val.(*MoValList)) {
 		if ident := param.Val.(MoValIdent); ident.IsReserved() {
 			return nil, me.exprErr(param.SrcNode.newDiagErr(false, ErrCodeReserved, ident), param)
 		}
@@ -218,14 +220,14 @@ func (me *Interp) primOpFn(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
 		return nil, me.exprErr(err)
 	}
-	list := args[1].Val.(MoValList)
+	list := *(args[1].Val.(*MoValList))
 	body := list[0]
 	if len(list) > 1 {
 		do := me.expr(moPrimOpDo, body.SrcFile, srcSpanFrom(MoExprs(list)))
-		body = me.expr(MoValCall{do, me.expr(list, do.SrcFile, do.SrcSpan)}, do.SrcFile, do.SrcSpan)
+		body = me.expr(MoValCall{do, me.expr(&list, do.SrcFile, do.SrcSpan)}, do.SrcFile, do.SrcSpan)
 	}
 	expr := me.expr(
-		&MoValFnLam{Params: MoExprs(args[0].Val.(MoValList)), Body: body, Env: env},
+		&MoValFnLam{Params: MoExprs(*(args[0].Val.(*MoValList))), Body: body, Env: env},
 		body.SrcFile, srcSpanFrom(args))
 	return nil, expr
 }
@@ -285,7 +287,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 	if call, is := args[0].Val.(MoValCall); is {
 		call_or_arr = MoExprs(call)
 	} else if is_list {
-		call_or_arr = MoExprs(args[0].Val.(MoValList))
+		call_or_arr = MoExprs(*(args[0].Val.(*MoValList)))
 	} else {
 		return nil, me.exprErr(me.diagSpan(false, true, args[0]).newDiagErr(ErrCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote"))
 	}
@@ -311,7 +313,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			} else if err = me.checkIsListOf(-1, evaled); err != nil {
 				return nil, me.exprErr(err)
 			}
-			for _, splicee := range evaled.Val.(MoValList) {
+			for _, splicee := range *(evaled.Val.(*MoValList)) {
 				evaled = me.evalAndApply(env, splicee)
 				if err = evaled.Err(); err != nil {
 					return nil, me.exprErr(err, splicee)
@@ -326,7 +328,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			ret = append(ret, evaled)
 		}
 	}
-	return nil, me.expr(util.If[MoVal](is_list, MoValList(ret), MoValCall(ret)),
+	return nil, me.expr(util.If[MoVal](is_list, util.Ptr(MoValList(ret)), MoValCall(ret)),
 		me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
 }
 
@@ -465,10 +467,10 @@ func (me *Interp) primFnListLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return me.exprErr(err)
 	}
-	return me.expr(MoValNumUint(len(args[0].Val.(MoValList))), nil, nil, args...)
+	return me.expr(MoValNumUint(len(*(args[0].Val.(*MoValList)))), nil, nil, args...)
 }
 
-func (me *Interp) primFnListItemAt(_ *MoEnv, args ...*MoExpr) *MoExpr {
+func (me *Interp) primFnListGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprErr(err)
 	}
@@ -481,11 +483,34 @@ func (me *Interp) primFnListItemAt(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeNumUint, args[1]); err != nil {
 		return me.exprErr(err)
 	}
-	list, idx := args[0].Val.(MoValList), args[1].Val.(MoValNumUint)
+	list, idx := *(args[0].Val.(*MoValList)), args[1].Val.(MoValNumUint)
 	if idx_downcast := int(idx); (idx_downcast < 0) || (idx_downcast >= len(list)) {
 		return me.exprErr(me.diagSpan(false, true, args[1]).newDiagErr(ErrCodeIndexOutOfBounds, idx_downcast, len(list)))
 	}
 	return me.exprFrom(list[idx], args...)
+}
+
+func (me *Interp) primFnListSet(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(3, 3, args); err != nil {
+		return me.exprErr(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
+		return me.exprErr(err)
+	}
+	if err := me.checkIs(MoPrimTypeNumUint, args[1]); err != nil {
+		return me.exprErr(err)
+	}
+	list, idx := args[0].Val.(*MoValList), args[1].Val.(MoValNumUint)
+	if idx_downcast := int(idx); (idx_downcast < 0) || (idx_downcast >= len(*list)) {
+		return me.exprErr(me.diagSpan(false, true, args[1]).newDiagErr(ErrCodeIndexOutOfBounds, idx_downcast, len(*list)))
+	}
+	it := *list
+	it[idx] = args[2]
+	*list = it
+	return me.exprFrom(moValNone, args...)
 }
 
 func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -501,7 +526,7 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeNumUint, args[1]); err != nil {
 		return me.exprErr(err)
 	}
-	list, idx_start := args[0].Val.(MoValList), args[1].Val.(MoValNumUint)
+	list, idx_start := *(args[0].Val.(*MoValList)), args[1].Val.(MoValNumUint)
 	if len(args) == 2 {
 		args = append(args, me.expr(MoValNumUint(len(list)), me.srcFile(false, true, args[1]), me.diagSpan(false, true, args[1])))
 	} else if err := me.checkIs(MoPrimTypeNumUint, args[2]); err != nil {
@@ -516,7 +541,7 @@ func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if idx_downcast := int(idx_end); (idx_downcast < 0) || (idx_downcast > len(list)) {
 		return me.exprErr(me.diagSpan(false, true, args[2]).newDiagErr(ErrCodeIndexOutOfBounds, idx_downcast, len(list)))
 	}
-	return me.expr(list[idx_start:idx_end], me.srcFile(false, idx_start != idx_end, list[idx_start:idx_end]...), me.diagSpan(false, idx_start != idx_end, list[idx_start:idx_end]...))
+	return me.expr(util.Ptr(list[idx_start:idx_end]), me.srcFile(false, idx_start != idx_end, list[idx_start:idx_end]...), me.diagSpan(false, idx_start != idx_end, list[idx_start:idx_end]...))
 }
 
 func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -529,15 +554,15 @@ func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeList, args[0]); err != nil {
 		return me.exprErr(err)
 	}
-	list := args[0].Val.(MoValList)
+	list := *(args[0].Val.(*MoValList))
 	ret := make(MoValList, 0, len(list)*3)
 	for _, arg := range list {
 		if err := me.checkIs(MoPrimTypeList, arg); err != nil {
 			return me.exprErr(err)
 		}
-		ret = append(ret, arg.Val.(MoValList)...)
+		ret = append(ret, *(arg.Val.(*MoValList))...)
 	}
-	return me.expr(ret, nil, nil, args...)
+	return me.expr(&ret, nil, nil, args...)
 }
 
 func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -617,7 +642,7 @@ func (me *Interp) primFnStrConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		return me.exprErr(err)
 	}
 	var buf strings.Builder
-	for _, arg := range args[0].Val.(MoValList) {
+	for _, arg := range *(args[0].Val.(*MoValList)) {
 		if err := me.checkIs(MoPrimTypeStr, arg); err != nil {
 			return me.exprErr(err)
 		}

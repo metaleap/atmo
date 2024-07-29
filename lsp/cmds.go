@@ -116,8 +116,8 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							case *session.MoValFnLam:
 								param_nodes := sl.To(it.Params, convert)
 								ret.Nodes = append(ret.Nodes, &moNode{PrimTypeTag: session.MoPrimTypeFunc, Nodes: param_nodes}, convert(it.Body))
-							case session.MoValList:
-								for _, item := range it {
+							case *session.MoValList:
+								for _, item := range *it {
 									ret.Nodes = append(ret.Nodes, convert(item))
 								}
 							}

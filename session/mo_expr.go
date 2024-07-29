@@ -114,7 +114,7 @@ func (MoValChar) PrimType() MoValPrimType        { return MoPrimTypeChar }
 func (MoValStr) PrimType() MoValPrimType         { return MoPrimTypeStr }
 func (MoValErr) PrimType() MoValPrimType         { return MoPrimTypeErr }
 func (*MoValDict) PrimType() MoValPrimType       { return MoPrimTypeDict }
-func (MoValList) PrimType() MoValPrimType        { return MoPrimTypeList }
+func (*MoValList) PrimType() MoValPrimType       { return MoPrimTypeList }
 func (MoValCall) PrimType() MoValPrimType        { return MoPrimTypeCall }
 func (MoValFnPrim) PrimType() MoValPrimType      { return MoPrimTypeFunc }
 func (*MoValFnLam) PrimType() MoValPrimType      { return MoPrimTypeFunc }
@@ -210,9 +210,9 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	case MoValErr:
 		other := to.Val.(MoValErr)
 		return it.ErrVal.Eq(other.ErrVal)
-	case MoValList:
-		other := to.Val.(MoValList)
-		return sl.Eq(it, other, (*MoExpr).Eq)
+	case *MoValList:
+		other := to.Val.(*MoValList)
+		return sl.Eq(*it, *other, (*MoExpr).Eq)
 	case MoValCall:
 		other := to.Val.(MoValCall)
 		return sl.Eq(it, other, (*MoExpr).Eq)
@@ -343,9 +343,9 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			item.Val.WriteTo(w)
 		}
 		w.WriteString("}")
-	case MoValList:
+	case *MoValList:
 		w.WriteString("[")
-		for i, item := range it {
+		for i, item := range *it {
 			if i > 0 {
 				w.WriteString(", ")
 			}
@@ -457,7 +457,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 			val = call_form[0].Val
 		} else {
 			if len(block_sub_lines) > 0 {
-				call_form = append(call_form, &MoExpr{Val: MoValList(block_sub_lines), SrcFile: me,
+				call_form = append(call_form, &MoExpr{Val: util.Ptr(MoValList(block_sub_lines)), SrcFile: me,
 					SrcSpan: block_sub_lines[0].SrcSpan.Expanded(block_sub_lines[len(block_sub_lines)-1].SrcSpan)})
 			}
 			val = call_form
@@ -475,7 +475,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 					list = append(list, expr)
 				}
 			}
-			val = list
+			val = &list
 		case node.IsCurlyBraces():
 			nodes := node.Nodes.withoutComments()
 			dict := make(MoValDict, 0, len(nodes))
@@ -570,8 +570,8 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 			item.Walk(onBefore, onAfter)
 		}
 		it.Body.Walk(onBefore, onAfter)
-	case MoValList:
-		for _, item := range it {
+	case *MoValList:
+		for _, item := range *it {
 			item.Walk(onBefore, onAfter)
 		}
 	}

@@ -174,12 +174,12 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			}
 			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
-	case MoValList:
-		list := make(MoValList, len(val))
-		for i, item := range val {
+	case *MoValList:
+		list := make(MoValList, len(*val))
+		for i, item := range *val {
 			list[i] = me.evalAndApply(env, item)
 		}
-		return me.expr(list, expr.SrcFile, expr.SrcSpan)
+		return me.expr(&list, expr.SrcFile, expr.SrcSpan)
 	case *MoValDict:
 		dict := make(MoValDict, 0, len(*val))
 		for _, entry := range *val {
@@ -342,7 +342,7 @@ func (me *Interp) checkIsListOf(of MoValPrimType, expr *MoExpr) *Diag {
 		return err
 	}
 	if of >= 0 {
-		return me.check(of, -1, -1, expr.Val.(MoValList)...)
+		return me.check(of, -1, -1, *(expr.Val.(*MoValList))...)
 	}
 	return nil
 }
