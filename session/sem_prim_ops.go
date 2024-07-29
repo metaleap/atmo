@@ -15,6 +15,7 @@ var (
 func init() {
 	semPrimOps = map[MoValIdent]SemPrimOpOrFn{
 		moPrimOpSet: (*SrcPack).semPrimOpSet,
+		moPrimOpDo:  (*SrcPack).semPrimOpDo,
 	}
 }
 
@@ -71,4 +72,8 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 			}
 		}
 	}
+}
+
+func (me *SrcPack) semPrimOpDo(self *SemExpr) {
+
 }

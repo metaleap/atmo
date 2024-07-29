@@ -132,9 +132,11 @@ func init() {
 		session.Access(func(sess session.StateAccess, intel session.Intel) {
 			if src_file := sess.SrcFile(src_file_path); src_file != nil {
 				if info := intel.Info(src_file, lspPosToPos(&params.Position)); info != nil {
-					if item := info.Items.First(session.IntelItemKindDescription); (item != nil) && (item.Value != "") {
+					items := info.Items.Where(session.IntelItemKindDescription)
+					strs := sl.Where(sl.To(items, func(it session.IntelItem) string { return it.Value }), func(s string) bool { return s != "" })
+					if text := str.Join(strs, "\n___\n"); text != "" {
 						ret = &lsp.Hover{
-							Contents: lsp.MarkupContent{Value: item.Value, Kind: lsp.MarkupKindMarkdown},
+							Contents: lsp.MarkupContent{Value: text, Kind: lsp.MarkupKindMarkdown},
 						}
 						if info.SpanFull != nil {
 							ret.Range = util.Ptr(lspRangeFromSpan(info.SpanFull))

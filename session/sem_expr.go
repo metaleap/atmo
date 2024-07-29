@@ -199,6 +199,22 @@ func (me SemExprs) AnyErrs() bool {
 	return sl.Any(me, (*SemExpr).HasErrs)
 }
 
+func (me SemExprs) At(srcFile *SrcFile, pos *SrcFilePos) (ret *SemExpr) {
+	for _, top_expr := range me {
+		if (top_expr.From != nil) && (top_expr.From.SrcFile == srcFile) && (top_expr.From.SrcSpan != nil) && (top_expr.From.SrcSpan.Contains(pos)) {
+			ret = top_expr
+			top_expr.Walk(func(it *SemExpr) bool {
+				if (it.From != nil) && (it.From.SrcSpan != nil) && it.From.SrcSpan.Contains(pos) {
+					ret = it
+				}
+				return true
+			}, nil)
+			break
+		}
+	}
+	return
+}
+
 func (me SemExprs) Errs() (ret Diags) {
 	for _, top_expr := range me {
 		ret.Add(top_expr.Errs()...)

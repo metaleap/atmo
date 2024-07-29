@@ -1,7 +1,6 @@
 package session
 
 import (
-	"atmo/util"
 	"atmo/util/sl"
 )
 
@@ -13,15 +12,6 @@ const (
 	IntelLookupKindRefs
 	IntelLookupKindTypes
 	IntelLookupKindImpls
-)
-
-type IntelItemFormat int
-
-const (
-	IntelItemFormatPlainText IntelItemFormat = iota
-	IntelItemFormatMarkdown
-	IntelItemFormatAtmoSrcText
-	IntelItemFormatPrimTypeTag
 )
 
 type IntelItemKind int
@@ -61,9 +51,8 @@ type Intel interface {
 type intel struct{}
 
 type IntelItem struct {
-	Kind   IntelItemKind
-	Format IntelItemFormat
-	Value  string
+	Kind  IntelItemKind
+	Value string
 }
 type IntelItems sl.Of[IntelItem]
 
@@ -119,17 +108,19 @@ func (intel) Completions(file *SrcFile, pos SrcFilePos) (ret []*IntelInfo) {
 	return
 }
 
-// temporary fake impl
-func (intel) Info(file *SrcFile, pos SrcFilePos) *IntelInfo {
-	return &IntelInfo{
-		SpanFull: util.Ptr(pos.ToSpan()),
-		Items: IntelItems{
-			IntelItem{Kind: IntelItemKindName, Value: "FakeInfo"},
-			IntelItem{Kind: IntelItemKindDescription, Value: "TODO: **unfake** it all _stat_"},
-			IntelItem{Kind: IntelItemKindKind, Value: string(IntelDeclKindFunc)},
-			IntelItem{Kind: IntelItemKindSrcFilePath, Value: file.FilePath},
-		},
+func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
+	node := file.pack.Trees.Sem.TopLevel.At(file, &pos)
+	if node != nil {
+		ret = &IntelInfo{SpanFull: node.From.SrcSpan}
+		for it := node; it != nil; it = it.Parent {
+			if (it.From != nil) && (it.From.SrcNode != nil) {
+				ret.Items = append(ret.Items, IntelItem{
+					Kind: IntelItemKindDescription, Value: "Yo:\n\n```atmo\n" + it.From.SrcNode.Src + "\n```\n",
+				})
+			}
+		}
 	}
+	return
 }
 
 // temporary fake impl
