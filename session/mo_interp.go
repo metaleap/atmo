@@ -180,9 +180,9 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			list[i] = me.evalAndApply(env, item)
 		}
 		return me.expr(list, expr.SrcFile, expr.SrcSpan)
-	case MoValDict:
-		dict := make(MoValDict, 0, len(val))
-		for _, entry := range val {
+	case *MoValDict:
+		dict := make(MoValDict, 0, len(*val))
+		for _, entry := range *val {
 			key := me.evalAndApply(env, entry.Key)
 			val := me.evalAndApply(env, entry.Val)
 			if (!key.IsErr()) && dict.Has(key) {
@@ -190,7 +190,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			}
 			dict.Set(key, val)
 		}
-		return me.expr(dict, expr.SrcFile, expr.SrcSpan)
+		return me.expr(&dict, expr.SrcFile, expr.SrcSpan)
 	case MoValCall:
 		call := make(MoValCall, len(val))
 		for i, item := range val {

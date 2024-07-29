@@ -58,8 +58,8 @@ const (
 	moPrimFnListConcat  MoValIdent = "@listConcat"
 	moPrimFnDictHas     MoValIdent = "@dictHas"
 	moPrimFnDictGet     MoValIdent = "@dictGet"
-	moPrimFnDictWith    MoValIdent = "@dictWith"
-	moPrimFnDictWithout MoValIdent = "@dictWithout"
+	moPrimFnDictSet     MoValIdent = "@dictSet"
+	moPrimFnDictDel     MoValIdent = "@dictDel"
 	moPrimFnDictLen     MoValIdent = "@dictLen"
 	moPrimFnErrNew      MoValIdent = "@errNew"
 	moPrimFnErrVal      MoValIdent = "@errVal"
@@ -119,8 +119,8 @@ func init() {
 		moPrimFnListConcat:  (*Interp).primFnListConcat,
 		moPrimFnDictHas:     (*Interp).primFnDictHas,
 		moPrimFnDictGet:     (*Interp).primFnDictGet,
-		moPrimFnDictWith:    (*Interp).primFnDictWith,
-		moPrimFnDictWithout: (*Interp).primFnDictWithout,
+		moPrimFnDictSet:     (*Interp).primFnDictSet,
+		moPrimFnDictDel:     (*Interp).primFnDictDel,
 		moPrimFnDictLen:     (*Interp).primFnDictLen,
 		moPrimFnErrNew:      (*Interp).primFnErrNew,
 		moPrimFnErrVal:      (*Interp).primFnErrVal,
@@ -259,9 +259,9 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 	}
 
 	// dict? call ourselves on each key and value
-	if dict, is := args[0].Val.(MoValDict); is {
-		ret := make(MoValDict, 0, len(dict))
-		for _, entry := range dict {
+	if dict, is := args[0].Val.(*MoValDict); is {
+		ret := make(MoValDict, 0, len(*dict))
+		for _, entry := range *dict {
 			_, key := me.primOpQuasiQuote(env, entry.Key)
 			if err := key.Err(); err != nil {
 				return nil, me.exprErr(err, entry.Key)
@@ -275,7 +275,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			}
 			ret.Set(key, val)
 		}
-		return nil, me.expr(ret, me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
+		return nil, me.expr(&ret, me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
 	}
 
 	// must be list or call then: we handle them the same, per item iteration
@@ -344,8 +344,8 @@ func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.check(MoPrimTypeDict, 1, 1, args...); err != nil {
 		return nil, me.exprErr(err)
 	}
-	entries := args[0].Val.(MoValDict)
-	for _, entry := range entries {
+	entries := args[0].Val.(*MoValDict)
+	for _, entry := range *entries {
 		pred := me.evalAndApply(env, entry.Key)
 		if err := pred.Err(); err != nil {
 			return nil, me.exprErr(err, entry.Key)
@@ -420,15 +420,15 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	src_span := me.diagSpan(false, false, args...)
 
-	ret := me.expr(make(MoValDict, 0, len(me.Env.Own)+len(env.Own)), src_file, src_span)
+	ret := me.expr(util.Ptr(make(MoValDict, 0, len(me.Env.Own)+len(env.Own))), src_file, src_span)
 	var populate func(it *MoEnv, into *MoExpr) *MoExpr
 	populate = func(it *MoEnv, into *MoExpr) *MoExpr {
-		dict := into.Val.(MoValDict)
+		dict := into.Val.(*MoValDict)
 		for k, v := range it.Own {
 			dict.Set(me.expr(k, src_file, src_span), v)
 		}
 		if it.Parent != nil {
-			dict_parent := me.expr(make(MoValDict, 0, len(env.Parent.Own)), src_file, src_span)
+			dict_parent := me.expr(util.Ptr(make(MoValDict, 0, len(env.Parent.Own))), src_file, src_span)
 			dict.Set(me.expr(MoValIdent(""), src_file, src_span),
 				populate(it.Parent, dict_parent))
 		}
@@ -694,7 +694,7 @@ func (me *Interp) primFnDictHas(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprErr(err)
 	}
-	return me.exprBool(args[0].Val.(MoValDict).Has(args[1]), args...)
+	return me.exprBool(args[0].Val.(*MoValDict).Has(args[1]), args...)
 }
 
 func (me *Interp) primFnDictGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -707,14 +707,14 @@ func (me *Interp) primFnDictGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprErr(err)
 	}
-	found := args[0].Val.(MoValDict).Get(args[1])
+	found := args[0].Val.(*MoValDict).Get(args[1])
 	if found == nil {
 		return me.exprFrom(moValNone, args...)
 	}
 	return me.exprFrom(found, args...)
 }
 
-func (me *Interp) primFnDictWith(_ *MoEnv, args ...*MoExpr) *MoExpr {
+func (me *Interp) primFnDictSet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(3, 3, args); err != nil {
 		return me.exprErr(err)
 	}
@@ -724,12 +724,12 @@ func (me *Interp) primFnDictWith(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprErr(err)
 	}
-	ret := me.exprFrom(args[0], args...)
-	ret.Val = ret.Val.(MoValDict).With(args[1], args[2])
-	return ret
+	dict := args[0].Val.(*MoValDict)
+	dict.Set(args[1], args[2])
+	return me.exprFrom(moValNone, args...)
 }
 
-func (me *Interp) primFnDictWithout(_ *MoEnv, args ...*MoExpr) *MoExpr {
+func (me *Interp) primFnDictDel(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprErr(err)
 	}
@@ -739,12 +739,9 @@ func (me *Interp) primFnDictWithout(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprErr(err)
 	}
-	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
-		return me.exprErr(err)
-	}
-	ret := me.exprFrom(args[0], args...)
-	ret.Val = ret.Val.(MoValDict).Without(args[1].Val.(MoValList)...)
-	return ret
+	dict := args[0].Val.(*MoValDict)
+	dict.Del(args[1])
+	return me.exprFrom(moValNone, args...)
 }
 
 func (me *Interp) primFnDictLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -757,7 +754,7 @@ func (me *Interp) primFnDictLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
 		return me.exprErr(err)
 	}
-	return me.expr(MoValNumUint(len(args[0].Val.(MoValDict))), nil, nil, args...)
+	return me.expr(MoValNumUint(len(*(args[0].Val.(*MoValDict)))), nil, nil, args...)
 }
 
 func (me *Interp) primFnPrimTypeTag(_ *MoEnv, args ...*MoExpr) *MoExpr {

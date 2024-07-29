@@ -113,14 +113,14 @@ func (MoValNumFloat) PrimType() MoValPrimType    { return MoPrimTypeNumFloat }
 func (MoValChar) PrimType() MoValPrimType        { return MoPrimTypeChar }
 func (MoValStr) PrimType() MoValPrimType         { return MoPrimTypeStr }
 func (MoValErr) PrimType() MoValPrimType         { return MoPrimTypeErr }
-func (MoValDict) PrimType() MoValPrimType        { return MoPrimTypeDict }
+func (*MoValDict) PrimType() MoValPrimType       { return MoPrimTypeDict }
 func (MoValList) PrimType() MoValPrimType        { return MoPrimTypeList }
 func (MoValCall) PrimType() MoValPrimType        { return MoPrimTypeCall }
 func (MoValFnPrim) PrimType() MoValPrimType      { return MoPrimTypeFunc }
 func (*MoValFnLam) PrimType() MoValPrimType      { return MoPrimTypeFunc }
 
-func (me MoValDict) Has(key *MoExpr) bool {
-	for _, entry := range me {
+func (me *MoValDict) Has(key *MoExpr) bool {
+	for _, entry := range *me {
 		if found := entry.Key.Eq(key); found {
 			return true
 		}
@@ -128,8 +128,8 @@ func (me MoValDict) Has(key *MoExpr) bool {
 	return false
 }
 
-func (me MoValDict) Get(key *MoExpr) *MoExpr {
-	for _, entry := range me {
+func (me *MoValDict) Get(key *MoExpr) *MoExpr {
+	for _, entry := range *me {
 		if found := entry.Key.Eq(key); found {
 			return entry.Val
 		}
@@ -137,22 +137,33 @@ func (me MoValDict) Get(key *MoExpr) *MoExpr {
 	return nil
 }
 
-func (me MoValDict) Without(keys ...*MoExpr) MoValDict {
+func (me *MoValDict) Without(keys ...*MoExpr) *MoValDict {
 	if len(keys) == 0 {
 		return me
 	}
-	return sl.Where(me, func(entry moDictEntry) bool {
+	return util.Ptr(sl.Where(*me, func(entry moDictEntry) bool {
 		return !sl.HasWhere(keys, func(k *MoExpr) bool { return k.Eq(entry.Key) })
-	})
+	}))
 }
 
-func (me MoValDict) With(key *MoExpr, val *MoExpr) MoValDict {
-	ret := make(MoValDict, len(me))
-	for i, entry := range me {
+func (me *MoValDict) With(key *MoExpr, val *MoExpr) *MoValDict {
+	ret := make(MoValDict, len(*me))
+	for i, entry := range *me {
 		ret[i].Key, ret[i].Val = entry.Key, entry.Val
 	}
 	ret.Set(key, val)
-	return ret
+	return &ret
+}
+
+func (me *MoValDict) Del(key *MoExpr) {
+	this := *me
+	for i, entry := range this {
+		if entry.Key.Eq(key) {
+			this = append(this[:i], this[i+1:]...)
+			break
+		}
+	}
+	*me = this
 }
 
 func (me *MoValDict) Set(key *MoExpr, val *MoExpr) {
@@ -211,13 +222,14 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	case MoValFnPrim:
 		other := to.Val.(MoValFnPrim)
 		return (it == nil) && (other == nil)
-	case MoValDict:
-		other := to.Val.(MoValDict)
-		if len(it) != len(other) {
+	case *MoValDict:
+		other := to.Val.(*MoValDict)
+		if len(*it) != len(*other) {
 			return false
 		}
-		for i := range it {
-			if !sl.HasWhere(other, func(other moDictEntry) bool { return other.Key.Eq(it[i].Key) && other.Val.Eq(it[i].Val) }) {
+		dict := *it
+		for i := range dict {
+			if !sl.HasWhere(*other, func(other moDictEntry) bool { return other.Key.Eq(dict[i].Key) && other.Val.Eq(dict[i].Val) }) {
 				return false
 			}
 		}
@@ -320,9 +332,9 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			it.ErrVal.WriteTo(w)
 		}
 		w.WriteString(")")
-	case MoValDict:
+	case *MoValDict:
 		w.WriteString("{")
-		for i, item := range it {
+		for i, item := range *it {
 			if i > 0 {
 				w.WriteString(", ")
 			}
@@ -489,7 +501,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 				}
 				dict.Set(expr_key, expr_val)
 			}
-			val = dict
+			val = &dict
 		default: // parensed or huddled
 			nodes := node.Nodes.withoutComments()
 			if len(nodes) == 1 {
@@ -544,8 +556,8 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 		for _, item := range it {
 			item.Walk(onBefore, onAfter)
 		}
-	case MoValDict:
-		for _, item := range it {
+	case *MoValDict:
+		for _, item := range *it {
 			item.Key.Walk(onBefore, onAfter)
 			item.Val.Walk(onBefore, onAfter)
 		}

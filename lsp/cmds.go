@@ -95,9 +95,9 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 								for _, item := range it {
 									ret.Nodes = append(ret.Nodes, convert(item))
 								}
-							case session.MoValDict:
+							case *session.MoValDict:
 								const fake_prim_tag_dictentry = -1
-								for _, pair := range it {
+								for _, pair := range *it {
 									node := &moNode{PrimTypeTag: fake_prim_tag_dictentry, Nodes: []*moNode{convert(pair.Key), convert(pair.Val)}}
 									node.ClientInfo.SrcFilePath = node.Nodes[0].ClientInfo.SrcFilePath
 									node.ClientInfo.SrcFileSpan = node.Nodes[0].ClientInfo.SrcFileSpan.Expanded(node.Nodes[1].ClientInfo.SrcFileSpan)
