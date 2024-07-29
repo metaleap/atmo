@@ -6,7 +6,7 @@ func (me *SrcPack) semRefresh() {
 	for _, top_expr := range me.Trees.MoOrig {
 		it := me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil)
 		if call, _ := it.Val.(*SemValCall); call == nil {
-			it.Fact(SemValFact{Kind: SemValFactUnused}, it)
+			it.Fact(SemFact{Kind: SemFactUnused}, it)
 		}
 		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, it)
 	}
@@ -79,12 +79,16 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 		return
 	}
 
-	call.Callee.Fact(SemValFact{Kind: SemValFactCallable}, self)
 	if ident := call.Callee.MaybeIdent(); ident != "" {
 		if prim_op := semPrimOps[ident]; prim_op != nil {
 			prim_op(me, self)
 			return
 		}
+	}
+
+	call.Callee.Fact(SemFact{Kind: SemFactCallable}, self)
+	for _, arg := range call.Args {
+		arg.EnsureResolvesIfIdent()
 	}
 
 }

@@ -139,6 +139,12 @@ func HasAllOf[TSlice ~[]TItem, TItem comparable](slice TSlice, of ...TItem) bool
 	return true
 }
 
+func Each[TSlice ~[]TItem, TItem any](slice TSlice, f func(TItem)) {
+	for _, it := range slice {
+		f(it)
+	}
+}
+
 func To[TSlice ~[]TItem, TItem any, TOut any](slice TSlice, f func(TItem) TOut) (ret Of[TOut]) {
 	ret = make(Of[TOut], len(slice))
 	for i := range slice {

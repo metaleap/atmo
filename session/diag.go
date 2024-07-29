@@ -149,7 +149,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 
 func (me *SrcPack) semNonErrNotices() (ret SrcFileNotices) {
 	me.Trees.Sem.TopLevel.Walk(nil, nil, func(it *SemExpr) {
-		if len(it.HasFact(SemValFactUnused, nil)) > 0 {
+		if len(it.HasFact(SemFactUnused, nil, false, false, false)) > 0 {
 			ret.Add(it.From.SrcSpan.newDiag(NoticeKindHint, NoticeCodeUnused))
 		}
 	})

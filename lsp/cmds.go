@@ -151,8 +151,8 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 				if src_pack := sess.GetSrcPack(filepath.Dir(src_file_path), true); src_pack != nil {
 					type SemNode struct {
 						session.SemExpr
-						ClientInfo treeNodeClientInfo   `json:",omitempty"`
-						Facts      []session.SemValFact `json:",omitempty"`
+						ClientInfo treeNodeClientInfo `json:",omitempty"`
+						Facts      []session.SemFact  `json:",omitempty"`
 					}
 					var convert func(from *session.SemExpr) (ret SemNode)
 					convert = func(from *session.SemExpr) (ret SemNode) {

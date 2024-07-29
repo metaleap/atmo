@@ -60,6 +60,7 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 				value.ErrOwn = value.From.SrcSpan.newDiagErr(NoticeCodeNotAValue, value_ident)
 				return
 			}
+			self.Fact(SemFact{Kind: SemFactSideEffects}, call.Callee)
 
 			scope, resolved := self.Scope.Lookup(ident.MoVal, false, nil)
 			if resolved == nil {
@@ -69,7 +70,6 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 				self.ErrOwn.Rel = &SrcFileLocs{File: resolved.DeclVal.From.SrcFile, Spans: []*SrcFileSpan{resolved.DeclVal.From.SrcSpan}, IsSet: []bool{true}, IsGet: []bool{false}}
 				return
 			} else {
-				value.AdoptFacts(true, append(resolved.SubsequentSetVals, resolved.DeclVal)...)
 				resolved.SubsequentSetVals = append(resolved.SubsequentSetVals, value)
 			}
 		}

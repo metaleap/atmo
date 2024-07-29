@@ -11,7 +11,7 @@ type SemExpr struct {
 	Scope  *SemScope      `json:"-"`
 	ErrOwn *SrcFileNotice `json:",omitempty"`
 	Val    any
-	Facts  map[SemValFact]SemExprs `json:"-"`
+	Facts  map[SemFact]SemExprs `json:"-"`
 }
 
 type SemValScalar struct {
@@ -42,28 +42,19 @@ type SemValFunc struct {
 	Body   *SemExpr
 }
 
-func (me *SemExpr) MaybeIdent() MoValIdent {
-	ident, _ := me.Val.(*SemValIdent)
-	if ident != nil {
-		return ident.MoVal
-	}
-	return ""
-}
-
-func (me *SemExpr) AdoptFacts(biDi bool, fromAndMaybeTo ...*SemExpr) {
-	for _, expr := range fromAndMaybeTo {
-		for fact, exprs := range expr.Facts {
-			for _, due_to := range exprs {
-				me.Fact(fact, due_to)
-			}
-		}
-		if biDi {
-			for fact, exprs := range me.Facts {
-				for _, due_to := range exprs {
-					expr.Fact(fact, due_to)
-				}
-			}
-		}
+func (me *SemExpr) Each(do func(it *SemExpr)) {
+	switch val := me.Val.(type) {
+	case SemValCall:
+		do(val.Callee)
+		sl.Each(val.Args, do)
+	case SemValDict:
+		sl.Each(val.Keys, do)
+		sl.Each(val.Vals, do)
+	case SemValFunc:
+		sl.Each(val.Params, do)
+		do(val.Body)
+	case SemValList:
+		sl.Each(val.Items, do)
 	}
 }
 
@@ -88,9 +79,9 @@ func (me *SemExpr) Errs() (ret SrcFileNotices) {
 	return
 }
 
-func (me *SemExpr) Fact(fact SemValFact, from *SemExpr) {
+func (me *SemExpr) Fact(fact SemFact, from *SemExpr) {
 	if me.Facts == nil {
-		me.Facts = map[SemValFact]SemExprs{}
+		me.Facts = map[SemFact]SemExprs{}
 	}
 	if it := me.Facts[fact]; !sl.Has(it, from) {
 		me.Facts[fact] = append(it, from)
@@ -111,11 +102,28 @@ func (me *SemExpr) HasErrs() (ret bool) {
 	return
 }
 
-func (me *SemExpr) HasFact(kind SemValFactKind, of any) SemExprs {
+func (me *SemExpr) HasFact(kind SemFactKind, of any, orResolvedIdent bool, orAncestor bool, orDescendant bool) (dueTo SemExprs) {
 	if me.Facts == nil {
-		return nil
+		return
 	}
-	return me.Facts[SemValFact{Kind: kind, Of: of}]
+	dueTo = me.Facts[SemFact{Kind: kind, Of: of}]
+	if (len(dueTo) == 0) && orResolvedIdent {
+		if entry := me.EnsureResolvesIfIdent(); entry != nil {
+			dueTo = entry.DeclVal.HasFact(kind, of, orResolvedIdent, orAncestor, orDescendant)
+			for _, other := range entry.SubsequentSetVals {
+				dueTo = append(dueTo, other.HasFact(kind, of, orResolvedIdent, orAncestor, orDescendant)...)
+			}
+		}
+	}
+	if (len(dueTo) == 0) && orAncestor && (me.Parent != nil) {
+		dueTo = me.Parent.HasFact(kind, of, false, true, false)
+	}
+	if (len(dueTo) == 0) && orDescendant {
+		me.Each(func(it *SemExpr) {
+			dueTo = append(dueTo, it.HasFact(kind, of, false, false, true)...)
+		})
+	}
+	return
 }
 
 func (me *SemExpr) MaybeArgOfCall() int {
@@ -129,6 +137,13 @@ func (me *SemExpr) MaybeArgOfCall() int {
 	return -1
 }
 
+func (me *SemExpr) MaybeBodyOfFunc() bool {
+	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
+		return (fn.Body == me)
+	}
+	return false
+}
+
 func (me *SemExpr) MaybeCalleeOfCall() bool {
 	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
 		return (call.Callee == me)
@@ -136,11 +151,12 @@ func (me *SemExpr) MaybeCalleeOfCall() bool {
 	return false
 }
 
-func (me *SemExpr) MaybeBodyOfFunc() bool {
-	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
-		return (fn.Body == me)
+func (me *SemExpr) MaybeIdent() MoValIdent {
+	ident, _ := me.Val.(*SemValIdent)
+	if ident != nil {
+		return ident.MoVal
 	}
-	return false
+	return ""
 }
 
 func (me *SemExpr) MaybeParamOfFunc() int {
@@ -152,25 +168,6 @@ func (me *SemExpr) MaybeParamOfFunc() int {
 		}
 	}
 	return -1
-}
-
-func (me SemExprs) AnyErrs() bool {
-	return sl.Any(me, (*SemExpr).HasErrs)
-}
-
-func (me SemExprs) Errs() (ret SrcFileNotices) {
-	for _, top_expr := range me {
-		ret.Add(top_expr.Errs()...)
-	}
-	return
-}
-
-func (me SemExprs) Walk(filterBy *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
-	for _, expr := range me {
-		if (filterBy == nil) || (expr.From.SrcFile == filterBy) {
-			expr.Walk(onBefore, onAfter)
-		}
-	}
 }
 
 func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
@@ -203,14 +200,34 @@ func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExp
 	}
 }
 
-type SemValFactKind int
+func (me SemExprs) AnyErrs() bool {
+	return sl.Any(me, (*SemExpr).HasErrs)
+}
+
+func (me SemExprs) Errs() (ret SrcFileNotices) {
+	for _, top_expr := range me {
+		ret.Add(top_expr.Errs()...)
+	}
+	return
+}
+
+func (me SemExprs) Walk(filterBy *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
+	for _, expr := range me {
+		if (filterBy == nil) || (expr.From.SrcFile == filterBy) {
+			expr.Walk(onBefore, onAfter)
+		}
+	}
+}
+
+type SemFactKind int
 
 const (
-	SemValFactCallable SemValFactKind = iota
-	SemValFactUnused
+	SemFactCallable SemFactKind = iota
+	SemFactUnused
+	SemFactSideEffects
 )
 
-type SemValFact struct {
-	Kind SemValFactKind
+type SemFact struct {
+	Kind SemFactKind
 	Of   any `json:",omitempty"`
 }
