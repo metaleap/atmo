@@ -169,15 +169,15 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						default:
 							panic(val)
 						case *session.SemValIdent, *session.SemValScalar:
-							ret.Val = map[string]any{"Val": from.From.Val}
+							ret.Val = map[string]any{"Kind": "scalar", "Val": from.From.Val}
 						case *session.SemValList:
-							ret.Val = map[string]any{"Items": sl.To(val.Items, convert)}
+							ret.Val = map[string]any{"Kind": "list", "Items": sl.To(val.Items, convert)}
 						case *session.SemValDict:
-							ret.Val = map[string]any{"Keys": sl.To(val.Keys, convert), "Vals": sl.To(val.Vals, convert)}
+							ret.Val = map[string]any{"Kind": "dict", "Keys": sl.To(val.Keys, convert), "Vals": sl.To(val.Vals, convert)}
 						case *session.SemValCall:
-							ret.Val = map[string]any{"Callee": convert(val.Callee), "Args": sl.To(val.Args, convert)}
+							ret.Val = map[string]any{"Kind": "call", "Callee": convert(val.Callee), "Args": sl.To(val.Args, convert)}
 						case *session.SemValFunc:
-							ret.Val = map[string]any{"Params": sl.To(val.Params, convert), "Body": convert(val.Body), "IsMacro": val.IsMacro,
+							ret.Val = map[string]any{"Kind": "func", "Params": sl.To(val.Params, convert), "Body": convert(val.Body), "IsMacro": val.IsMacro,
 								"Scope": kv.To(val.Scope.Own, convert)}
 						}
 						return

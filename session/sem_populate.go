@@ -116,7 +116,7 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
 	}
 
-	if ident := call.Callee.MaybeIdent(); ident != "" {
+	if ident := call.Callee.MaybeIdent(); false && (ident != "") {
 		if prim_op := semPrimOps[ident]; prim_op != nil {
 			prim_op(me, self, it)
 			return
