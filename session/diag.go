@@ -37,7 +37,7 @@ const (
 	// semantic (errors)
 	NoticeCodeExpectedFoo      SrcFileNoticeCode = "Unexpected"
 	NoticeCodeUndefined        SrcFileNoticeCode = "Unresolved"
-	NoticeCodeNotFirstClass    SrcFileNoticeCode = "NotFirstClass"
+	NoticeCodeNotAValue        SrcFileNoticeCode = "NotAValue"
 	NoticeCodeUncallable       SrcFileNoticeCode = "NotCallable"
 	NoticeCodeReserved         SrcFileNoticeCode = "Reserved"
 	NoticeCodeNoElseCase       SrcFileNoticeCode = "ElseCaseMissing"
@@ -70,8 +70,8 @@ var (
 
 		NoticeCodeExpectedFoo:      "expected %s",
 		NoticeCodeUndefined:        "`%s` is not defined or not in scope",
-		NoticeCodeNotFirstClass:    "`%s` cannot be used as a value",
-		NoticeCodeUncallable:       "`%s` is not always a callable value",
+		NoticeCodeNotAValue:        "`%s` cannot be used as a value",
+		NoticeCodeUncallable:       "`%s` is not callable",
 		NoticeCodeReserved:         "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
 		NoticeCodeNoElseCase:       "missing a fallback case",
 		NoticeCodeIndexOutOfBounds: "index %d out of bounds, given length %d",

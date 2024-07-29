@@ -11,7 +11,7 @@ type SemExpr struct {
 	Scope  *SemScope      `json:"-"`
 	ErrOwn *SrcFileNotice `json:",omitempty"`
 	Val    any
-	Facts  map[SemValFact]SemExprs
+	Facts  map[SemValFact]SemExprs `json:"-"`
 }
 
 type SemValScalar struct {
@@ -37,46 +37,9 @@ type SemValDict struct {
 }
 
 type SemValFunc struct {
-	Scope   *SemScope
-	Params  SemExprs
-	Body    *SemExpr
-	IsMacro bool `json:",omitempty"`
-}
-
-func (me *SemExpr) MaybeCalleeOfCall() bool {
-	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
-		return (call.Callee == me)
-	}
-	return false
-}
-
-func (me *SemExpr) MaybeArgOfCall() int {
-	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
-		for i, arg := range call.Args {
-			if arg == me {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-func (me *SemExpr) MaybeBodyOfFunc() bool {
-	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
-		return (fn.Body == me)
-	}
-	return false
-}
-
-func (me *SemExpr) MaybeParamOfFunc() int {
-	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
-		for i, param := range fn.Params {
-			if param == me {
-				return i
-			}
-		}
-	}
-	return -1
+	Scope  *SemScope
+	Params SemExprs
+	Body   *SemExpr
 }
 
 func (me *SemExpr) MaybeIdent() MoValIdent {
@@ -85,6 +48,23 @@ func (me *SemExpr) MaybeIdent() MoValIdent {
 		return ident.MoVal
 	}
 	return ""
+}
+
+func (me *SemExpr) AdoptFacts(biDi bool, fromAndMaybeTo ...*SemExpr) {
+	for _, expr := range fromAndMaybeTo {
+		for fact, exprs := range expr.Facts {
+			for _, due_to := range exprs {
+				me.Fact(fact, due_to)
+			}
+		}
+		if biDi {
+			for fact, exprs := range me.Facts {
+				for _, due_to := range exprs {
+					expr.Fact(fact, due_to)
+				}
+			}
+		}
+	}
 }
 
 func (me *SemExpr) EnsureResolvesIfIdent() *SemScopeEntry {
@@ -136,6 +116,42 @@ func (me *SemExpr) HasFact(kind SemValFactKind, of any) SemExprs {
 		return nil
 	}
 	return me.Facts[SemValFact{Kind: kind, Of: of}]
+}
+
+func (me *SemExpr) MaybeArgOfCall() int {
+	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
+		for i, arg := range call.Args {
+			if arg == me {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func (me *SemExpr) MaybeCalleeOfCall() bool {
+	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
+		return (call.Callee == me)
+	}
+	return false
+}
+
+func (me *SemExpr) MaybeBodyOfFunc() bool {
+	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
+		return (fn.Body == me)
+	}
+	return false
+}
+
+func (me *SemExpr) MaybeParamOfFunc() int {
+	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
+		for i, param := range fn.Params {
+			if param == me {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 func (me SemExprs) AnyErrs() bool {
@@ -196,5 +212,5 @@ const (
 
 type SemValFact struct {
 	Kind SemValFactKind
-	Of   any
+	Of   any `json:",omitempty"`
 }

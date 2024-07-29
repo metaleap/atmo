@@ -5,14 +5,15 @@ import (
 	"atmo/util/str"
 )
 
-type SemPrimOp func(*SrcPack, *SemExpr)
+type SemPrimOpOrFn func(*SrcPack, *SemExpr)
 
 var (
-	semPrimOps map[MoValIdent]SemPrimOp
+	semPrimOps map[MoValIdent]SemPrimOpOrFn
+	semPrimFns map[MoValIdent]SemPrimOpOrFn
 )
 
 func init() {
-	semPrimOps = map[MoValIdent]SemPrimOp{
+	semPrimOps = map[MoValIdent]SemPrimOpOrFn{
 		moPrimOpSet: (*SrcPack).semPrimOpSet,
 	}
 }
@@ -52,6 +53,14 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 				name.ErrOwn = name.From.SrcSpan.newDiagErr(NoticeCodeReserved, ident.MoVal, ident.MoVal[0:1])
 				return
 			}
+
+			if _ = value.EnsureResolvesIfIdent(); value.HasErrs() {
+				return
+			} else if value_ident := value.MaybeIdent(); (value_ident != "") && (semPrimOps[value_ident] != nil) {
+				value.ErrOwn = value.From.SrcSpan.newDiagErr(NoticeCodeNotAValue, value_ident)
+				return
+			}
+
 			scope, resolved := self.Scope.Lookup(ident.MoVal, false, nil)
 			if resolved == nil {
 				self.Scope.Own[ident.MoVal] = &SemScopeEntry{DeclVal: value}
@@ -60,8 +69,8 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 				self.ErrOwn.Rel = &SrcFileLocs{File: resolved.DeclVal.From.SrcFile, Spans: []*SrcFileSpan{resolved.DeclVal.From.SrcSpan}, IsSet: []bool{true}, IsGet: []bool{false}}
 				return
 			} else {
+				value.AdoptFacts(true, append(resolved.SubsequentSetVals, resolved.DeclVal)...)
 				resolved.SubsequentSetVals = append(resolved.SubsequentSetVals, value)
-
 			}
 		}
 	}

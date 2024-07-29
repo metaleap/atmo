@@ -170,7 +170,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			}
 			if found == nil {
 				_, is_lazy_prim_op := moPrimOpsLazy[val]
-				return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, NoticeCodeUndefined, NoticeCodeNotFirstClass), val))
+				return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, NoticeCodeUndefined, NoticeCodeNotAValue), val))
 			}
 			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags

@@ -151,11 +151,13 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 				if src_pack := sess.GetSrcPack(filepath.Dir(src_file_path), true); src_pack != nil {
 					type SemNode struct {
 						session.SemExpr
-						ClientInfo treeNodeClientInfo `json:",omitempty"`
+						ClientInfo treeNodeClientInfo   `json:",omitempty"`
+						Facts      []session.SemValFact `json:",omitempty"`
 					}
 					var convert func(from *session.SemExpr) (ret SemNode)
 					convert = func(from *session.SemExpr) (ret SemNode) {
 						ret.SemExpr = *from
+						ret.Facts = kv.Keys(ret.SemExpr.Facts)
 						if from.From != nil {
 							ret.ClientInfo.SrcFileSpan = from.From.SrcSpan
 							if from.From.SrcFile != nil {
@@ -179,7 +181,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						case *session.SemValCall:
 							ret.Val = map[string]any{"Kind": "call", "Callee": convert(val.Callee), "Args": sl.To(val.Args, convert)}
 						case *session.SemValFunc:
-							ret.Val = map[string]any{"Kind": "func", "Params": sl.To(val.Params, convert), "Body": convert(val.Body), "IsMacro": val.IsMacro,
+							ret.Val = map[string]any{"Kind": "func", "Params": sl.To(val.Params, convert), "Body": convert(val.Body),
 								"Scope": kv.Keys(val.Scope.Own)}
 						}
 						return
