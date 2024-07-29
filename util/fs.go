@@ -39,6 +39,18 @@ func FsIsNewerThan(file1Path string, file2Path string) bool {
 		fs_info1.ModTime().After(fs_info2.ModTime())
 }
 
+func FsDirFilesOnlyList(dirPath string) (ret []string) {
+	entries, _ := os.ReadDir(dirPath)
+	for _, fs_entry := range entries {
+		if !fs_entry.IsDir() {
+			if file_path := filepath.Join(dirPath, fs_entry.Name()); FsIsFile(file_path) {
+				ret = append(ret, file_path)
+			}
+		}
+	}
+	return
+}
+
 func FsDirWalk(dirPath string, onDirEntry func(fsPath string, fsEntry fs.DirEntry)) error {
 	dir_path, err := filepath.Abs(dirPath)
 	if err != nil {

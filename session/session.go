@@ -2,7 +2,6 @@ package session
 
 import (
 	"cmp"
-	"io/fs"
 	"path/filepath"
 	"sync"
 
@@ -72,11 +71,12 @@ func (*stateAccess) GetSrcPack(packDirPath string, loadIfMissing bool) (ret *Src
 	ret = state.srcPacks[packDirPath]
 	if (ret == nil) && loadIfMissing {
 		var src_file_paths []string
-		util.FsDirWalk(packDirPath, func(fsPath string, fsEntry fs.DirEntry) {
-			if (filepath.Dir(fsPath) == packDirPath) && IsSrcFilePath(fsPath) {
-				src_file_paths = append(src_file_paths, fsPath)
+		for _, src_file_path := range util.FsDirFilesOnlyList(packDirPath) {
+			println(src_file_path)
+			if IsSrcFilePath(src_file_path) {
+				src_file_paths = append(src_file_paths, src_file_path)
 			}
-		})
+		}
 		if refr_diags_for := ensureSrcFiles(nil, true, src_file_paths...); len(refr_diags_for) > 0 {
 			refreshAndPublishDiags(false, refr_diags_for...)
 		}
