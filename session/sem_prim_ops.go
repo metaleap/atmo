@@ -1,16 +1,8 @@
 package session
 
-type SemPrimOp func(*SrcPack, *SemExpr, MoValCall) *SemExpr
+type SemPrimOp func(*SrcPack, *SemExpr, MoValCall)
 
 var (
-	semPrimValTrue  = &SemExpr{}
-	semPrimValFalse = &SemExpr{}
-	semPrimValNone  = &SemExpr{}
-	semPrimVals     = map[MoValIdent]*SemExpr{
-		moValNone.Val.(MoValIdent):  semPrimValNone,
-		moValTrue.Val.(MoValIdent):  semPrimValTrue,
-		moValFalse.Val.(MoValIdent): semPrimValFalse,
-	}
 	semPrimOps map[MoValIdent]SemPrimOp
 )
 
@@ -20,6 +12,5 @@ func init() {
 	}
 }
 
-func (me *SrcPack) semPrimOpSet(self *SemExpr, it MoValCall) *SemExpr {
-	return nil
+func (me *SrcPack) semPrimOpSet(self *SemExpr, it MoValCall) {
 }

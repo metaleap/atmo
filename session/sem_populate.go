@@ -14,37 +14,10 @@ type SemExpr struct {
 	DefinitelyUnused bool
 }
 
-type SemScope struct {
-	Own    map[MoValIdent]*SemExpr
-	Parent *SemScope
-}
-
-func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) *SemExpr {
-	// if( ident[0]=='@')||(ident[0]=='#')||(ident[0]=='$') {
-	// 	if prim_op,_:=semPrimOps[ident].(*SemPrimOp); prim_op!=nil {
-
-	// 	}
-	// }
-	if resolved := me.Own[ident]; resolved != nil {
-		if !deepResolveUntilNonIdent {
-			return resolved
-		} else if alias, _ := resolved.Val.(*SemValIdent); alias == nil {
-			return resolved
-		} else if resolved = me.Lookup(resolved.From.Val.(MoValIdent), ownOnly, true); resolved != nil {
-			return resolved
-		}
-	}
-	if (!ownOnly) && (me.Parent != nil) {
-		return me.Parent.Lookup(ident, false, deepResolveUntilNonIdent)
-	}
-	return nil
-}
-
 type SemValScalar struct {
 }
 
 type SemValIdent struct {
-	IsParamOfFunc *SemExpr
 }
 
 type SemValCall struct {
@@ -66,9 +39,10 @@ type SemValDict struct {
 }
 
 type SemValFunc struct {
-	Scope  *SemScope
-	Params SemExprs
-	Body   *SemExpr
+	Scope   *SemScope
+	Params  SemExprs
+	Body    *SemExpr
+	IsMacro bool
 }
 
 func (me *SrcPack) semRefresh() {
@@ -88,8 +62,6 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 	switch it := moExpr.Val.(type) {
 	default:
 		panic(it)
-	case MoValPrimTypeTag:
-		me.semPopulateScalar(ret, it)
 	case MoValNumInt:
 		me.semPopulateScalar(ret, it)
 	case MoValNumUint:
@@ -148,18 +120,22 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	call := &SemValCall{Callee: me.semExprFromMoExpr(self.Scope, it[0], self)}
 	self.Val = call
 
-	if callee := call.Callee.ResolvedIfIdent(); callee != nil {
-		fn, _ := callee.Val.(*SemValFunc)
-		if fn == nil {
-			self.ErrOwn = self.From.SrcNode.newDiagErr(false, NoticeCodeUncallable, self.From.SrcNode.Src)
+	if ident := call.Callee.MaybeIdent(); ident != "" {
+		if prim_op := semPrimOps[ident]; prim_op != nil {
+			prim_op(me, self, it)
+			return
 		}
 	}
 
+	var callee_fn *SemValFunc
+	if callee := call.Callee.ResolvedIfIdent(); callee != nil {
+		if callee_fn = callee.Val.(*SemValFunc); callee_fn == nil {
+			self.ErrOwn = self.From.SrcNode.newDiagErr(false, NoticeCodeUncallable, self.From.SrcNode.Src)
+		}
+	}
 	for _, arg := range it[1:] {
 		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
 	}
-	// TODO!
-
 }
 
 func (me *SrcPack) semPopulateFunc(self *SemExpr, it *MoValFnLam) {
@@ -170,14 +146,49 @@ func (me *SrcPack) semPopulateFunc(self *SemExpr, it *MoValFnLam) {
 	self.Val = fn
 	for i, param := range it.Params {
 		ident := me.semExprFromMoExpr(self.Scope, param, self)
-		fn.Scope.Own[ident.IdentIfSo()] = ident
-		ident.Val.(*SemValIdent).IsParamOfFunc = self
+		fn.Scope.Own[ident.MaybeIdent()] = ident
 		fn.Params[i] = ident
 	}
 	fn.Body = me.semExprFromMoExpr(fn.Scope, it.Body, self)
 }
 
-func (me *SemExpr) IdentIfSo() MoValIdent {
+func (me *SemExpr) MaybeCalleeOfCall() bool {
+	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
+		return (call.Callee == me)
+	}
+	return false
+}
+
+func (me *SemExpr) MaybeArgOfCall() int {
+	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
+		for i, arg := range call.Args {
+			if arg == me {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func (me *SemExpr) MaybeBodyOfFunc() bool {
+	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
+		return (fn.Body == me)
+	}
+	return false
+}
+
+func (me *SemExpr) MaybeParamOfFunc() int {
+	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
+		for i, param := range fn.Params {
+			if param == me {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func (me *SemExpr) MaybeIdent() MoValIdent {
 	ident, _ := me.Val.(*SemValIdent)
 	if ident != nil {
 		return me.From.Val.(MoValIdent)
@@ -189,7 +200,7 @@ func (me *SemExpr) ResolvedIfIdent() *SemExpr {
 	if me.ErrOwn != nil {
 		return nil
 	}
-	ident := me.IdentIfSo()
+	ident := me.MaybeIdent()
 	if ident == "" {
 		return me
 	}
@@ -266,4 +277,35 @@ func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExp
 	if onAfter != nil {
 		onAfter(me)
 	}
+}
+
+type SemScope struct {
+	Own    map[MoValIdent]*SemExpr
+	Parent *SemScope
+}
+
+func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) *SemExpr {
+	// if ident[0] == '@' {
+	// 	switch ident {
+	// 	case moValTrue.Val.(MoValIdent):
+	// 		return semPrimValTrue
+	// 	case moValFalse.Val.(MoValIdent):
+	// 		return semPrimValFalse
+	// 	case moValNone.Val.(MoValIdent):
+	// 		return semPrimValNone
+	// 	}
+	// }
+	if resolved := me.Own[ident]; resolved != nil {
+		if !deepResolveUntilNonIdent {
+			return resolved
+		} else if alias, _ := resolved.Val.(*SemValIdent); alias == nil {
+			return resolved
+		} else if resolved = me.Lookup(resolved.From.Val.(MoValIdent), ownOnly, true); resolved != nil {
+			return resolved
+		}
+	}
+	if (!ownOnly) && (me.Parent != nil) {
+		return me.Parent.Lookup(ident, false, deepResolveUntilNonIdent)
+	}
+	return nil
 }
