@@ -1,6 +1,7 @@
 package session
 
 import (
+	"atmo/util"
 	"atmo/util/sl"
 )
 
@@ -114,8 +115,14 @@ func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
 		ret = &IntelInfo{SpanFull: node.From.SrcSpan}
 		for it := node; it != nil; it = it.Parent {
 			if (it.From != nil) && (it.From.SrcNode != nil) {
+				var str_facts string
+				for k := range it.Facts {
+					str_facts += k.String() + ", "
+				}
+				str_facts = util.If(str_facts == "", "none, ", str_facts)
+				str_facts = "\n\nFacts: " + str_facts[:len(str_facts)-len(", ")] + "\n\n"
 				ret.Items = append(ret.Items, IntelItem{
-					Kind: IntelItemKindDescription, Value: "Yo:\n\n```atmo\n" + it.From.SrcNode.Src + "\n```\n",
+					Kind: IntelItemKindDescription, Value: str_facts + "\n```atmo\n" + it.From.SrcNode.Src + "\n```\n\n",
 				})
 			}
 		}

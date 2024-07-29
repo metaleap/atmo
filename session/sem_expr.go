@@ -2,6 +2,7 @@ package session
 
 import (
 	"atmo/util/sl"
+	"atmo/util/str"
 )
 
 type SemExprs sl.Of[*SemExpr]
@@ -241,4 +242,21 @@ const (
 type SemFact struct {
 	Kind SemFactKind
 	Of   any `json:",omitempty"`
+}
+
+func (me *SemFact) String() (ret string) {
+	switch me.Kind {
+	default:
+		ret = "?!"
+	case SemFactCallable:
+		ret = "callable"
+	case SemFactSideEffects:
+		ret = "side-effecting"
+	case SemFactUnused:
+		ret = "unused"
+	}
+	if me.Of != nil {
+		ret += str.Fmt("%v", me.Of)
+	}
+	return
 }
