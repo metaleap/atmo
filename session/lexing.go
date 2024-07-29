@@ -37,7 +37,7 @@ const (
 )
 
 // only called by `EnsureSrcFile`
-func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs SrcFileNotices) {
+func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs Diags) {
 	if len(curFullSrcFileContent) == 0 {
 		return
 	}
@@ -46,8 +46,8 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 	scan.Init(strings.NewReader(curFullSrcFileContent))
 	scan.Mode = scanner.ScanIdents | scanner.ScanInts | scanner.ScanFloats | scanner.ScanChars | scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanComments
 	scan.Error = func(_ *scanner.Scanner, msg string) {
-		errs.Add(&SrcFileNotice{Kind: NoticeKindErr, Code: NoticeCodeLexingError,
-			Message: errMsg(NoticeCodeLexingError, msg), Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
+		errs.Add(&Diag{Kind: DiagKindErr, Code: ErrCodeLexingError,
+			Message: errMsg(ErrCodeLexingError, msg), Span: (&SrcFilePos{Line: scan.Line, Char: scan.Column}).ToSpan()})
 	}
 	var last_ident_first_char rune
 	var prev *Tok
@@ -82,7 +82,7 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 		case scanner.Ident:
 			tok.Kind = TokKindIdentWord
 			if (prev != nil) && ((prev.Kind == TokKindLitFloat) || (prev.Kind == TokKindLitInt)) && tok.isWhitespacelesslyRightAfter(prev) {
-				errs = append(errs, tok.newErr(NoticeCodeLexingError, "separate `"+prev.Src+"` from `"+tok.Src+"`"))
+				errs = append(errs, tok.newErr(ErrCodeLexingError, "separate `"+prev.Src+"` from `"+tok.Src+"`"))
 			}
 		case '(', ')', '{', '}', '[', ']':
 			tok.Kind = TokKindBracketing
@@ -120,11 +120,11 @@ func tokenize(srcFilePath string, curFullSrcFileContent string) (ret Toks, errs 
 			// also on newline: check for any carriage-return or leading tabs since last tok
 			src_since_prev := curFullSrcFileContent[prev.byteOffset+len(prev.Src) : tok.byteOffset]
 			if (!had_ws_err) && str.Idx(src_since_prev, '\r') >= 0 {
-				had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
+				had_ws_err, errs = true, append(errs, tok.newErr(ErrCodeWhitespace))
 			}
 			src_since_prev = src_since_prev[1+str.Idx(src_since_prev, '\n'):]
 			if (!had_ws_err) && str.Idx(src_since_prev, '\t') >= 0 {
-				had_ws_err, errs = true, append(errs, tok.newErr(NoticeCodeWhitespace))
+				had_ws_err, errs = true, append(errs, tok.newErr(ErrCodeWhitespace))
 			}
 		}
 
@@ -227,12 +227,12 @@ func (me *Tok) isWhitespacelesslyRightAfter(it *Tok) bool {
 	return me.byteOffset == (it.byteOffset + len(it.Src))
 }
 
-func (me *Tok) newErr(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return &SrcFileNotice{Kind: NoticeKindErr, Code: code, Span: me.span(), Message: errMsg(code, args...)}
+func (me *Tok) newErr(code DiagCode, args ...any) *Diag {
+	return &Diag{Kind: DiagKindErr, Code: code, Span: me.span(), Message: errMsg(code, args...)}
 }
 
-func (me *Tok) newIndentErr() *SrcFileNotice {
-	return me.newErr(NoticeCodeIndentation)
+func (me *Tok) newIndentErr() *Diag {
+	return me.newErr(ErrCodeIndentation)
 }
 
 func (me *Tok) span() (ret SrcFileSpan) {
@@ -247,7 +247,7 @@ func (me *Tok) span() (ret SrcFileSpan) {
 	return
 }
 
-func (me Toks) bracketingMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
+func (me Toks) bracketingMatch() (inner Toks, tail Toks, err *Diag) {
 	var level int
 	brac_open := rune(me[0].Src[0])
 	brac_close := me[0].bracketingMatch()
@@ -266,27 +266,27 @@ func (me Toks) bracketingMatch() (inner Toks, tail Toks, err *SrcFileNotice) {
 			}
 		}
 	}
-	return nil, nil, &SrcFileNotice{Kind: NoticeKindErr, Span: me.Span(), Code: NoticeCodeBracketingMismatch,
-		Message: errMsg(NoticeCodeBracketingMismatch,
+	return nil, nil, &Diag{Kind: DiagKindErr, Span: me.Span(), Code: ErrCodeBracketingMismatch,
+		Message: errMsg(ErrCodeBracketingMismatch,
 			util.If((me[0].Src[0] == '(') || (me[0].Src[0] == ')'), "parens",
 				util.If((me[0].Src[0] == '[') || (me[0].Src[0] == ']'), "brackets",
 					"braces")))}
 }
 
-func (me Toks) newDiag(kind SrcFileNoticeKind, atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return &SrcFileNotice{Kind: kind, Code: code, Span: util.If(atEnd, Toks.SpanEnd, Toks.Span)(me), Message: errMsg(code, args...)}
+func (me Toks) newDiag(kind DiagKind, atEnd bool, code DiagCode, args ...any) *Diag {
+	return &Diag{Kind: kind, Code: code, Span: util.If(atEnd, Toks.SpanEnd, Toks.Span)(me), Message: errMsg(code, args...)}
 }
-func (me Toks) newDiagInfo(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindInfo, atEnd, code, args...)
+func (me Toks) newDiagInfo(atEnd bool, code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindInfo, atEnd, code, args...)
 }
-func (me Toks) newDiagHint(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindHint, atEnd, code, args...)
+func (me Toks) newDiagHint(atEnd bool, code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindHint, atEnd, code, args...)
 }
-func (me Toks) newDiagWarn(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindWarn, atEnd, code, args...)
+func (me Toks) newDiagWarn(atEnd bool, code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindWarn, atEnd, code, args...)
 }
-func (me Toks) newDiagErr(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindErr, atEnd, code, args...)
+func (me Toks) newDiagErr(atEnd bool, code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindErr, atEnd, code, args...)
 }
 
 func (me Toks) Span() (ret SrcFileSpan) {

@@ -54,16 +54,16 @@ func (me *Interp) envReset() {
 // for REPL use-cases only!
 func (me *Interp) replReset() {
 	Access(func(sess StateAccess, _ Intel) {
-		allNotices = map[string]sl.Of[*SrcFileNotice]{}
+		allDiags = map[string]sl.Of[*Diag]{}
 		me.ClearStackTrace()
 		me.envReset()
 		me.Pack.Interp, me.Pack.Trees.MoOrig, me.Pack.Trees.MoEvaled = me, nil, nil
 		for _, src_file := range me.Pack.Files {
-			src_file.notices.LexErrs, src_file.notices.LastReadErr, src_file.notices.Ast2Mo, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
+			src_file.diags.LexErrs, src_file.diags.LastReadErr, src_file.diags.Ast2Mo, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =
 				nil, nil, nil, nil, nil, ""
 		}
 		_ = ensureSrcFiles(nil, false, me.Pack.srcFilePaths()...) // does `SrcPack.treesRefresh()` too
-		refreshAndPublishNotices(true, me.Pack.srcFilePaths()...)
+		refreshAndPublishDiags(true, me.Pack.srcFilePaths()...)
 	})
 }
 
@@ -127,13 +127,13 @@ tco_loop:
 					did_call = true
 					switch fn := evaled_callee.Val.(type) {
 					default:
-						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(NoticeCodeUncallable, evaled_callee.String()))
+						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(ErrCodeUncallable, evaled_callee.String()))
 					case MoValFnPrim:
 						expr = fn(me, env, evaled_call_args...)
 						expr.setSrcSpanIfNone(diag_ctx_cur)
 						env, me.diagCtxCall = nil, diag_ctx_prev
 					case *MoValFnLam:
-						var err *SrcFileNotice
+						var err *Diag
 						env, err = me.envWith(fn, evaled_call_args)
 						if err != nil {
 							env, expr = nil, me.exprErr(err, diag_ctx_cur)
@@ -170,7 +170,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			}
 			if found == nil {
 				_, is_lazy_prim_op := moPrimOpsLazy[val]
-				return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, NoticeCodeUndefined, NoticeCodeNotAValue), val))
+				return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, ErrCodeUndefined, ErrCodeNotAValue), val))
 			}
 			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
@@ -186,7 +186,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			key := me.evalAndApply(env, entry.Key)
 			val := me.evalAndApply(env, entry.Val)
 			if (!key.IsErr()) && dict.Has(key) {
-				return me.exprErr(entry.Key.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, key))
+				return me.exprErr(entry.Key.SrcSpan.newDiagErr(ErrCodeDictDuplKey, key))
 			}
 			dict.Set(key, val)
 		}
@@ -248,7 +248,7 @@ func (me *Interp) srcFile(preferCalleeOverCall bool, preferTheseEvenMore bool, h
 	return
 }
 
-func (me *Interp) envWith(fn *MoValFnLam, args MoExprs) (*MoEnv, *SrcFileNotice) {
+func (me *Interp) envWith(fn *MoValFnLam, args MoExprs) (*MoEnv, *Diag) {
 	if err := me.checkCount(len(fn.Params), len(fn.Params), args); err != nil {
 		return nil, err
 	}
@@ -308,11 +308,11 @@ func (me *Interp) checkArgErrs(args ...*MoExpr) *MoExpr {
 	return nil
 }
 
-func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have MoExprs) *SrcFileNotice {
+func (me *Interp) checkCount(wantAtLeast int, wantAtMost int, have MoExprs) *Diag {
 	return me.checkCountWithSrcSpan(wantAtLeast, wantAtMost, have, false)
 }
 
-func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have MoExprs, preferSrcSpan bool) *SrcFileNotice {
+func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have MoExprs, preferSrcSpan bool) *Diag {
 	if wantAtLeast < 0 {
 		return nil
 	}
@@ -320,24 +320,24 @@ func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have Mo
 	plural := util.If((wantAtLeast <= wantAtMost) && (wantAtLeast != 1), "s", "")
 	moniker := util.If(preferSrcSpan, "item"+plural, "arg"+plural+" for this call")
 	if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d %s, not %d", wantAtLeast, moniker, len(have)))
+		return diag_src_span.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d %s, not %d", wantAtLeast, moniker, len(have)))
 	} else if len(have) < wantAtLeast {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("at least %d %s, not %d", wantAtLeast, moniker, len(have)))
+		return diag_src_span.newDiagErr(ErrCodeExpectedFoo, str.Fmt("at least %d %s, not %d", wantAtLeast, moniker, len(have)))
 	} else if (wantAtMost > wantAtLeast) && (len(have) > wantAtMost) {
-		return diag_src_span.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d to %d %s, not %d", wantAtLeast, wantAtMost, moniker, len(have)))
+		return diag_src_span.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d to %d %s, not %d", wantAtLeast, wantAtMost, moniker, len(have)))
 	}
 	return nil
 }
 
-func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *SrcFileNotice {
+func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *Diag {
 	if have_type := have.Val.PrimType(); have_type != want {
 		have_str := util.If(have_type == MoPrimTypeFunc, have.SrcFile.srcAt(have.SrcSpan, '`'), "`"+have.String()+"`")
-		return me.diagSpan(false, true, have).newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%s instead of %s %s", want.Str(true), have_type.Str(true), have_str))
+		return me.diagSpan(false, true, have).newDiagErr(ErrCodeExpectedFoo, str.Fmt("%s instead of %s %s", want.Str(true), have_type.Str(true), have_str))
 	}
 	return nil
 }
 
-func (me *Interp) checkIsListOf(of MoValPrimType, expr *MoExpr) *SrcFileNotice {
+func (me *Interp) checkIsListOf(of MoValPrimType, expr *MoExpr) *Diag {
 	if err := me.checkIs(MoPrimTypeList, expr); err != nil {
 		return err
 	}
@@ -347,7 +347,7 @@ func (me *Interp) checkIsListOf(of MoValPrimType, expr *MoExpr) *SrcFileNotice {
 	return nil
 }
 
-func (me *Interp) checkIsCallOnIdent(call *MoExpr, ident MoValIdent, errIfNumArgsNot int) (bool, *SrcFileNotice) {
+func (me *Interp) checkIsCallOnIdent(call *MoExpr, ident MoValIdent, errIfNumArgsNot int) (bool, *Diag) {
 	if call, is := call.Val.(MoValCall); is {
 		if callee, _ := call[0].Val.(MoValIdent); callee == ident {
 			return true, me.checkCount(errIfNumArgsNot, errIfNumArgsNot, MoExprs(call[1:]))
@@ -365,7 +365,7 @@ func (me *Interp) checkNoneArePrimFuncs(have ...*MoExpr) bool {
 	return true
 }
 
-func (me *Interp) check(want MoValPrimType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *SrcFileNotice {
+func (me *Interp) check(want MoValPrimType, wantAtLeast int, wantAtMost int, have ...*MoExpr) *Diag {
 	if err := me.checkCount(wantAtLeast, wantAtMost, have); err != nil {
 		return err
 	}

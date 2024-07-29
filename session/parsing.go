@@ -20,7 +20,7 @@ type AstNode struct {
 	Src        string
 	Toks       Toks
 	Nodes      AstNodes `json:",omitempty"`
-	errParsing *SrcFileNotice
+	errParsing *Diag
 	Lit        any `json:",omitempty"` // if AstNodeKindIdent or AstNodeKindLit, one of: float64 | int64 | uint64 | rune | string
 }
 
@@ -35,8 +35,8 @@ const (
 	AstNodeKindBlockLine
 )
 
-// only called by EnsureSrcFile, just after tokenization, with `.Notices.LexErrs` freshly set.
-// mutates me.Content.TopLevelAstNodes and me.Notices.ParseErrs.
+// only called by EnsureSrcFile, just after tokenization, with `.diags.LexErrs` freshly set.
+// mutates me.Content.TopLevelAstNodes and me.diags.ParseErrs.
 func (me *SrcFile) parse() AstNodes {
 	parsed := me.parseNodes(me.Src.Toks)
 
@@ -128,14 +128,14 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 						for _, item_toks := range split_by_comma {
 							if len(item_toks) == 0 {
 								node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: err_toks.src(me.Src.Text),
-									errParsing: err_toks[util.If(is_curly, 0, len(err_toks)-1)].newErr(NoticeCodeExpectedFoo, "expression before the superfluous comma")})
+									errParsing: err_toks[util.If(is_curly, 0, len(err_toks)-1)].newErr(ErrCodeExpectedFoo, "expression before the superfluous comma")})
 							} else {
 								err_toks = item_toks[len(item_toks)-1:]
 								if !is_curly {
 									node.Nodes = append(node.Nodes, me.parseNode(item_toks))
 								} else if pair := item_toks.split(':'); (len(pair) != 2) || (len(pair[0]) == 0) || (len(pair[1]) == 0) {
 									node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: err_toks.src(me.Src.Text),
-										errParsing: err_toks[0].newErr(NoticeCodeExpectedFoo, "expression pair separated by `:`")})
+										errParsing: err_toks[0].newErr(ErrCodeExpectedFoo, "expression pair separated by `:`")})
 								} else {
 									node_key, node_val := me.parseNode(pair[0]), me.parseNode(pair[1])
 									node.Nodes = append(node.Nodes, AstNodes{node_key, node_val}.toGroupNode(me, node, true, true))
@@ -175,7 +175,7 @@ func parseLit[T cmp.Ordered](toks Toks, kind AstNodeKind, parseFunc func(string)
 	tok := toks[0]
 	lit, err := parseFunc(tok.Src)
 	if err != nil {
-		return &AstNode{Kind: AstNodeKindErr, Toks: toks[:1], Src: tok.Src, errParsing: errToNotice(err, NoticeCodeLitSyntax, tok.span())}
+		return &AstNode{Kind: AstNodeKindErr, Toks: toks[:1], Src: tok.Src, errParsing: errToDiag(err, ErrCodeLitSyntax, tok.span())}
 	}
 	return &AstNode{Kind: kind, Toks: toks[:1], Src: tok.Src, Lit: lit}
 }
@@ -302,20 +302,20 @@ func (me *AstNode) isWhitespacelesslyRightAfter(it *AstNode) bool {
 	return me.Toks[0].isWhitespacelesslyRightAfter(it.Toks[len(it.Toks)-1])
 }
 
-func (me *AstNode) newDiag(kind SrcFileNoticeKind, atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
+func (me *AstNode) newDiag(kind DiagKind, atEnd bool, code DiagCode, args ...any) *Diag {
 	return me.Toks.newDiag(kind, atEnd, code, args...)
 }
-func (me *AstNode) newDiagInfo(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindInfo, atEnd, code, args...)
+func (me *AstNode) newDiagInfo(atEnd bool, code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindInfo, atEnd, code, args...)
 }
-func (me *AstNode) newDiagHint(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindHint, atEnd, code, args...)
+func (me *AstNode) newDiagHint(atEnd bool, code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindHint, atEnd, code, args...)
 }
-func (me *AstNode) newDiagWarn(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindWarn, atEnd, code, args...)
+func (me *AstNode) newDiagWarn(atEnd bool, code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindWarn, atEnd, code, args...)
 }
-func (me *AstNode) newDiagErr(atEnd bool, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindErr, atEnd, code, args...)
+func (me *AstNode) newDiagErr(atEnd bool, code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindErr, atEnd, code, args...)
 }
 
 func (me *AstNode) sig(buf *strings.Builder) {
@@ -438,20 +438,20 @@ func (me AstNodes) huddled(srcFile *SrcFile, parent *AstNode) (ret AstNodes) {
 
 func (me AstNodes) last() *AstNode { return me[len(me)-1] }
 
-func (me AstNodes) newDiag(srcFile *SrcFile, kind SrcFileNoticeKind, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return &SrcFileNotice{Kind: kind, Code: code, Span: me.toks(srcFile).Span(), Message: errMsg(code, args...)}
+func (me AstNodes) newDiag(srcFile *SrcFile, kind DiagKind, code DiagCode, args ...any) *Diag {
+	return &Diag{Kind: kind, Code: code, Span: me.toks(srcFile).Span(), Message: errMsg(code, args...)}
 }
-func (me AstNodes) newDiagInfo(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(srcFile, NoticeKindInfo, code, args...)
+func (me AstNodes) newDiagInfo(srcFile *SrcFile, code DiagCode, args ...any) *Diag {
+	return me.newDiag(srcFile, DiagKindInfo, code, args...)
 }
-func (me AstNodes) newDiagHint(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(srcFile, NoticeKindHint, code, args...)
+func (me AstNodes) newDiagHint(srcFile *SrcFile, code DiagCode, args ...any) *Diag {
+	return me.newDiag(srcFile, DiagKindHint, code, args...)
 }
-func (me AstNodes) newDiagWarn(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(srcFile, NoticeKindWarn, code, args...)
+func (me AstNodes) newDiagWarn(srcFile *SrcFile, code DiagCode, args ...any) *Diag {
+	return me.newDiag(srcFile, DiagKindWarn, code, args...)
 }
-func (me AstNodes) newDiagErr(srcFile *SrcFile, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(srcFile, NoticeKindErr, code, args...)
+func (me AstNodes) newDiagErr(srcFile *SrcFile, code DiagCode, args ...any) *Diag {
+	return me.newDiag(srcFile, DiagKindErr, code, args...)
 }
 
 func (me AstNodes) src(srcFile *SrcFile) string {
@@ -497,5 +497,5 @@ func (me AstNodes) withoutComments() AstNodes {
 
 // any basic syntax errs from the lexing or parsing stages preclude a `SrcPack.treesRefresh` (the prior trees are kept)
 func (me *SrcFile) HasMoPrecludingErrs() bool {
-	return (me.notices.LastReadErr != nil) || (len(me.notices.LexErrs) > 0) || me.Src.Ast.AnyErrs()
+	return (me.diags.LastReadErr != nil) || (len(me.diags.LexErrs) > 0) || me.Src.Ast.AnyErrs()
 }

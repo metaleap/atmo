@@ -177,7 +177,7 @@ func (me MoValIdent) IsReserved() bool {
 type MoExpr struct {
 	Val  MoVal
 	Diag struct {
-		Err *SrcFileNotice
+		Err *Diag
 	}
 	SrcSpan                          *SrcFileSpan // caution: `nil` for prims / builtins
 	SrcFile                          *SrcFile     // dito
@@ -226,7 +226,7 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	return me.Val == to.Val
 }
 
-func (me *Interp) ExprCmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *SrcFileNotice) {
+func (me *Interp) ExprCmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int, *Diag) {
 	switch it := it.Val.(type) {
 	case MoValChar:
 		if other, is := to.Val.(MoValChar); is {
@@ -249,10 +249,10 @@ func (me *Interp) ExprCmp(it *MoExpr, to *MoExpr, diagMsgOpMoniker string) (int,
 			return cmp.Compare(it, other), nil
 		}
 	}
-	return 0, me.diagSpan(true, false, it, to).newDiagErr(NoticeCodeNotComparable, it, to, diagMsgOpMoniker)
+	return 0, me.diagSpan(true, false, it, to).newDiagErr(ErrCodeNotComparable, it, to, diagMsgOpMoniker)
 }
 
-func (me *Interp) exprErr(err *SrcFileNotice, srcSpanCtx ...*MoExpr) *MoExpr {
+func (me *Interp) exprErr(err *Diag, srcSpanCtx ...*MoExpr) *MoExpr {
 	util.Assert(err != nil, nil)
 	ret := me.expr(MoValErr{}, nil, nil, srcSpanCtx...)
 	ret.Diag.Err = err
@@ -363,7 +363,7 @@ func MoValToString(it MoVal) string {
 	return buf.String()
 }
 
-func (me *Interp) ExprParse(src string) (*MoExpr, *SrcFileNotice) {
+func (me *Interp) ExprParse(src string) (*MoExpr, *Diag) {
 	me.FauxFile.Src.Ast, me.FauxFile.Src.Toks, me.FauxFile.Src.Text = nil, nil, src
 	toks, errs := tokenize(me.FauxFile.FilePath, src)
 	if len(errs) > 0 {
@@ -371,13 +371,13 @@ func (me *Interp) ExprParse(src string) (*MoExpr, *SrcFileNotice) {
 	}
 	me.FauxFile.Src.Toks = toks
 	me.FauxFile.Src.Ast = me.FauxFile.parse()
-	for _, diag := range me.FauxFile.allNotices() {
-		if diag.Kind == NoticeKindErr {
+	for _, diag := range me.FauxFile.allDiags() {
+		if diag.Kind == DiagKindErr {
 			return nil, diag
 		}
 	}
 	if me.FauxFile.Src.Ast = me.FauxFile.Src.Ast.withoutComments(); len(me.FauxFile.Src.Ast) > 1 {
-		return nil, me.FauxFile.Src.Ast.newDiagErr(me.FauxFile, NoticeCodeExpectedFoo, str.Fmt("a single expression only, rather than %d", len(me.FauxFile.Src.Ast)))
+		return nil, me.FauxFile.Src.Ast.newDiagErr(me.FauxFile, ErrCodeExpectedFoo, str.Fmt("a single expression only, rather than %d", len(me.FauxFile.Src.Ast)))
 	} else if (len(me.FauxFile.Src.Ast) == 0) || (len(me.FauxFile.Src.Ast[0].Nodes) == 0) {
 		return nil, nil
 	}
@@ -389,16 +389,16 @@ func (me *Interp) ExprParse(src string) (*MoExpr, *SrcFileNotice) {
 	return expr, nil
 }
 
-func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
+func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 	var val MoVal
 	switch node.Kind {
 	case AstNodeKindComment:
 		return nil, nil
 	case AstNodeKindErr:
-		return nil, node.newDiagErr(false, NoticeCodeAtmoTodo, "newly introduced ast2mo bug (encountered error AST node, when the idea is not to run this at all with any such present in AST)")
+		return nil, node.newDiagErr(false, ErrCodeAtmoTodo, "newly introduced ast2mo bug (encountered error AST node, when the idea is not to run this at all with any such present in AST)")
 	case AstNodeKindIdent:
 		if node.IsIdentSepish() {
-			return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression instead of `"+node.Src+"` here")
+			return nil, node.newDiagErr(false, ErrCodeExpectedFoo, "expression instead of `"+node.Src+"` here")
 		}
 		val = MoValIdent(node.Src)
 	case AstNodeKindLit:
@@ -430,11 +430,11 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			} else if expr != nil {
 				if node.Kind == AstNodeKindBlockLine {
 					if len(block_own_line) == 0 {
-						return nil, node.newDiagErr(false, NoticeCodeAtmoTodo, "newly introduced block-parsing bug (encountered block sub-line with no prior non-block own-line exprs)")
+						return nil, node.newDiagErr(false, ErrCodeAtmoTodo, "newly introduced block-parsing bug (encountered block sub-line with no prior non-block own-line exprs)")
 					}
 					block_sub_lines = append(block_sub_lines, expr)
 				} else if len(block_sub_lines) > 0 {
-					return nil, node.newDiagErr(false, NoticeCodeAtmoTodo, "newly introduced block-parsing bug (encountered non-block sub-line)")
+					return nil, node.newDiagErr(false, ErrCodeAtmoTodo, "newly introduced block-parsing bug (encountered non-block sub-line)")
 				} else {
 					block_own_line = append(block_own_line, expr)
 				}
@@ -472,7 +472,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 				if kv_node.Kind == AstNodeKindErr {
 					continue
 				} else if len(nodes_of_dict_entry) != 2 {
-					return nil, kv_node.newDiagErr(false, NoticeCodeAtmoTodo, str.Fmt("new dict parsing bug: KV node has len %d with kind %d", len(nodes_of_dict_entry), kv_node.Kind))
+					return nil, kv_node.newDiagErr(false, ErrCodeAtmoTodo, str.Fmt("new dict parsing bug: KV node has len %d with kind %d", len(nodes_of_dict_entry), kv_node.Kind))
 				}
 				expr_key, err := me.MoExprFromAstNode(nodes_of_dict_entry[0])
 				if err != nil {
@@ -483,9 +483,9 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 					return nil, err
 				}
 				if (expr_key == nil) || (expr_val == nil) {
-					return nil, kv_node.newDiagErr(false, NoticeCodeAtmoTodo, str.Fmt("new dict parsing bug: had only Comment-kind node for key or value"))
+					return nil, kv_node.newDiagErr(false, ErrCodeAtmoTodo, str.Fmt("new dict parsing bug: had only Comment-kind node for key or value"))
 				} else if dict.Has(expr_key) {
-					return nil, expr_key.SrcSpan.newDiagErr(NoticeCodeDictDuplKey, expr_key)
+					return nil, expr_key.SrcSpan.newDiagErr(ErrCodeDictDuplKey, expr_key)
 				}
 				dict.Set(expr_key, expr_val)
 			}
@@ -495,7 +495,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *SrcFileNotice) {
 			if len(nodes) == 1 {
 				return me.MoExprFromAstNode(nodes[0])
 			} else if len(nodes) == 0 {
-				return nil, node.newDiagErr(false, NoticeCodeExpectedFoo, "expression inside these empty parens")
+				return nil, node.newDiagErr(false, ErrCodeExpectedFoo, "expression inside these empty parens")
 			}
 
 			call_form := make(MoValCall, 0, len(nodes))
@@ -517,7 +517,7 @@ func (me *MoExpr) IsErr() (ret bool) {
 	return me.Diag.Err != nil
 }
 
-func (me *MoExpr) Err() (ret *SrcFileNotice) {
+func (me *MoExpr) Err() (ret *Diag) {
 	me.Walk(func(it *MoExpr) bool {
 		if ret == nil {
 			ret = it.Diag.Err

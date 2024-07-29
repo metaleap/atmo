@@ -26,18 +26,18 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 	var any_pre_errs bool
 	for _, src_file := range me.Files {
 		if !src_file.IsInterpFauxFile() {
-			had_errs := (len(src_file.notices.Ast2Mo) > 0)
-			src_file.notices.Ast2Mo = nil
+			had_errs := (len(src_file.diags.Ast2Mo) > 0)
+			src_file.diags.Ast2Mo = nil
 			for _, top_node := range src_file.Src.Ast {
 				expr, err := src_file.MoExprFromAstNode(top_node)
 				if err != nil {
-					src_file.notices.Ast2Mo = append(src_file.notices.Ast2Mo, err)
+					src_file.diags.Ast2Mo = append(src_file.diags.Ast2Mo, err)
 				} else if expr != nil {
 					top_level = append(top_level, expr)
 				}
 			}
-			any_pre_errs = any_pre_errs || (len(src_file.notices.Ast2Mo) > 0)
-			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.notices.Ast2Mo) > 0) || had_errs
+			any_pre_errs = any_pre_errs || (len(src_file.diags.Ast2Mo) > 0)
+			encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || (len(src_file.diags.Ast2Mo) > 0) || had_errs
 		}
 	}
 	me.Trees.MoOrig = top_level

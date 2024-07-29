@@ -9,14 +9,14 @@ import (
 )
 
 func init() {
-	session.OnNoticesChanged = func() {
+	session.OnDiagsChanged = func() {
 		util.Assert(Server.Initialized.Fully, nil)
 		session.Access(func(sess session.StateAccess, _ session.Intel) {
-			all_notices := sess.AllCurrentSrcFileNotices()
-			for file_path, diags := range all_notices {
+			all_diags := sess.AllCurrentSrcFileDiags()
+			for file_path, diags := range all_diags {
 				Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
 					Uri:         lspUriFromFsPath(file_path),
-					Diagnostics: sl.To(diags, srcFileNoticeToLspDiag),
+					Diagnostics: sl.To(diags, diagToLspDiag),
 				})
 			}
 		})
@@ -34,21 +34,21 @@ func init() {
 				})
 			}
 
-			// gather any actions deriving from current `SrcFileNotice`s on the file, if any
+			// gather any actions deriving from current `Diag`s on the file, if any
 			session.Access(func(sess session.StateAccess, _ session.Intel) {
-				notices := sess.AllCurrentSrcFileNotices()[src_file_path]
-				if len(notices) == 0 {
+				diags := sess.AllCurrentSrcFileDiags()[src_file_path]
+				if len(diags) == 0 {
 					return
 				}
 				src_file := sess.SrcFile(src_file_path)
 				if src_file == nil {
 					return
 				}
-				for _, it := range notices {
+				for _, it := range diags {
 					switch it.Code {
-					case session.NoticeCodeIndentation:
+					case session.ErrCodeIndentation:
 						if src_file.Src.Toks[0].Pos.Char > 1 {
-							diags := []lsp.Diagnostic{srcFileNoticeToLspDiag(it)}
+							diags := []lsp.Diagnostic{diagToLspDiag(it)}
 							cmd_title := "Fix first-line mis-indentation"
 							ret = append(ret, lsp.CodeAction{
 								Title:       cmd_title,
@@ -59,9 +59,9 @@ func init() {
 								}},
 							})
 						}
-					case session.NoticeCodeWhitespace:
+					case session.ErrCodeWhitespace:
 						if ClientIsAtmoVscExt {
-							diags := []lsp.Diagnostic{srcFileNoticeToLspDiag(it)}
+							diags := []lsp.Diagnostic{diagToLspDiag(it)}
 							if cmd_title := "Convert all line-leading tabs to spaces"; str.Idx(src_file.Src.Text, '\t') >= 0 {
 								ret = append(ret, lsp.CodeAction{
 									Title:       cmd_title,
@@ -87,7 +87,7 @@ func init() {
 	}
 }
 
-func srcFileNoticeToLspDiag(it *session.SrcFileNotice) lsp.Diagnostic {
+func diagToLspDiag(it *session.Diag) lsp.Diagnostic {
 	ret := lsp.Diagnostic{
 		Code:            string(it.Code),
 		CodeDescription: &lsp.CodeDescription{Href: "https://github.com/atmo-lang/atmo/docs/err-codes.md#" + string(it.Code)},
@@ -96,7 +96,7 @@ func srcFileNoticeToLspDiag(it *session.SrcFileNotice) lsp.Diagnostic {
 		Severity:        toLspDiagSeverity(it.Kind),
 		Source:          "atmo",
 	}
-	if it.Code == session.NoticeCodeUnused {
+	if it.Code == session.HintCodeUnused {
 		ret.Tags = append(ret.Tags, lsp.DiagnosticTagUnnecessary)
 	}
 	if it.Rel != nil {
@@ -108,15 +108,15 @@ func srcFileNoticeToLspDiag(it *session.SrcFileNotice) lsp.Diagnostic {
 	return ret
 }
 
-func toLspDiagSeverity(kind session.SrcFileNoticeKind) lsp.DiagnosticSeverity {
+func toLspDiagSeverity(kind session.DiagKind) lsp.DiagnosticSeverity {
 	switch kind {
-	case session.NoticeKindErr:
+	case session.DiagKindErr:
 		return lsp.DiagnosticSeverityError
-	case session.NoticeKindWarn:
+	case session.DiagKindWarn:
 		return lsp.DiagnosticSeverityWarning
-	case session.NoticeKindInfo:
+	case session.DiagKindInfo:
 		return lsp.DiagnosticSeverityInformation
-	case session.NoticeKindHint:
+	case session.DiagKindHint:
 		return lsp.DiagnosticSeverityHint
 	default:
 		panic(kind)

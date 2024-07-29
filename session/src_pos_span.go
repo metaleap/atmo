@@ -111,20 +111,20 @@ func (me SrcFileSpan) LocStr(srcFilePath string) string {
 }
 func (me Toks) LocStr(srcFilePath string) string { return me.Span().LocStr(srcFilePath) }
 
-func (me *SrcFileSpan) newDiag(kind SrcFileNoticeKind, code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return &SrcFileNotice{Kind: kind, Code: code, Span: *me, Message: errMsg(code, args...)}
+func (me *SrcFileSpan) newDiag(kind DiagKind, code DiagCode, args ...any) *Diag {
+	return &Diag{Kind: kind, Code: code, Span: *me, Message: errMsg(code, args...)}
 }
-func (me *SrcFileSpan) newDiagInfo(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindInfo, code, args...)
+func (me *SrcFileSpan) newDiagInfo(code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindInfo, code, args...)
 }
-func (me *SrcFileSpan) newDiagHint(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindHint, code, args...)
+func (me *SrcFileSpan) newDiagHint(code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindHint, code, args...)
 }
-func (me *SrcFileSpan) newDiagWarn(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindWarn, code, args...)
+func (me *SrcFileSpan) newDiagWarn(code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindWarn, code, args...)
 }
-func (me *SrcFileSpan) newDiagErr(code SrcFileNoticeCode, args ...any) *SrcFileNotice {
-	return me.newDiag(NoticeKindErr, code, args...)
+func (me *SrcFileSpan) newDiagErr(code DiagCode, args ...any) *Diag {
+	return me.newDiag(DiagKindErr, code, args...)
 }
 func (me *SrcFileSpan) Cmp(to *SrcFileSpan) int {
 	return me.Start.Cmp(&to.Start)

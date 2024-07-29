@@ -38,10 +38,10 @@ type SrcFile struct {
 		Ast          AstNodes
 		everOnceRead bool
 	} `json:"-"`
-	notices struct {
-		LastReadErr *SrcFileNotice
-		LexErrs     SrcFileNotices
-		Ast2Mo      SrcFileNotices
+	diags struct {
+		LastReadErr *Diag
+		LexErrs     Diags
+		Ast2Mo      Diags
 	}
 }
 
@@ -105,7 +105,7 @@ func removeSrcFiles(srcFilePaths ...string) {
 		pack_file_paths = append(pack_file_paths, src_pack.srcFilePaths()...)
 		src_pack.treesRefresh()
 	}
-	refreshAndPublishNotices(false, append(pack_file_paths, srcFilePaths...)...)
+	refreshAndPublishDiags(false, append(pack_file_paths, srcFilePaths...)...)
 }
 
 func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths ...string) (encounteredDiagsRelevantChanges []string) {
@@ -144,9 +144,9 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 			canSkipFileRead = is_interp_faux_file
 		}
 
-		old_content, had_last_read_err := src_file.Src.Text, (src_file.notices.LastReadErr != nil)
+		old_content, had_last_read_err := src_file.Src.Text, (src_file.diags.LastReadErr != nil)
 		if curFullContent != nil {
-			src_file.Src.Text, src_file.notices.LastReadErr = *curFullContent, nil
+			src_file.Src.Text, src_file.diags.LastReadErr = *curFullContent, nil
 		} else if (!is_interp_faux_file) && ((!canSkipFileRead) || had_last_read_err || !src_file.Src.everOnceRead) {
 			src_file_bytes, err := os.ReadFile(src_file_path)
 			if os.IsNotExist(err) {
@@ -154,25 +154,25 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 				flag_for_diags_refr()
 				continue
 			} else {
-				src_file.Src.Text, src_file.notices.LastReadErr = string(src_file_bytes), errToNotice(err, NoticeCodeFileReadError, src_file.Span())
-				if src_file.notices.LastReadErr == nil {
+				src_file.Src.Text, src_file.diags.LastReadErr = string(src_file_bytes), errToDiag(err, ErrCodeFileReadError, src_file.Span())
+				if src_file.diags.LastReadErr == nil {
 					src_file.Src.everOnceRead = true
 				}
 			}
 		}
 
-		if (src_file.Src.Text != old_content) || had_last_read_err || (src_file.notices.LastReadErr != nil) {
+		if (src_file.Src.Text != old_content) || had_last_read_err || (src_file.diags.LastReadErr != nil) {
 			old_ast := src_file.Src.Ast
-			had_errs := (len(src_file.notices.LexErrs) > 0) || (len(src_file.notices.Ast2Mo) > 0) || src_file.Src.Ast.has(true, func(node *AstNode) bool { return node.Kind == AstNodeKindErr })
+			had_errs := (len(src_file.diags.LexErrs) > 0) || (len(src_file.diags.Ast2Mo) > 0) || src_file.Src.Ast.has(true, func(node *AstNode) bool { return node.Kind == AstNodeKindErr })
 			if had_errs {
 				flag_for_diags_refr()
 			}
-			src_file.Src.Ast, src_file.Src.Toks, src_file.notices.LexErrs, src_file.notices.Ast2Mo = nil, nil, nil, nil
-			if src_file.notices.LastReadErr != nil {
+			src_file.Src.Ast, src_file.Src.Toks, src_file.diags.LexErrs, src_file.diags.Ast2Mo = nil, nil, nil, nil
+			if src_file.diags.LastReadErr != nil {
 				flag_for_diags_refr()
 			} else {
-				src_file.Src.Toks, src_file.notices.LexErrs = tokenize(src_file.FilePath, src_file.Src.Text)
-				if len(src_file.notices.LexErrs) > 0 {
+				src_file.Src.Toks, src_file.diags.LexErrs = tokenize(src_file.FilePath, src_file.Src.Text)
+				if len(src_file.diags.LexErrs) > 0 {
 					flag_for_diags_refr()
 				} else {
 					new_ast := src_file.parse()

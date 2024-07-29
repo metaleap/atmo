@@ -6,12 +6,12 @@ import (
 
 type SemExprs sl.Of[*SemExpr]
 type SemExpr struct {
-	From   *MoExpr        `json:"-"`
-	Parent *SemExpr       `json:"-"`
-	Scope  *SemScope      `json:"-"`
-	ErrOwn *SrcFileNotice `json:",omitempty"`
-	Val    any
-	Facts  map[SemFact]SemExprs `json:"-"`
+	From    *MoExpr   `json:"-"`
+	Parent  *SemExpr  `json:"-"`
+	Scope   *SemScope `json:"-"`
+	ErrsOwn Diags     `json:",omitempty"`
+	Val     any
+	Facts   map[SemFact]SemExprs `json:"-"`
 }
 
 type SemValScalar struct {
@@ -59,9 +59,6 @@ func (me *SemExpr) Each(do func(it *SemExpr)) {
 }
 
 func (me *SemExpr) EnsureResolvesIfIdent() *SemScopeEntry {
-	if me.ErrOwn != nil {
-		return nil
-	}
 	if ident := me.MaybeIdent(); ident != "" {
 		if _, entry := me.Scope.Lookup(ident, false, me); entry != nil {
 			return entry
@@ -70,11 +67,9 @@ func (me *SemExpr) EnsureResolvesIfIdent() *SemScopeEntry {
 	return nil
 }
 
-func (me *SemExpr) Errs() (ret SrcFileNotices) {
+func (me *SemExpr) Errs() (ret Diags) {
 	me.Walk(nil, func(it *SemExpr) {
-		if it.ErrOwn != nil {
-			ret.Add(it.ErrOwn)
-		}
+		ret.Add(it.ErrsOwn...)
 	})
 	return
 }
@@ -96,7 +91,7 @@ func (me *SemExpr) Fact(fact SemFact, from *SemExpr) {
 
 func (me *SemExpr) HasErrs() (ret bool) {
 	me.Walk(func(it *SemExpr) bool {
-		ret = ret || (it.ErrOwn != nil)
+		ret = ret || (len(it.ErrsOwn) > 0)
 		return !ret
 	}, nil)
 	return
@@ -204,7 +199,7 @@ func (me SemExprs) AnyErrs() bool {
 	return sl.Any(me, (*SemExpr).HasErrs)
 }
 
-func (me SemExprs) Errs() (ret SrcFileNotices) {
+func (me SemExprs) Errs() (ret Diags) {
 	for _, top_expr := range me {
 		ret.Add(top_expr.Errs()...)
 	}

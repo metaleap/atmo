@@ -37,13 +37,13 @@ func Main() {
 		}
 	}
 	session.OnDbgMsg, session.OnLogMsg = on_msg, on_msg
-	session.OnNoticesChanged = func() {
+	session.OnDiagsChanged = func() {
 		session.Access(func(sess session.StateAccess, _ session.Intel) {
 			mutex.Lock()
 			defer mutex.Unlock()
-			for src_file_path, diags := range sess.AllCurrentSrcFileNotices() {
+			for src_file_path, diags := range sess.AllCurrentSrcFileDiags() {
 				for _, diag := range diags {
-					if diag.Kind != session.NoticeKindHint {
+					if diag.Kind != session.DiagKindHint {
 						sess_msgs = append(sess_msgs, diagMsg(src_file_path, diag))
 					}
 				}
@@ -113,12 +113,12 @@ func Main() {
 	}
 }
 
-func diagMsg(srcFilePath string, diag *session.SrcFileNotice) string {
+func diagMsg(srcFilePath string, diag *session.Diag) string {
 	icon := '💡' // ☕
 	switch diag.Kind {
-	case session.NoticeKindErr:
+	case session.DiagKindErr:
 		icon = '🔥'
-	case session.NoticeKindWarn:
+	case session.DiagKindWarn:
 		icon = '🤯'
 	}
 	return fmt.Sprintf("%s %s: [%s] %s", string(icon), diag.LocStr(srcFilePath), diag.Code, diag.Message)
