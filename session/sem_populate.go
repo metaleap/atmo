@@ -1,55 +1,12 @@
 package session
 
-import (
-	"atmo/util/sl"
-)
-
-type SemExprs sl.Of[*SemExpr]
-type SemExpr struct {
-	From             *MoExpr        `json:"-"`
-	Parent           *SemExpr       `json:"-"`
-	Scope            *SemScope      `json:"-"`
-	ErrOwn           *SrcFileNotice `json:",omitempty"`
-	Val              any
-	DefinitelyUnused bool `json:",omitempty"`
-}
-
-type SemValScalar struct {
-	MoVal MoVal
-}
-
-type SemValIdent struct {
-	MoVal MoValIdent
-}
-
-type SemValCall struct {
-	Callee *SemExpr
-	Args   SemExprs
-}
-
-type SemValList struct {
-	Items SemExprs
-}
-
-type SemValDict struct {
-	Keys SemExprs
-	Vals SemExprs
-}
-
-type SemValFunc struct {
-	Scope   *SemScope
-	Params  SemExprs
-	Body    *SemExpr
-	IsMacro bool `json:",omitempty"`
-}
-
 func (me *SrcPack) semRefresh() {
 	me.Trees.Sem.TopLevel = nil
-	me.Trees.Sem.Scope = SemScope{Own: map[MoValIdent]*SemExpr{}}
+	me.Trees.Sem.Scope = SemScope{Own: map[MoValIdent]*SemScopeEntry{}}
 	for _, top_expr := range me.Trees.MoOrig {
 		it := me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil)
 		if call, _ := it.Val.(*SemValCall); call == nil {
-			it.DefinitelyUnused = true
+			it.Fact(SemValFact{Kind: SemValFactUnused}, it)
 		}
 		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, it)
 	}
@@ -122,6 +79,7 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 		return
 	}
 
+	call.Callee.Fact(SemValFact{Kind: SemValFactCallable}, self)
 	if ident := call.Callee.MaybeIdent(); ident != "" {
 		if prim_op := semPrimOps[ident]; prim_op != nil {
 			prim_op(me, self)
@@ -129,170 +87,41 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 		}
 	}
 
-	var callee_fn *SemValFunc
-	if callee := call.Callee.ResolvedIfIdent(); callee != nil {
-		if callee_fn = callee.Val.(*SemValFunc); callee_fn == nil {
-			self.ErrOwn = self.From.SrcNode.newDiagErr(false, NoticeCodeUncallable, self.From.SrcNode.Src)
-		}
-	}
 }
 
 func (me *SrcPack) semPopulateFunc(self *SemExpr, it *MoValFnLam) {
 	fn := &SemValFunc{
-		Scope:  &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemExpr{}},
+		Scope:  &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
 		Params: make(SemExprs, len(it.Params)),
 	}
 	self.Val = fn
-	for i, param := range it.Params {
-		ident := me.semExprFromMoExpr(self.Scope, param, self)
-		fn.Scope.Own[ident.MaybeIdent()] = ident
-		fn.Params[i] = ident
+	for i, from := range it.Params {
+		param := me.semExprFromMoExpr(self.Scope, from, self)
+		fn.Scope.Own[param.MaybeIdent()] = &SemScopeEntry{DeclVal: param}
+		fn.Params[i] = param
 	}
 	fn.Body = me.semExprFromMoExpr(fn.Scope, it.Body, self)
 }
 
-func (me *SemExpr) MaybeCalleeOfCall() bool {
-	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
-		return (call.Callee == me)
-	}
-	return false
-}
-
-func (me *SemExpr) MaybeArgOfCall() int {
-	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
-		for i, arg := range call.Args {
-			if arg == me {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-func (me *SemExpr) MaybeBodyOfFunc() bool {
-	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
-		return (fn.Body == me)
-	}
-	return false
-}
-
-func (me *SemExpr) MaybeParamOfFunc() int {
-	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
-		for i, param := range fn.Params {
-			if param == me {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-func (me *SemExpr) MaybeIdent() MoValIdent {
-	ident, _ := me.Val.(*SemValIdent)
-	if ident != nil {
-		return ident.MoVal
-	}
-	return ""
-}
-
-func (me *SemExpr) ResolvedIfIdent() *SemExpr {
-	if me.ErrOwn != nil {
-		return nil
-	}
-	ident := me.MaybeIdent()
-	if ident == "" {
-		return me
-	}
-	_, resolved := me.Scope.Lookup(ident, false, true)
-	if resolved == nil {
-		me.ErrOwn = me.From.SrcNode.newDiagErr(false, NoticeCodeUndefined, ident)
-	}
-	return resolved
-}
-
-func (me *SemExpr) HasErrs() (ret bool) {
-	me.Walk(func(it *SemExpr) bool {
-		ret = ret || (it.ErrOwn != nil)
-		return !ret
-	}, nil)
-	return
-}
-
-func (me *SemExpr) Errs() (ret SrcFileNotices) {
-	me.Walk(nil, func(it *SemExpr) {
-		if it.ErrOwn != nil {
-			ret.Add(it.ErrOwn)
-		}
-	})
-	return
-}
-
-func (me SemExprs) AnyErrs() bool {
-	return sl.Any(me, (*SemExpr).HasErrs)
-}
-
-func (me SemExprs) Errs() (ret SrcFileNotices) {
-	for _, top_expr := range me {
-		ret.Add(top_expr.Errs()...)
-	}
-	return
-}
-
-func (me SemExprs) Walk(filterBy *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
-	for _, expr := range me {
-		if (filterBy == nil) || (expr.From.SrcFile == filterBy) {
-			expr.Walk(onBefore, onAfter)
-		}
-	}
-}
-
-func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
-	if onBefore != nil && !onBefore(me) {
-		return
-	}
-	switch it := me.Val.(type) {
-	case *SemValCall:
-		it.Callee.Walk(onBefore, onAfter)
-		for _, arg := range it.Args {
-			arg.Walk(onBefore, onAfter)
-		}
-	case *SemValList:
-		for _, item := range it.Items {
-			item.Walk(onBefore, onAfter)
-		}
-	case *SemValDict:
-		for i, key := range it.Keys {
-			key.Walk(onBefore, onAfter)
-			it.Vals[i].Walk(onBefore, onAfter)
-		}
-	case *SemValFunc:
-		for _, param := range it.Params {
-			param.Walk(onBefore, onAfter)
-		}
-		it.Body.Walk(onBefore, onAfter)
-	}
-	if onAfter != nil {
-		onAfter(me)
-	}
-}
-
 type SemScope struct {
-	Own    map[MoValIdent]*SemExpr
+	Own    map[MoValIdent]*SemScopeEntry
 	Parent *SemScope `json:"-"`
 }
 
-func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) (*SemScope, *SemExpr) {
+type SemScopeEntry struct {
+	DeclVal           *SemExpr
+	SubsequentSetVals SemExprs
+}
+
+func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, identExpr *SemExpr) (*SemScope, *SemScopeEntry) {
 	if resolved := me.Own[ident]; resolved != nil {
-		if !deepResolveUntilNonIdent {
-			return me, resolved
-		} else if alias, _ := resolved.Val.(*SemValIdent); alias == nil {
-			return me, resolved
-		} else if _, resolved = me.Lookup(alias.MoVal, ownOnly, true); resolved != nil {
-			return me, resolved
-		}
+		return me, resolved
 	}
 	if (!ownOnly) && (me.Parent != nil) {
-		return me.Parent.Lookup(ident, false, deepResolveUntilNonIdent)
+		return me.Parent.Lookup(ident, false, identExpr)
+	}
+	if (identExpr != nil) && (identExpr.ErrOwn == nil) && (semPrimOps[ident] == nil) {
+		identExpr.ErrOwn = identExpr.From.SrcSpan.newDiagErr(NoticeCodeUndefined, ident)
 	}
 	return nil, nil
 }

@@ -20,7 +20,7 @@ func init() {
 func (me *SrcPack) semCheckCount(wantAtLeast int, wantAtMost int, have SemExprs, errDst *SemExpr, forArgs bool) bool {
 	if wantAtLeast >= 0 {
 		plural := util.If((wantAtLeast <= wantAtMost) && (wantAtLeast != 1), "s", "")
-		moniker := util.If(forArgs, "item"+plural, "arg"+plural+" for this call")
+		moniker := util.If(!forArgs, "item"+plural, "arg"+plural+" for this call")
 		if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
 			errDst.ErrOwn = errDst.From.SrcSpan.newDiagErr(NoticeCodeExpectedFoo, str.Fmt("%d %s, not %d", wantAtLeast, moniker, len(have)))
 			return false
@@ -52,19 +52,16 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 				name.ErrOwn = name.From.SrcSpan.newDiagErr(NoticeCodeReserved, ident.MoVal, ident.MoVal[0:1])
 				return
 			}
-			scope, resolved := self.Scope.Lookup(ident.MoVal, false, false)
+			scope, resolved := self.Scope.Lookup(ident.MoVal, false, nil)
 			if resolved == nil {
-				self.Scope.Own[ident.MoVal] = value
-			} else if scope == self.Scope {
-				if self.Parent == nil {
-					self.ErrOwn = self.From.SrcSpan.newDiagErr(NoticeCodeDuplTopDecl, ident.MoVal)
-					self.ErrOwn.Rel = &SrcFileLocs{File: resolved.From.SrcFile, Spans: []*SrcFileSpan{resolved.From.SrcSpan}, IsSet: []bool{true}, IsGet: []bool{false}}
-					return
-				} else {
-					self.Scope.Own[ident.MoVal] = value
-				}
-				// } else {
-				// TODO: setting parent-scoped vars
+				self.Scope.Own[ident.MoVal] = &SemScopeEntry{DeclVal: value}
+			} else if (scope == self.Scope) && (self.Parent == nil) {
+				self.ErrOwn = self.From.SrcSpan.newDiagErr(NoticeCodeDuplTopDecl, ident.MoVal)
+				self.ErrOwn.Rel = &SrcFileLocs{File: resolved.DeclVal.From.SrcFile, Spans: []*SrcFileSpan{resolved.DeclVal.From.SrcSpan}, IsSet: []bool{true}, IsGet: []bool{false}}
+				return
+			} else {
+				resolved.SubsequentSetVals = append(resolved.SubsequentSetVals, value)
+
 			}
 		}
 	}

@@ -71,7 +71,7 @@ var (
 		NoticeCodeExpectedFoo:      "expected %s",
 		NoticeCodeUndefined:        "`%s` is not defined or not in scope",
 		NoticeCodeNotFirstClass:    "`%s` cannot be used as a value",
-		NoticeCodeUncallable:       "`%s` is not callable",
+		NoticeCodeUncallable:       "`%s` is not always a callable value",
 		NoticeCodeReserved:         "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
 		NoticeCodeNoElseCase:       "missing a fallback case",
 		NoticeCodeIndexOutOfBounds: "index %d out of bounds, given length %d",
@@ -149,7 +149,7 @@ func (me *SrcFile) allNotices() (ret SrcFileNotices) {
 
 func (me *SrcPack) semNonErrNotices() (ret SrcFileNotices) {
 	me.Trees.Sem.TopLevel.Walk(nil, nil, func(it *SemExpr) {
-		if it.DefinitelyUnused {
+		if len(it.HasFact(SemValFactUnused, nil)) > 0 {
 			ret.Add(it.From.SrcSpan.newDiag(NoticeKindHint, NoticeCodeUnused))
 		}
 	})

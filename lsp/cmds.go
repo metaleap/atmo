@@ -180,7 +180,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							ret.Val = map[string]any{"Kind": "call", "Callee": convert(val.Callee), "Args": sl.To(val.Args, convert)}
 						case *session.SemValFunc:
 							ret.Val = map[string]any{"Kind": "func", "Params": sl.To(val.Params, convert), "Body": convert(val.Body), "IsMacro": val.IsMacro,
-								"Scope": kv.To(val.Scope.Own, convert)}
+								"Scope": kv.Keys(val.Scope.Own)}
 						}
 						return
 					}
