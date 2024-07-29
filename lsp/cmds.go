@@ -7,6 +7,7 @@ import (
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
 	"atmo/util"
+	"atmo/util/kv"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -15,6 +16,12 @@ func init() {
 	Server.Lang.Commands = []string{"announceAtmoVscExt", "eval",
 		"packsFsRefresh", "getSrcPacks", "getSrcFileToks", "getSrcFileAst", "getSrcPackMoOrig", "getSrcPackMoSem"}
 	Server.On_workspace_executeCommand = executeCommand
+}
+
+type treeNodeClientInfo struct {
+	SrcFilePath string               `json:",omitempty"`
+	SrcFileSpan *session.SrcFileSpan `json:",omitempty"`
+	SrcFileText string               `json:",omitempty"`
 }
 
 func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
@@ -42,17 +49,35 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			ret = sess.AllCurrentSrcPacks()
 		})
 
-	case "getSrcPackMoOrig", "getSrcPackMoSem":
-		is_post := (params.Command == "getSrcPackMoSem")
+	case "getSrcFileToks":
+		if len(params.Arguments) == 1 {
+			src_file_path, ok := params.Arguments[0].(string)
+			if ok && session.IsSrcFilePath(src_file_path) {
+				session.Access(func(sess session.StateAccess, _ session.Intel) {
+					if src_file := sess.SrcFile(src_file_path); src_file != nil {
+						ret = src_file.Src.Toks
+					}
+				})
+			}
+		}
+
+	case "getSrcFileAst":
+		if len(params.Arguments) == 1 {
+			src_file_path, ok := params.Arguments[0].(string)
+			if ok && session.IsSrcFilePath(src_file_path) {
+				session.Access(func(sess session.StateAccess, _ session.Intel) {
+					if src_file := sess.SrcFile(src_file_path); src_file != nil {
+						ret = sl.SortedPer(src_file.Src.Ast, (*session.AstNode).Cmp)
+					}
+				})
+			}
+		}
+
+	case "getSrcPackMoOrig":
 		type moNode struct {
 			PrimTypeTag session.MoValPrimType
 			Nodes       []*moNode
-			ClientInfo  struct {
-				Str         string               `json:",omitempty"`
-				SrcFilePath string               `json:",omitempty"`
-				SrcFileSpan *session.SrcFileSpan `json:",omitempty"`
-				SrcFileText string               `json:",omitempty"`
-			}
+			ClientInfo  treeNodeClientInfo
 		}
 		if len(params.Arguments) == 1 {
 			src_file_path, ok := params.Arguments[0].(string)
@@ -64,9 +89,6 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							ret := moNode{PrimTypeTag: expr.Val.PrimType()}
 							if expr.IsErr() {
 								ret.PrimTypeTag = session.MoPrimTypeErr
-							}
-							if is_post {
-								ret.ClientInfo.Str = expr.String()
 							}
 							switch it := expr.Val.(type) {
 							case session.MoValCall:
@@ -92,7 +114,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 								}
 								ret.Nodes = append(ret.Nodes, &node)
 							case *session.MoValFnLam:
-								param_nodes := sl.As(it.Params, convert)
+								param_nodes := sl.To(it.Params, convert)
 								ret.Nodes = append(ret.Nodes, &moNode{PrimTypeTag: session.MoPrimTypeFunc, Nodes: param_nodes}, convert(it.Body))
 							case session.MoValList:
 								for _, item := range it {
@@ -105,7 +127,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							if expr.SrcFile != nil {
 								ret.ClientInfo.SrcFilePath = expr.SrcFile.FilePath
 							}
-							if (expr.SrcFile != nil) && (expr.SrcSpan != nil) && !is_post {
+							if (expr.SrcFile != nil) && (expr.SrcSpan != nil) {
 								if node := expr.SrcFile.NodeAtSpan(expr.SrcSpan); node != nil {
 									ret.ClientInfo.SrcFileText = node.Src
 								}
@@ -113,7 +135,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 							return &ret
 						}
 						var top_level []*moNode
-						for _, top_expr := range util.If(is_post, src_pack.Trees.MoEvaled, src_pack.Trees.MoOrig).Sorted() {
+						for _, top_expr := range src_pack.Trees.MoOrig.Sorted() {
 							top_level = append(top_level, convert(top_expr))
 						}
 						ret = top_level
@@ -122,28 +144,48 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 			}
 		}
 
-	case "getSrcFileToks":
-		if len(params.Arguments) == 1 {
-			src_file_path, ok := params.Arguments[0].(string)
-			if ok && session.IsSrcFilePath(src_file_path) {
-				session.Access(func(sess session.StateAccess, _ session.Intel) {
-					if src_file := sess.SrcFile(src_file_path); src_file != nil {
-						ret = src_file.Src.Toks
+	case "getSrcPackMoSem":
+		src_file_path, ok := params.Arguments[0].(string)
+		if ok && session.IsSrcFilePath(src_file_path) {
+			session.Access(func(sess session.StateAccess, _ session.Intel) {
+				if src_pack := sess.GetSrcPack(filepath.Dir(src_file_path), true); src_pack != nil {
+					type SemNode struct {
+						session.SemExpr
+						ClientInfo treeNodeClientInfo `json:",omitempty"`
 					}
-				})
-			}
-		}
+					var convert func(from *session.SemExpr) (ret SemNode)
+					convert = func(from *session.SemExpr) (ret SemNode) {
+						ret.SemExpr = *from
+						if from.From != nil {
+							ret.ClientInfo.SrcFileSpan = from.From.SrcSpan
+							if from.From.SrcFile != nil {
+								ret.ClientInfo.SrcFilePath = from.From.SrcFile.FilePath
+							}
+							if from.From.SrcNode != nil {
+								ret.ClientInfo.SrcFileText = from.From.SrcNode.Src
+							}
+						}
+						switch val := from.Val.(type) {
+						default:
+							panic(val)
+						case *session.SemValIdent, *session.SemValScalar:
+							ret.Val = map[string]any{"Val": from.From.Val}
+						case *session.SemValList:
+							ret.Val = map[string]any{"Items": sl.To(val.Items, convert)}
+						case *session.SemValDict:
+							ret.Val = map[string]any{"Keys": sl.To(val.Keys, convert), "Vals": sl.To(val.Vals, convert)}
+						case *session.SemValCall:
+							ret.Val = map[string]any{"Callee": convert(val.Callee), "Args": sl.To(val.Args, convert)}
+						case *session.SemValFunc:
+							ret.Val = map[string]any{"Params": sl.To(val.Params, convert), "Body": convert(val.Body), "IsMacro": val.IsMacro,
+								"Scope": kv.To(val.Scope.Own, convert)}
+						}
+						return
+					}
 
-	case "getSrcFileAst":
-		if len(params.Arguments) == 1 {
-			src_file_path, ok := params.Arguments[0].(string)
-			if ok && session.IsSrcFilePath(src_file_path) {
-				session.Access(func(sess session.StateAccess, _ session.Intel) {
-					if src_file := sess.SrcFile(src_file_path); src_file != nil {
-						ret = sl.SortedPer(src_file.Src.Ast, (*session.AstNode).Cmp)
-					}
-				})
-			}
+					ret = sl.To(src_pack.Trees.Sem.TopLevel, convert)
+				}
+			})
 		}
 
 	}

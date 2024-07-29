@@ -6,12 +6,12 @@ import (
 
 type SemExprs sl.Of[*SemExpr]
 type SemExpr struct {
-	From             *MoExpr
-	Parent           *SemExpr
-	Scope            *SemScope
-	ErrOwn           *SrcFileNotice
+	From             *MoExpr        `json:"-"`
+	Parent           *SemExpr       `json:"-"`
+	Scope            *SemScope      `json:"-"`
+	ErrOwn           *SrcFileNotice `json:",omitempty"`
 	Val              any
-	DefinitelyUnused bool
+	DefinitelyUnused bool `json:",omitempty"`
 }
 
 type SemValScalar struct {
@@ -23,10 +23,6 @@ type SemValIdent struct {
 type SemValCall struct {
 	Callee *SemExpr
 	Args   SemExprs
-}
-
-type SemValErr struct {
-	Val *SemExpr
 }
 
 type SemValList struct {
@@ -42,7 +38,7 @@ type SemValFunc struct {
 	Scope   *SemScope
 	Params  SemExprs
 	Body    *SemExpr
-	IsMacro bool
+	IsMacro bool `json:",omitempty"`
 }
 
 func (me *SrcPack) semRefresh() {
@@ -95,10 +91,6 @@ func (me *SrcPack) semPopulateIdent(self *SemExpr, _ MoValIdent) {
 	self.Val = ident
 }
 
-func (me *SrcPack) semPopulateErr(self *SemExpr, it MoValErr) {
-	self.Val = &SemValErr{Val: me.semExprFromMoExpr(self.Scope, it.ErrVal, self)}
-}
-
 func (me *SrcPack) semPopulateList(self *SemExpr, it MoValList) {
 	list := &SemValList{Items: make(SemExprs, len(it))}
 	self.Val = list
@@ -120,6 +112,10 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	call := &SemValCall{Callee: me.semExprFromMoExpr(self.Scope, it[0], self)}
 	self.Val = call
 
+	for _, arg := range it[1:] {
+		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
+	}
+
 	if ident := call.Callee.MaybeIdent(); ident != "" {
 		if prim_op := semPrimOps[ident]; prim_op != nil {
 			prim_op(me, self, it)
@@ -132,9 +128,6 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 		if callee_fn = callee.Val.(*SemValFunc); callee_fn == nil {
 			self.ErrOwn = self.From.SrcNode.newDiagErr(false, NoticeCodeUncallable, self.From.SrcNode.Src)
 		}
-	}
-	for _, arg := range it[1:] {
-		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
 	}
 }
 
@@ -257,8 +250,6 @@ func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExp
 		for _, arg := range it.Args {
 			arg.Walk(onBefore, onAfter)
 		}
-	case *SemValErr:
-		it.Val.Walk(onBefore, onAfter)
 	case *SemValList:
 		for _, item := range it.Items {
 			item.Walk(onBefore, onAfter)
@@ -281,7 +272,7 @@ func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExp
 
 type SemScope struct {
 	Own    map[MoValIdent]*SemExpr
-	Parent *SemScope
+	Parent *SemScope `json:"-"`
 }
 
 func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) *SemExpr {

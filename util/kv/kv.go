@@ -53,3 +53,11 @@ func Eq[K comparable, V any](opl map[K]V, opr map[K]V, cmp func(opl V, opr V) bo
 	}
 	return true
 }
+
+func To[TKey comparable, TValIn any, TValOut any](m map[TKey]TValIn, f func(TValIn) TValOut) map[TKey]TValOut {
+	ret := make(map[TKey]TValOut, len(m))
+	for k, v := range m {
+		ret[k] = f(v)
+	}
+	return ret
+}

@@ -219,7 +219,7 @@ func newSrcPack(dirPath string) *SrcPack {
 }
 
 func (me *SrcPack) srcFilePaths() []string {
-	return sl.As(sl.Where(me.Files, func(it *SrcFile) bool { return !it.IsInterpFauxFile() }),
+	return sl.To(sl.Where(me.Files, func(it *SrcFile) bool { return !it.IsInterpFauxFile() }),
 		func(it *SrcFile) string { return it.FilePath })
 }
 

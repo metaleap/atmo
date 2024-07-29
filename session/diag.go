@@ -87,7 +87,7 @@ type SrcFileNotices = sl.Of[*SrcFileNotice]
 type SrcFileNotice struct {
 	Kind    SrcFileNoticeKind
 	Message string
-	Span    SrcFileSpan
+	Span    SrcFileSpan `json:"-"`
 	Code    SrcFileNoticeCode
 }
 

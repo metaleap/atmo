@@ -104,10 +104,10 @@ func onWorkspaceDidChangeWatchedFiles(fileEvents []lsp.FileEvent) {
 
 func onWorkspaceFoldersChanged(rootFoldersRemoved []lsp.WorkspaceFolder, rootFoldersAdded []lsp.WorkspaceFolder) {
 	onWorkspaceDidChangeWatchedFiles(append(
-		sl.As(rootFoldersRemoved, func(it lsp.WorkspaceFolder) lsp.FileEvent {
+		sl.To(rootFoldersRemoved, func(it lsp.WorkspaceFolder) lsp.FileEvent {
 			return lsp.FileEvent{Type: lsp.FileChangeTypeDeleted, Uri: lspUriToFsPath(it.Uri)}
 		}),
-		sl.As(rootFoldersAdded, func(it lsp.WorkspaceFolder) lsp.FileEvent {
+		sl.To(rootFoldersAdded, func(it lsp.WorkspaceFolder) lsp.FileEvent {
 			return lsp.FileEvent{Type: lsp.FileChangeTypeCreated, Uri: lspUriToFsPath(it.Uri)}
 		})...))
 }

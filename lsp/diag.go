@@ -16,7 +16,7 @@ func init() {
 			for file_path, diags := range all_notices {
 				Server.Notify_textDocument_publishDiagnostics(lsp.PublishDiagnosticsParams{
 					Uri:         lspUriFromFsPath(file_path),
-					Diagnostics: sl.As(diags, srcFileNoticeToLspDiag),
+					Diagnostics: sl.To(diags, srcFileNoticeToLspDiag),
 				})
 			}
 		})

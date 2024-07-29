@@ -19,11 +19,11 @@ func init() {
 		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
 		session.Access(func(sess session.StateAccess, intel session.Intel) {
 			if src_file := sess.SrcFile(src_file_path); src_file != nil {
-				ret = sl.As(intel.Decls(nil, src_file, false, ""), toLspDocumentSymbol)
+				ret = sl.To(intel.Decls(nil, src_file, false, ""), toLspDocumentSymbol)
 			}
 		})
 		if temporarilyListAllIcons {
-			ret = sl.As([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
+			ret = sl.To([]lsp.SymbolKind{lsp.SymbolKindArray, lsp.SymbolKindBoolean, lsp.SymbolKindClass, lsp.SymbolKindConstant, lsp.SymbolKindConstructor, lsp.SymbolKindEnum, lsp.SymbolKindEnumMember, lsp.SymbolKindEvent, lsp.SymbolKindField, lsp.SymbolKindFile, lsp.SymbolKindFunction, lsp.SymbolKindInterface, lsp.SymbolKindKey, lsp.SymbolKindMethod, lsp.SymbolKindModule, lsp.SymbolKindNamespace, lsp.SymbolKindNull, lsp.SymbolKindNumber, lsp.SymbolKindObject, lsp.SymbolKindOperator, lsp.SymbolKindPackage, lsp.SymbolKindProperty, lsp.SymbolKindString, lsp.SymbolKindStruct, lsp.SymbolKindTypeParameter, lsp.SymbolKindVariable},
 				func(it lsp.SymbolKind) lsp.DocumentSymbol {
 					return lsp.DocumentSymbol{
 						Name:           it.String(),
@@ -39,7 +39,7 @@ func init() {
 
 	Server.On_workspace_symbol = func(params *lsp.WorkspaceSymbolParams) (ret []lsp.WorkspaceSymbol, _ error) {
 		session.Access(func(sess session.StateAccess, intel session.Intel) {
-			ret = sl.As(intel.Decls(nil, nil, true, params.Query), toLspWorkspaceSymbol)
+			ret = sl.To(intel.Decls(nil, nil, true, params.Query), toLspWorkspaceSymbol)
 		})
 		return
 	}
@@ -86,7 +86,7 @@ func init() {
 
 	Server.On_textDocument_completion = func(params *lsp.CompletionParams) ([]lsp.CompletionItem, error) {
 		src_file_path := lspUriToFsPath(params.TextDocument.Uri)
-		return sl.As([]lsp.CompletionItemKind{
+		return sl.To([]lsp.CompletionItemKind{
 			lsp.CompletionItemKindClass,
 			lsp.CompletionItemKindColor,
 			lsp.CompletionItemKindConstant,
@@ -166,7 +166,7 @@ func init() {
 					ret = &lsp.WorkspaceEdit{Changes: map[string][]lsp.TextEdit{}}
 					for _, locs := range refs {
 						if locs.SortSpans(true); len(locs.Spans) > 0 {
-							ret.Changes[lspUriFromFsPath(locs.File.FilePath)] = sl.As(locs.Spans, func(span *session.SrcFileSpan) lsp.TextEdit {
+							ret.Changes[lspUriFromFsPath(locs.File.FilePath)] = sl.To(locs.Spans, func(span *session.SrcFileSpan) lsp.TextEdit {
 								return lsp.TextEdit{Range: lspRangeFromSpan(span), NewText: params.NewName}
 							})
 						}
@@ -201,7 +201,7 @@ func init() {
 							ret = nil
 							break
 						} else {
-							all := sl.As(node.SelfAndAncestors(), func(it *session.AstNode) *lsp.SelectionRange {
+							all := sl.To(node.SelfAndAncestors(), func(it *session.AstNode) *lsp.SelectionRange {
 								return &lsp.SelectionRange{Range: lspRangeFromSpan(util.Ptr(it.Toks.Span()))}
 							})
 							for i, it := range all[:len(all)-1] {
@@ -254,7 +254,7 @@ func toLspDocumentSymbol(info *session.IntelInfo) (sym lsp.DocumentSymbol) {
 			sym.Kind = lsp.SymbolKindFunction
 		}
 	}
-	sym.Children = sl.As(info.Sub, toLspDocumentSymbol)
+	sym.Children = sl.To(info.Sub, toLspDocumentSymbol)
 	return
 }
 

@@ -328,5 +328,5 @@ func (me Toks) src(curFullSrcFileContent string) string {
 }
 
 func (me Toks) str() string { // only for occasional debug prints
-	return strings.Join(sl.As(me, func(it *Tok) string { return it.Src }), " ")
+	return strings.Join(sl.To(me, func(it *Tok) string { return it.Src }), " ")
 }
