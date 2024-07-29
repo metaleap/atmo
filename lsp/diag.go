@@ -94,9 +94,16 @@ func srcFileNoticeToLspDiag(it *session.SrcFileNotice) lsp.Diagnostic {
 		Range:           lspRangeFromSpan(&it.Span),
 		Message:         it.Message,
 		Severity:        toLspDiagSeverity(it.Kind),
+		Source:          "atmo",
 	}
 	if it.Code == session.NoticeCodeUnused {
 		ret.Tags = append(ret.Tags, lsp.DiagnosticTagUnnecessary)
+	}
+	if it.Rel != nil {
+		ret.RelatedInformation = []lsp.DiagnosticRelatedInformation{{
+			Location: lsp.Location{Uri: lspUriFromFsPath(it.Rel.File.FilePath), Range: lspRangeFromSpan(it.Rel.Spans[0])},
+			Message:  "namely, here",
+		}}
 	}
 	return ret
 }

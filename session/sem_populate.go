@@ -15,9 +15,11 @@ type SemExpr struct {
 }
 
 type SemValScalar struct {
+	MoVal MoVal
 }
 
 type SemValIdent struct {
+	MoVal MoValIdent
 }
 
 type SemValCall struct {
@@ -81,13 +83,13 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 }
 
 func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
-	scalar := &SemValScalar{}
+	scalar := &SemValScalar{MoVal: it}
 	self.Val = scalar
 	me.Trees.Sem.Index.Lits[it] = append(me.Trees.Sem.Index.Lits[it], self)
 }
 
-func (me *SrcPack) semPopulateIdent(self *SemExpr, _ MoValIdent) {
-	ident := &SemValIdent{}
+func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
+	ident := &SemValIdent{MoVal: it}
 	self.Val = ident
 }
 
@@ -116,9 +118,13 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
 	}
 
-	if ident := call.Callee.MaybeIdent(); false && (ident != "") {
+	if self.HasErrs() {
+		return
+	}
+
+	if ident := call.Callee.MaybeIdent(); ident != "" {
 		if prim_op := semPrimOps[ident]; prim_op != nil {
-			prim_op(me, self, it)
+			prim_op(me, self)
 			return
 		}
 	}
@@ -184,7 +190,7 @@ func (me *SemExpr) MaybeParamOfFunc() int {
 func (me *SemExpr) MaybeIdent() MoValIdent {
 	ident, _ := me.Val.(*SemValIdent)
 	if ident != nil {
-		return me.From.Val.(MoValIdent)
+		return ident.MoVal
 	}
 	return ""
 }
@@ -197,7 +203,7 @@ func (me *SemExpr) ResolvedIfIdent() *SemExpr {
 	if ident == "" {
 		return me
 	}
-	resolved := me.Scope.Lookup(ident, false, true)
+	_, resolved := me.Scope.Lookup(ident, false, true)
 	if resolved == nil {
 		me.ErrOwn = me.From.SrcNode.newDiagErr(false, NoticeCodeUndefined, ident)
 	}
@@ -275,28 +281,18 @@ type SemScope struct {
 	Parent *SemScope `json:"-"`
 }
 
-func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) *SemExpr {
-	// if ident[0] == '@' {
-	// 	switch ident {
-	// 	case moValTrue.Val.(MoValIdent):
-	// 		return semPrimValTrue
-	// 	case moValFalse.Val.(MoValIdent):
-	// 		return semPrimValFalse
-	// 	case moValNone.Val.(MoValIdent):
-	// 		return semPrimValNone
-	// 	}
-	// }
+func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, deepResolveUntilNonIdent bool) (*SemScope, *SemExpr) {
 	if resolved := me.Own[ident]; resolved != nil {
 		if !deepResolveUntilNonIdent {
-			return resolved
+			return me, resolved
 		} else if alias, _ := resolved.Val.(*SemValIdent); alias == nil {
-			return resolved
-		} else if resolved = me.Lookup(resolved.From.Val.(MoValIdent), ownOnly, true); resolved != nil {
-			return resolved
+			return me, resolved
+		} else if _, resolved = me.Lookup(alias.MoVal, ownOnly, true); resolved != nil {
+			return me, resolved
 		}
 	}
 	if (!ownOnly) && (me.Parent != nil) {
 		return me.Parent.Lookup(ident, false, deepResolveUntilNonIdent)
 	}
-	return nil
+	return nil, nil
 }

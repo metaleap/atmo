@@ -329,13 +329,18 @@ type PublishDiagnosticsParams struct {
 }
 
 type Diagnostic struct {
-	Range           Range              `json:"range"`
-	Severity        DiagnosticSeverity `json:"severity,omitempty"`
-	Code            string             `json:"code,omitempty"`
-	CodeDescription *CodeDescription   `json:"codeDescription,omitempty"`
-	Source          string             `json:"source,omitempty"`
-	Message         string             `json:"message"`
-	Tags            []DiagnosticTag    `json:"tags,omitempty"`
+	Range              Range                          `json:"range"`
+	Severity           DiagnosticSeverity             `json:"severity,omitempty"`
+	Code               string                         `json:"code,omitempty"`
+	CodeDescription    *CodeDescription               `json:"codeDescription,omitempty"`
+	Source             string                         `json:"source,omitempty"`
+	Message            string                         `json:"message"`
+	Tags               []DiagnosticTag                `json:"tags,omitempty"`
+	RelatedInformation []DiagnosticRelatedInformation `json:"relatedInformation,omitempty"`
+}
+type DiagnosticRelatedInformation struct {
+	Location Location `json:"location"`
+	Message  string   `json:"message"`
 }
 
 type CodeDescription struct {

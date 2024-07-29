@@ -168,8 +168,10 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						switch val := from.Val.(type) {
 						default:
 							panic(val)
-						case *session.SemValIdent, *session.SemValScalar:
-							ret.Val = map[string]any{"Kind": "scalar", "Val": from.From.Val}
+						case *session.SemValIdent:
+							ret.Val = map[string]any{"Kind": "scalar", "MoVal": val.MoVal}
+						case *session.SemValScalar:
+							ret.Val = map[string]any{"Kind": "scalar", "MoVal": val.MoVal}
 						case *session.SemValList:
 							ret.Val = map[string]any{"Kind": "list", "Items": sl.To(val.Items, convert)}
 						case *session.SemValDict:

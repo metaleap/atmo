@@ -46,6 +46,7 @@ const (
 	NoticeCodeDictDuplKey      SrcFileNoticeCode = "DictDuplKey"
 	NoticeCodeNotComparable    SrcFileNoticeCode = "NotComparable"
 	NoticeCodeNotConvertible   SrcFileNoticeCode = "NotConvertible"
+	NoticeCodeDuplTopDecl      SrcFileNoticeCode = "DuplTopDecl"
 
 	// semantic (warnings / infos / hints)
 	NoticeCodeUnused SrcFileNoticeCode = "Unused"
@@ -71,13 +72,14 @@ var (
 		NoticeCodeUndefined:        "`%s` is not defined or not in scope",
 		NoticeCodeNotFirstClass:    "`%s` cannot be used as a value",
 		NoticeCodeUncallable:       "`%s` is not callable",
-		NoticeCodeReserved:         "cannot declare or assign to `%s` or any other `%s`-prefixed identifier",
+		NoticeCodeReserved:         "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
 		NoticeCodeNoElseCase:       "missing a fallback case",
 		NoticeCodeIndexOutOfBounds: "index %d out of bounds, given length %d",
 		NoticeCodeRangeNegative:    "range end %d is smaller than range start %d",
 		NoticeCodeDictDuplKey:      "duplicate key `%s` in dict constructor",
 		NoticeCodeNotComparable:    "operands `%s` and `%s` cannot be compared in %s terms",
 		NoticeCodeNotConvertible:   "cannot convert `%s` to %s",
+		NoticeCodeDuplTopDecl:      "top-level declaration `%s` already defined",
 
 		NoticeCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}
@@ -89,6 +91,7 @@ type SrcFileNotice struct {
 	Message string
 	Span    SrcFileSpan `json:"-"`
 	Code    SrcFileNoticeCode
+	Rel     *SrcFileLocs `json:",omitempty"`
 }
 
 func (me *SrcFileNotice) equals(it *SrcFileNotice) bool {
