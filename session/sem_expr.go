@@ -44,9 +44,6 @@ type SemValFunc struct {
 	IsMacro bool
 }
 
-type SemValHole struct {
-}
-
 func (me *SemExpr) Each(do func(it *SemExpr)) {
 	switch val := me.Val.(type) {
 	case SemValCall:
@@ -263,4 +260,64 @@ func (me *SemFact) String() (ret string) {
 		ret += str.Fmt("(%v)", of)
 	}
 	return
+}
+
+type SemType struct {
+	Scalar MoValPrimType
+	ListOf *SemType
+	DictOf [2]*SemType
+	Func   []SemType
+	Or     []*SemType
+	And    []*SemType
+}
+
+func (me *SemType) String() string {
+	var buf str.Buf
+	me.str(&buf)
+	return buf.String()
+}
+func (me *SemType) str(w Writer) {
+	switch {
+	case me.Scalar > 0:
+		w.WriteString(me.Scalar.Str(false))
+	case me.ListOf != nil:
+		w.WriteString("[")
+		me.ListOf.str(w)
+		w.WriteString("]")
+	case me.DictOf[0] != nil:
+		w.WriteString("{")
+		me.DictOf[0].str(w)
+		w.WriteString(":")
+		me.DictOf[1].str(w)
+		w.WriteString("}")
+	case len(me.Func) > 0:
+		w.WriteString("(")
+		for i, it := range me.Or {
+			if i > 0 {
+				w.WriteString(" → ")
+			}
+			it.str(w)
+		}
+		w.WriteString(")")
+	case len(me.Or) > 0:
+		w.WriteString("(")
+		for i, it := range me.Or {
+			if i > 0 {
+				w.WriteString(" | ")
+			}
+			it.str(w)
+		}
+		w.WriteString(")")
+	case len(me.And) > 0:
+		w.WriteString("(")
+		for i, it := range me.And {
+			if i > 0 {
+				w.WriteString(" & ")
+			}
+			it.str(w)
+		}
+		w.WriteString(")")
+	default:
+		w.WriteString(str.Fmt("%#v", *me))
+	}
 }
