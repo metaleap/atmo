@@ -24,6 +24,8 @@ func init() {
 		moPrimOpQQuote: (*SrcPack).semPrimOpQQuote,
 		moPrimOpExpand: (*SrcPack).semPrimOpExpand,
 		moPrimOpCaseOf: (*SrcPack).semPrimOpCaseOf,
+		moPrimOpAnd:    (*SrcPack).semPrimOpAndOr,
+		moPrimOpOr:     (*SrcPack).semPrimOpAndOr,
 	}
 }
 
@@ -87,6 +89,7 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 			}
 		}
 	}
+	self.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeVoid}, self)
 }
 
 func (me *SrcPack) semPrimOpDo(self *SemExpr) {
@@ -193,8 +196,16 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr) {
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		if dict := semCheckIs[SemValDict](MoPrimTypeDict, call.Args[0]); dict != nil {
 			for _, key := range dict.Keys {
-				key.Fact(SemFact{Kind: SemFactBool}, call.Callee)
+				key.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeBool}, call.Callee)
 			}
 		}
+	}
+}
+
+func (me *SrcPack) semPrimOpAndOr(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(2, 2, call.Args, self, true) {
+		call.Args[0].Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeBool}, call.Callee)
+		call.Args[1].Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeBool}, call.Callee)
 	}
 }

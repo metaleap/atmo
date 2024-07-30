@@ -259,7 +259,6 @@ const (
 	SemFactPrimType
 	SemFactFuncIsMacro
 	SemFactQQuote
-	SemFactBool
 )
 
 type SemFact struct {
@@ -285,8 +284,6 @@ func (me *SemFact) String() (ret string) {
 		ret = "fnMacro"
 	case SemFactQQuote:
 		ret = "qQuote"
-	case SemFactBool:
-		ret = "bool"
 	}
 	if me.Data != nil {
 		of := me.Data
