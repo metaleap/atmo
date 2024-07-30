@@ -75,5 +75,7 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 }
 
 func (me *SrcPack) semPrimOpDo(self *SemExpr) {
-
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+	}
 }
