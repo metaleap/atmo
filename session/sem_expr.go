@@ -90,6 +90,12 @@ func (me *SemExpr) Fact(fact SemFact, from *SemExpr) {
 	}
 }
 
+func (me *SemExpr) FactsFrom(from *SemExpr) {
+	for fact := range from.Facts {
+		me.Fact(fact, from)
+	}
+}
+
 func (me *SemExpr) HasErrs() (ret bool) {
 	me.Walk(func(it *SemExpr) bool {
 		ret = ret || (len(it.ErrsOwn) > 0)
@@ -234,9 +240,12 @@ func (me SemExprs) Walk(filterBy *SrcFile, onBefore func(it *SemExpr) bool, onAf
 type SemFactKind int
 
 const (
-	SemFactCallable SemFactKind = iota
+	_ SemFactKind = iota
+	SemFactCallable
 	SemFactUnused
-	SemFactSideEffects
+	SemFactEffectful
+	SemFactScalar
+	SemFactPrimType
 )
 
 type SemFact struct {
@@ -250,13 +259,21 @@ func (me *SemFact) String() (ret string) {
 		ret = "?!"
 	case SemFactCallable:
 		ret = "callable"
-	case SemFactSideEffects:
-		ret = "side-effecting"
+	case SemFactEffectful:
+		ret = "effectful"
 	case SemFactUnused:
 		ret = "unused"
+	case SemFactScalar:
+		ret = "scalar"
+	case SemFactPrimType:
+		ret = "primType"
 	}
 	if me.Of != nil {
-		ret += str.Fmt("%v", me.Of)
+		of := me.Of
+		if val, _ := of.(MoVal); val != nil {
+			of = MoValToString(val)
+		}
+		ret += str.Fmt("(%v)", of)
 	}
 	return
 }

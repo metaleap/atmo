@@ -30,7 +30,12 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 	case MoValStr:
 		me.semPopulateScalar(ret, it)
 	case MoValIdent:
-		me.semPopulateIdent(ret, it)
+		switch it {
+		case moValTrue.Val.(MoValIdent), moValFalse.Val.(MoValIdent), moValNone.Val.(MoValIdent):
+			me.semPopulateScalar(ret, it)
+		default:
+			me.semPopulateIdent(ret, it)
+		}
 	case *MoValList:
 		me.semPopulateList(ret, it)
 	case *MoValDict:
@@ -45,6 +50,8 @@ func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
 	scalar := &SemValScalar{MoVal: it}
 	self.Val = scalar
 	me.Trees.Sem.Index.Lits[it] = append(me.Trees.Sem.Index.Lits[it], self)
+	self.Fact(SemFact{Kind: SemFactScalar, Of: it}, self)
+	self.Fact(SemFact{Kind: SemFactPrimType, Of: it.PrimType()}, self)
 }
 
 func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {

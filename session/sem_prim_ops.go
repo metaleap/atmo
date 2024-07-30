@@ -58,7 +58,7 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 			if value_ident := value.MaybeIdent(); (value_ident != "") && (semPrimOps[value_ident] != nil) {
 				self.ErrsOwn.Add(value.From.SrcSpan.newDiagErr(ErrCodeNotAValue, value_ident))
 			}
-			self.Fact(SemFact{Kind: SemFactSideEffects}, call.Callee)
+			self.Fact(SemFact{Kind: SemFactEffectful}, call.Callee)
 			scope, resolved := self.Scope.Lookup(ident.MoVal, false, nil)
 			if resolved == nil {
 				self.Scope.Own[ident.MoVal] = &SemScopeEntry{DeclVal: value}
@@ -77,5 +77,15 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 func (me *SrcPack) semPrimOpDo(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
+		if list := semCheckIs[SemValList](MoPrimTypeList, call.Args[0]); list != nil {
+			for i, expr := range list.Items {
+				is_last := (i == len(list.Items)-1)
+				if is_last {
+					self.FactsFrom(expr)
+				} else if len(expr.HasFact(SemFactEffectful, nil, false, false, false)) == 0 {
+					expr.Fact(SemFact{Kind: SemFactUnused}, expr)
+				}
+			}
+		}
 	}
 }
