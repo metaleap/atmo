@@ -39,9 +39,10 @@ type SemValDict struct {
 }
 
 type SemValFunc struct {
-	Scope  *SemScope
-	Params SemExprs
-	Body   *SemExpr
+	Scope   *SemScope
+	Params  SemExprs
+	Body    *SemExpr
+	IsMacro bool
 }
 
 func (me *SemExpr) Each(do func(it *SemExpr)) {

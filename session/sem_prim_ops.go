@@ -6,29 +6,6 @@ import (
 	"atmo/util/str"
 )
 
-type SemPrimOpOrFn func(*SrcPack, *SemExpr)
-
-var (
-	semPrimOps map[MoValIdent]SemPrimOpOrFn
-	semPrimFns map[MoValIdent]SemPrimOpOrFn
-)
-
-func init() {
-	semPrimOps = map[MoValIdent]SemPrimOpOrFn{
-		moPrimOpSet:    (*SrcPack).semPrimOpSet,
-		moPrimOpDo:     (*SrcPack).semPrimOpDo,
-		moPrimOpFn:     (*SrcPack).semPrimOpFn,
-		moPrimOpMacro:  (*SrcPack).semPrimOpFn,
-		moPrimOpFnCall: (*SrcPack).semPrimOpFnCall,
-		moPrimOpQuote:  (*SrcPack).semPrimOpQuote,
-		moPrimOpQQuote: (*SrcPack).semPrimOpQQuote,
-		moPrimOpExpand: (*SrcPack).semPrimOpExpand,
-		moPrimOpCaseOf: (*SrcPack).semPrimOpCaseOf,
-		moPrimOpAnd:    (*SrcPack).semPrimOpAndOr,
-		moPrimOpOr:     (*SrcPack).semPrimOpAndOr,
-	}
-}
-
 func (me *SrcPack) semCheckCount(wantAtLeast int, wantAtMost int, have SemExprs, errDst *SemExpr, forArgs bool) bool {
 	if wantAtLeast >= 0 {
 		plural := util.If((wantAtLeast <= wantAtMost) && (wantAtLeast != 1), "s", "")
@@ -60,7 +37,7 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 	return nil
 }
 
-func (me *SrcPack) semPrimOpSet(self *SemExpr) {
+func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		name, value := call.Args[0], call.Args[1]
@@ -70,10 +47,9 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 				self.ErrsOwn.Add(name.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.MoVal, ident.MoVal[0:1]))
 			}
 
-			if value_ident := value.MaybeIdent(); (value_ident != "") && (semPrimOps[value_ident] != nil) {
+			if value_ident := value.MaybeIdent(); (value_ident != "") && (moPrimOpsLazy[value_ident] != nil) {
 				self.ErrsOwn.Add(value.From.SrcSpan.newDiagErr(ErrCodeNotAValue, value_ident))
 			}
-			self.Fact(SemFact{Kind: SemFactEffectful}, call.Callee)
 			if !is_name_invalid {
 				scope, resolved := self.Scope.Lookup(ident.MoVal, false, nil)
 				if resolved == nil {
@@ -89,33 +65,10 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 			}
 		}
 	}
-	self.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeVoid}, self)
 }
 
-func (me *SrcPack) semPrimOpDo(self *SemExpr) {
+func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 	call := self.Val.(*SemValCall)
-	if me.semCheckCount(1, 1, call.Args, self, true) {
-		if list := semCheckIs[SemValList](MoPrimTypeList, call.Args[0]); list != nil {
-			for i, expr := range list.Items {
-				is_last := (i == len(list.Items)-1)
-				if is_last {
-					self.FactsFrom(expr)
-				} else if len(expr.HasFact(SemFactEffectful, nil, false, false, false)) == 0 {
-					expr.Fact(SemFact{Kind: SemFactUnused}, expr)
-				}
-			}
-		}
-	}
-}
-
-func (me *SrcPack) semPrimOpFn(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	self.Fact(SemFact{Kind: SemFactCallable}, self)
-	self.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeFunc}, self)
-	is_macro := (call.Callee.Val.(*SemValIdent).MoVal == moPrimOpMacro)
-	if is_macro {
-		self.Fact(SemFact{Kind: SemFactFuncIsMacro}, call.Callee)
-	}
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		if params_list, body_list := semCheckIs[SemValList](MoPrimTypeList, call.Args[0]), semCheckIs[SemValList](MoPrimTypeList, call.Args[1]); (params_list != nil) && (body_list != nil) {
 			var ok_params SemExprs
@@ -129,8 +82,9 @@ func (me *SrcPack) semPrimOpFn(self *SemExpr) {
 				}
 			}
 			fn := &SemValFunc{
-				Scope:  &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
-				Params: ok_params,
+				Scope:   &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
+				Params:  ok_params,
+				IsMacro: (call.Callee.Val.(*SemValIdent).MoVal == moPrimOpMacro),
 			}
 			for _, param := range fn.Params {
 				fn.Scope.Own[param.Val.(*SemValIdent).MoVal] = &SemScopeEntry{DeclParamOrSetCall: param}
@@ -145,7 +99,6 @@ func (me *SrcPack) semPrimOpFn(self *SemExpr) {
 				expr_do := &SemExpr{From: f, Parent: p, Scope: s, Val: &SemValCall{
 					Callee: &SemExpr{Val: &SemValIdent{MoVal: moPrimOpDo}, From: f, Parent: p, Scope: s},
 					Args:   SemExprs{{Val: body_list, From: f, Parent: p, Scope: s}}}}
-				me.semPrimOpDo(expr_do)
 				fn.Body = expr_do
 			}
 			if fn.Body != nil {
@@ -158,54 +111,5 @@ func (me *SrcPack) semPrimOpFn(self *SemExpr) {
 				self.Val = fn
 			}
 		}
-	}
-}
-
-func (me *SrcPack) semPrimOpFnCall(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	if me.semCheckCount(2, 2, call.Args, self, true) {
-		if args_list := semCheckIs[SemValList](MoPrimTypeList, call.Args[1]); args_list != nil {
-			call.Args[0].Fact(SemFact{Kind: SemFactCallable}, self)
-		}
-	}
-}
-
-func (me *SrcPack) semPrimOpQuote(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	if me.semCheckCount(1, 1, call.Args, self, true) {
-		self.Fact(SemFact{Kind: SemFactQQuote, Data: false}, call.Callee)
-	}
-}
-
-func (me *SrcPack) semPrimOpQQuote(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	if me.semCheckCount(1, 1, call.Args, self, true) {
-		self.Fact(SemFact{Kind: SemFactQQuote, Data: true}, call.Callee)
-	}
-}
-
-func (me *SrcPack) semPrimOpExpand(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	if me.semCheckCount(1, 1, call.Args, self, true) {
-		_ = semCheckIs[SemValCall](MoPrimTypeCall, call.Args[0])
-	}
-}
-
-func (me *SrcPack) semPrimOpCaseOf(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	if me.semCheckCount(1, 1, call.Args, self, true) {
-		if dict := semCheckIs[SemValDict](MoPrimTypeDict, call.Args[0]); dict != nil {
-			for _, key := range dict.Keys {
-				key.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeBool}, call.Callee)
-			}
-		}
-	}
-}
-
-func (me *SrcPack) semPrimOpAndOr(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	if me.semCheckCount(2, 2, call.Args, self, true) {
-		call.Args[0].Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeBool}, call.Callee)
-		call.Args[1].Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeBool}, call.Callee)
 	}
 }

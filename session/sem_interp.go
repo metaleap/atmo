@@ -1,6 +1,8 @@
 package session
 
-import "atmo/util/sl"
+import (
+	"atmo/util/sl"
+)
 
 func (me *SrcPack) semRefresh() {
 	me.Trees.Sem.TopLevel = nil
@@ -73,14 +75,12 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
 	}
 
-	if ident := call.Callee.MaybeIdent(); ident != "" {
-		if prim_op := semPrimOps[ident]; prim_op != nil {
-			prim_op(me, self)
-			return
-		}
+	switch ident := call.Callee.MaybeIdent(); ident {
+	case moPrimOpSet:
+		me.semPrepScopeOnSet(self)
+	case moPrimOpFn, moPrimOpMacro:
+		me.semPrepScopeOnFn(self)
 	}
-
-	call.Callee.Fact(SemFact{Kind: SemFactCallable}, self)
 }
 
 type SemScope struct {
@@ -100,7 +100,7 @@ func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, identExpr *SemExpr) (
 	if (!ownOnly) && (me.Parent != nil) {
 		return me.Parent.Lookup(ident, false, identExpr)
 	}
-	if (identExpr != nil) && (semPrimOps[ident] == nil) && !sl.HasWhere(identExpr.ErrsOwn, func(it *Diag) bool { return it.Code == ErrCodeUndefined }) {
+	if (identExpr != nil) && (moPrimOpsLazy[ident] == nil) && (moPrimOpsEager[ident] == nil) && !sl.HasWhere(identExpr.ErrsOwn, func(it *Diag) bool { return it.Code == ErrCodeUndefined }) {
 		identExpr.ErrsOwn.Add(identExpr.From.SrcSpan.newDiagErr(ErrCodeUndefined, ident))
 	}
 	return nil, nil
