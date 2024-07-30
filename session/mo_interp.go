@@ -127,6 +127,7 @@ tco_loop:
 					did_call = true
 					switch fn := evaled_callee.Val.(type) {
 					default:
+						panic(str.Fmt("%T", evaled_callee))
 						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(ErrCodeUncallable, evaled_callee.String()))
 					case MoValFnPrim:
 						expr = fn(me, env, evaled_call_args...)
