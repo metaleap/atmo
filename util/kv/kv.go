@@ -42,12 +42,12 @@ func FromValues[TKey comparable, TVal any](values []TVal, key func(TVal) TKey) m
 	return ret
 }
 
-func Eq[K comparable, V any](opl map[K]V, opr map[K]V, cmp func(opl V, opr V) bool) bool {
+func Eq[K comparable, V any](opl map[K]V, opr map[K]V, eq func(opl V, opr V) bool) bool {
 	if len(opl) != len(opr) {
 		return false
 	}
 	for k, v := range opl {
-		if found, exists := opr[k]; (!exists) || !cmp(v, found) {
+		if found, exists := opr[k]; (!exists) || !eq(v, found) {
 			return false
 		}
 	}

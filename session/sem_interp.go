@@ -201,6 +201,6 @@ func (me *SrcPack) semPrimFnNot(self *SemExpr) {
 	ty := semTypePrimScalar(MoPrimTypeBool, call.Callee)
 	self.setTypeOrAddErr(ty, nil)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
-		call.Args[0].setTypeOrAddErr(ty, self)
+		call.Args[0].setTypeOrAddErr(ty, nil)
 	}
 }

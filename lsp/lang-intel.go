@@ -167,7 +167,7 @@ func init() {
 				if refs := intel.Lookup(session.IntelLookupKindRefs, src_file, lspPosToPos(&params.Position), false); len(refs) > 0 {
 					ret = &lsp.WorkspaceEdit{Changes: map[string][]lsp.TextEdit{}}
 					for _, locs := range refs {
-						if locs.SortSpans(true); len(locs.Spans) > 0 {
+						if len(locs.Spans) > 0 {
 							ret.Changes[lspUriFromFsPath(locs.File.FilePath)] = sl.To(locs.Spans, func(span *session.SrcFileSpan) lsp.TextEdit {
 								return lsp.TextEdit{Range: lspRangeFromSpan(span), NewText: params.NewName}
 							})

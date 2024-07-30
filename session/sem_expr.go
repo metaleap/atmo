@@ -391,7 +391,10 @@ func (me *SemExpr) setTypeOrAddErr(ty *SemType, errFrom *SemExpr) {
 		me.Type = ty
 	} else if !me.Type.Eq(ty) {
 		err := errFrom.From.SrcSpan.newDiagErr(ErrCodeTypeMismatch, me.Type, ty)
-		err.Rel = srcFileLocs(ty.dueTo, me.Type.dueTo)
+		err.Rel = srcFileLocs([]string{
+			str.Fmt("type `%s` decided here", ty.String()),
+			str.Fmt("type `%s` decided here", me.Type.String()),
+		}, ty.dueTo, me.Type.dueTo)
 		me.ErrsOwn.Add(err)
 	}
 }

@@ -11,12 +11,13 @@ import (
 type SrcFileLocs struct {
 	File  *SrcFile
 	Spans []*SrcFileSpan
+	Hints []string
 	IsSet []bool
 	IsGet []bool
 }
 
-func srcFileLocs(exprs ...*SemExpr) (ret []*SrcFileLocs) {
-	for _, expr := range exprs {
+func srcFileLocs(hints []string, exprs ...*SemExpr) (ret []*SrcFileLocs) {
+	for i, expr := range exprs {
 		if (expr != nil) && (expr.From.SrcFile != nil) && (expr.From.SrcSpan != nil) {
 			loc := sl.FirstWhere(ret, func(it *SrcFileLocs) bool { return it.File == expr.From.SrcFile })
 			if loc == nil {
@@ -24,6 +25,9 @@ func srcFileLocs(exprs ...*SemExpr) (ret []*SrcFileLocs) {
 				ret = append(ret, loc)
 			}
 			loc.Spans = append(loc.Spans, expr.From.SrcSpan)
+			if len(hints) == len(exprs) {
+				loc.Hints = append(loc.Hints, hints[i])
+			}
 		}
 	}
 	return
@@ -145,13 +149,4 @@ func (me *SrcFileSpan) newDiagErr(code DiagCode, args ...any) *Diag {
 }
 func (me *SrcFileSpan) Cmp(to *SrcFileSpan) int {
 	return me.Start.Cmp(&to.Start)
-}
-
-func (me *SrcFileLocs) SortSpans(reversed bool) {
-	me.Spans = sl.SortedPer(me.Spans, func(lhs *SrcFileSpan, rhs *SrcFileSpan) int {
-		if reversed {
-			lhs, rhs = rhs, lhs
-		}
-		return lhs.Cmp(rhs)
-	})
 }

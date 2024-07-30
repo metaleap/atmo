@@ -99,13 +99,17 @@ func diagToLspDiag(it *session.Diag) lsp.Diagnostic {
 	if it.Code == session.HintCodeUnused {
 		ret.Tags = append(ret.Tags, lsp.DiagnosticTagUnnecessary)
 	}
-	if it.Rel != nil {
-		ret.RelatedInformation = sl.To(it.Rel, func(it *session.SrcFileLocs) lsp.DiagnosticRelatedInformation {
-			return lsp.DiagnosticRelatedInformation{
-				Location: lsp.Location{Uri: lspUriFromFsPath(it.File.FilePath), Range: lspRangeFromSpan(it.Spans[0])},
-				Message:  "namely, here",
+	for _, locs := range it.Rel {
+		for i, span := range locs.Spans {
+			hint := "namely, here"
+			if len(locs.Hints) == len(locs.Spans) {
+				hint = locs.Hints[i]
 			}
-		})
+			ret.RelatedInformation = append(ret.RelatedInformation, lsp.DiagnosticRelatedInformation{
+				Location: lsp.Location{Uri: lspUriFromFsPath(locs.File.FilePath), Range: lspRangeFromSpan(span)},
+				Message:  hint,
+			})
+		}
 	}
 	return ret
 }
