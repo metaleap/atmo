@@ -2,7 +2,6 @@ package session
 
 import (
 	"atmo/util"
-	"atmo/util/sl"
 	"atmo/util/str"
 )
 
@@ -51,7 +50,7 @@ func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 				self.ErrsOwn.Add(value.From.SrcSpan.newDiagErr(ErrCodeNotAValue, value_ident))
 			}
 			if !is_name_invalid {
-				scope, resolved := self.Scope.Lookup(ident.MoVal, false, nil)
+				scope, resolved := self.Scope.Lookup(ident.MoVal)
 				if resolved == nil {
 					self.Scope.Own[ident.MoVal] = &SemScopeEntry{DeclParamOrSetCall: self}
 				} else {
@@ -104,9 +103,6 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 			if fn.Body != nil {
 				fn.Body.Walk(nil, func(it *SemExpr) {
 					it.Scope = fn.Scope
-					if entry := it.ResolvedIfIdent(false); (entry != nil) && sl.Has(fn.Params, entry.DeclParamOrSetCall) {
-						entry.DeclParamOrSetCall.FactsFrom(it)
-					}
 				})
 				self.Val = fn
 			}
