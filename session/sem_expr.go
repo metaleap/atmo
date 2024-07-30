@@ -257,6 +257,7 @@ const (
 	SemFactEffectful
 	SemFactScalar
 	SemFactPrimType
+	SemFactFuncIsMacro
 )
 
 type SemFact struct {
@@ -278,6 +279,8 @@ func (me *SemFact) String() (ret string) {
 		ret = "scalar"
 	case SemFactPrimType:
 		ret = "primType"
+	case SemFactFuncIsMacro:
+		ret = "fnMacro"
 	}
 	if me.Of != nil {
 		of := me.Of

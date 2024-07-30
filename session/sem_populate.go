@@ -65,6 +65,7 @@ func (me *SrcPack) semPopulateList(self *SemExpr, it *MoValList) {
 	for i, item := range *it {
 		list.Items[i] = me.semExprFromMoExpr(self.Scope, item, self)
 	}
+	self.Fact(SemFact{Kind: SemFactPrimType, Of: MoPrimTypeList}, self)
 }
 
 func (me *SrcPack) semPopulateDict(self *SemExpr, it *MoValDict) {
@@ -74,6 +75,7 @@ func (me *SrcPack) semPopulateDict(self *SemExpr, it *MoValDict) {
 		dict.Keys[i] = me.semExprFromMoExpr(self.Scope, item.Key, self)
 		dict.Vals[i] = me.semExprFromMoExpr(self.Scope, item.Val, self)
 	}
+	self.Fact(SemFact{Kind: SemFactPrimType, Of: MoPrimTypeDict}, self)
 }
 
 func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {

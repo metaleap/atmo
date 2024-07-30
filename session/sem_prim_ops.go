@@ -15,9 +15,11 @@ var (
 
 func init() {
 	semPrimOps = map[MoValIdent]SemPrimOpOrFn{
-		moPrimOpSet: (*SrcPack).semPrimOpSet,
-		moPrimOpDo:  (*SrcPack).semPrimOpDo,
-		moPrimOpFn:  (*SrcPack).semPrimOpFn,
+		moPrimOpSet:    (*SrcPack).semPrimOpSet,
+		moPrimOpDo:     (*SrcPack).semPrimOpDo,
+		moPrimOpFn:     (*SrcPack).semPrimOpFn,
+		moPrimOpMacro:  (*SrcPack).semPrimOpFn,
+		moPrimOpFnCall: (*SrcPack).semPrimOpFnCall,
 	}
 }
 
@@ -98,6 +100,10 @@ func (me *SrcPack) semPrimOpFn(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Fact(SemFact{Kind: SemFactCallable}, self)
 	self.Fact(SemFact{Kind: SemFactPrimType, Of: MoPrimTypeFunc}, self)
+	is_macro := (call.Callee.Val.(*SemValIdent).MoVal == moPrimOpMacro)
+	if is_macro {
+		self.Fact(SemFact{Kind: SemFactFuncIsMacro}, call.Callee)
+	}
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		if params_list, body_list := semCheckIs[SemValList](MoPrimTypeList, call.Args[0]), semCheckIs[SemValList](MoPrimTypeList, call.Args[1]); (params_list != nil) && (body_list != nil) {
 			var ok_params SemExprs
@@ -139,6 +145,15 @@ func (me *SrcPack) semPrimOpFn(self *SemExpr) {
 				})
 				self.Val = fn
 			}
+		}
+	}
+}
+
+func (me *SrcPack) semPrimOpFnCall(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(2, 2, call.Args, self, true) {
+		if args_list := semCheckIs[SemValList](MoPrimTypeList, call.Args[1]); args_list != nil {
+			call.Args[0].Fact(SemFact{Kind: SemFactCallable}, self)
 		}
 	}
 }
