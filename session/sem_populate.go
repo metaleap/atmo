@@ -97,20 +97,6 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	}
 }
 
-func (me *SrcPack) semPopulateFunc(self *SemExpr, it *MoValFnLam) {
-	fn := &SemValFunc{
-		Scope:  &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
-		Params: make(SemExprs, len(it.Params)),
-	}
-	self.Val = fn
-	for i, from := range it.Params {
-		param := me.semExprFromMoExpr(self.Scope, from, self)
-		fn.Scope.Own[param.MaybeIdent()] = &SemScopeEntry{DeclVal: param}
-		fn.Params[i] = param
-	}
-	fn.Body = me.semExprFromMoExpr(fn.Scope, it.Body, self)
-}
-
 type SemScope struct {
 	Own    map[MoValIdent]*SemScopeEntry
 	Parent *SemScope `json:"-"`
