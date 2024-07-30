@@ -100,10 +100,12 @@ func diagToLspDiag(it *session.Diag) lsp.Diagnostic {
 		ret.Tags = append(ret.Tags, lsp.DiagnosticTagUnnecessary)
 	}
 	if it.Rel != nil {
-		ret.RelatedInformation = []lsp.DiagnosticRelatedInformation{{
-			Location: lsp.Location{Uri: lspUriFromFsPath(it.Rel.File.FilePath), Range: lspRangeFromSpan(it.Rel.Spans[0])},
-			Message:  "namely, here",
-		}}
+		ret.RelatedInformation = sl.To(it.Rel, func(it *session.SrcFileLocs) lsp.DiagnosticRelatedInformation {
+			return lsp.DiagnosticRelatedInformation{
+				Location: lsp.Location{Uri: lspUriFromFsPath(it.File.FilePath), Range: lspRangeFromSpan(it.Spans[0])},
+				Message:  "namely, here",
+			}
+		})
 	}
 	return ret
 }

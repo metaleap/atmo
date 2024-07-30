@@ -964,7 +964,6 @@ func (me *Interp) primFnGt(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	return me.exprBool(cmp > 0, args...)
 }
-
 func (me *Interp) primCmpHelper(diagMoniker string, args ...*MoExpr) (int, *Diag) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return 0, err

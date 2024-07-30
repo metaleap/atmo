@@ -57,7 +57,7 @@ func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 					resolved.SubsequentSetCalls = append(resolved.SubsequentSetCalls, self)
 					if (scope == self.Scope) && (self.Parent == nil) {
 						err := self.From.SrcSpan.newDiagErr(ErrCodeDuplTopDecl, ident.MoVal)
-						err.Rel = &SrcFileLocs{File: resolved.DeclParamOrSetCall.From.SrcFile, Spans: []*SrcFileSpan{resolved.DeclParamOrSetCall.From.SrcSpan}, IsSet: []bool{true}, IsGet: []bool{false}}
+						err.Rel = srcFileLocs(resolved.DeclParamOrSetCall)
 						self.ErrsOwn.Add(err)
 					}
 				}

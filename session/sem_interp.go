@@ -5,12 +5,16 @@ import (
 )
 
 var (
-	semPrimOpsLazy map[MoValIdent]func(*SrcPack, *SemExpr)
+	semPrimOpsLazy  map[MoValIdent]func(*SrcPack, *SemExpr)
+	semPrimOpsEager map[MoValIdent]func(*SrcPack, *SemExpr)
 )
 
 func init() {
 	semPrimOpsLazy = map[MoValIdent]func(*SrcPack, *SemExpr){
 		moPrimOpSet: (*SrcPack).semPrimOpSet,
+	}
+	semPrimOpsEager = map[MoValIdent]func(*SrcPack, *SemExpr){
+		moPrimFnNot: (*SrcPack).semPrimFnNot,
 	}
 }
 
@@ -113,7 +117,7 @@ func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {
 func (me *SrcPack) semTypingExpr(self *SemExpr) {
 	switch val := self.Val.(type) {
 	case *SemValScalar:
-		self.Type = &SemType{PrimScalar: val.MoVal.PrimType()}
+		self.Type = semTypePrimScalar(val.MoVal.PrimType(), self)
 	case *SemValIdent:
 		_, entry := self.Scope.Lookup(val.MoVal)
 		if entry != nil {
@@ -121,32 +125,33 @@ func (me *SrcPack) semTypingExpr(self *SemExpr) {
 			default:
 				panic("new bug introduced")
 			case *SemValIdent: // ident refers to func param
+				// the big TODO...
 			case *SemValCall: // the @set call
 				self.Val = decl.Args[1]
 				me.semTypingAppl(self)
 			}
-		} else if prim_fn := moPrimOpsEager[val.MoVal]; prim_fn == nil {
-			_, is_lazy_prim_op := moPrimOpsLazy[val.MoVal]
+		} else if prim_fn := semPrimOpsEager[val.MoVal]; prim_fn == nil {
+			_, is_lazy_prim_op := semPrimOpsLazy[val.MoVal]
 			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(util.If(!is_lazy_prim_op, ErrCodeUndefined, ErrCodeNotAValue), val.MoVal))
 		} else {
 			self.Val = prim_fn
 		}
 	case *SemValList:
-		types := map[*SemType]util.Void{}
+		var item_types []*SemType
 		for _, item := range val.Items {
 			me.semTypingAppl(item)
-			types[item.Type] = util.Void{}
+			item_types = append(item_types, item.Type)
 		}
-		self.Type = semTypeOrFrom(types)
+		self.Type = semTypeListFrom(semTypeOrFrom(item_types, self), self)
 	case *SemValDict:
-		key_types, val_types := map[*SemType]util.Void{}, map[*SemType]util.Void{}
+		var key_types, val_types []*SemType
 		for i, key := range val.Keys {
 			me.semTypingAppl(key)
-			key_types[key.Type] = util.Void{}
+			key_types = append(key_types, key.Type)
 			me.semTypingAppl(val.Vals[i])
-			val_types[val.Vals[i].Type] = util.Void{}
+			val_types = append(val_types, val.Vals[i].Type)
 		}
-		self.Type = semTypeDictFrom(key_types, val_types)
+		self.Type = semTypeDictFrom(key_types, val_types, self)
 	case *SemValCall:
 		me.semTypingAppl(val.Callee)
 		for _, arg := range val.Args {
@@ -187,5 +192,15 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	if len(call.Args) > 1 {
 		me.semTypingAppl(call.Args[1])
+		call.Args[0].Type = call.Args[1].Type
+	}
+}
+
+func (me *SrcPack) semPrimFnNot(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	ty := semTypePrimScalar(MoPrimTypeBool, call.Callee)
+	self.setTypeOrAddErr(ty, nil)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		call.Args[0].setTypeOrAddErr(ty, self)
 	}
 }

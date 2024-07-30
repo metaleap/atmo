@@ -224,7 +224,7 @@ func (me *AstNode) equals(it *AstNode, includingSpans bool, withoutComments bool
 	util.Assert(me != it, nil)
 
 	if (me.Kind != it.Kind) ||
-		(includingSpans && !me.Toks.Span().Eq(it.Toks.Span())) ||
+		(includingSpans && !me.Toks.Span().eq(it.Toks.Span())) ||
 		(!me.Nodes.equals(it.Nodes, includingSpans, withoutComments)) {
 		return false
 	}
@@ -255,7 +255,7 @@ func (me *AstNode) equals(it *AstNode, includingSpans bool, withoutComments bool
 	case AstNodeKindIdent:
 		return (me.Lit.(string) == it.Lit.(string))
 	case AstNodeKindErr:
-		return me.errParsing.equals(it.errParsing)
+		return me.errParsing.equals(it.errParsing, includingSpans)
 	default:
 		panic(me.Kind)
 	}

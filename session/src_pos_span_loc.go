@@ -15,6 +15,20 @@ type SrcFileLocs struct {
 	IsGet []bool
 }
 
+func srcFileLocs(exprs ...*SemExpr) (ret []*SrcFileLocs) {
+	for _, expr := range exprs {
+		if (expr != nil) && (expr.From.SrcFile != nil) && (expr.From.SrcSpan != nil) {
+			loc := sl.FirstWhere(ret, func(it *SrcFileLocs) bool { return it.File == expr.From.SrcFile })
+			if loc == nil {
+				loc = &SrcFileLocs{File: expr.From.SrcFile}
+				ret = append(ret, loc)
+			}
+			loc.Spans = append(loc.Spans, expr.From.SrcSpan)
+		}
+	}
+	return
+}
+
 // SrcFilePos Line and Char both start at 1
 type SrcFilePos struct {
 	// Line starts at 1
@@ -58,8 +72,11 @@ func (me SrcFileSpan) Contains(it *SrcFilePos) bool {
 
 func (me *SrcFileSpan) IsSinglePos() bool { return me.Start == me.End }
 
-func (me SrcFileSpan) Eq(to SrcFileSpan) bool {
-	return (me.Start == to.Start) && (me.End == to.End)
+func (me SrcFileSpan) eq(to SrcFileSpan) bool {
+	return me.Eq(&to)
+}
+func (me *SrcFileSpan) Eq(to *SrcFileSpan) bool {
+	return (me == to) || ((me != nil) && (to != nil) && (me.Start == to.Start) && (me.End == to.End))
 }
 
 func (me *SrcFileSpan) Expanded(to *SrcFileSpan) *SrcFileSpan {

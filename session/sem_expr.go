@@ -1,8 +1,6 @@
 package session
 
 import (
-	"atmo/util"
-	"atmo/util/kv"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -257,6 +255,8 @@ type SemType struct {
 	Func       []*SemType
 	Or         []*SemType
 	And        []*SemType
+
+	dueTo *SemExpr
 }
 
 func (me *SemType) Eq(to *SemType) bool {
@@ -338,31 +338,60 @@ func (me *SemType) str(w Writer) {
 	}
 }
 
-func semTypeOrFrom(m map[*SemType]util.Void) *SemType {
-	types := kv.Keys(m)
-	switch len(types) {
+func semTypeFuncFrom(from []*SemType, dueTo *SemExpr) *SemType {
+	switch len(from) {
 	case 1:
-		return types[0]
+		return from[0]
 	case 0:
 		return nil
 	}
-	return &SemType{Or: types}
+	return &SemType{Func: from, dueTo: dueTo}
 }
 
-func semTypeAndFrom(m map[*SemType]util.Void) *SemType {
-	types := kv.Keys(m)
-	switch len(types) {
+func semTypeOrFrom(from []*SemType, dueTo *SemExpr) *SemType {
+	switch len(from) {
 	case 1:
-		return types[0]
+		return from[0]
 	case 0:
 		return nil
 	}
-	return &SemType{And: types}
+	return &SemType{Or: from, dueTo: dueTo}
 }
 
-func semTypeDictFrom(k map[*SemType]util.Void, v map[*SemType]util.Void) *SemType {
+func semTypeAndFrom(from []*SemType, dueTo *SemExpr) *SemType {
+	switch len(from) {
+	case 1:
+		return from[0]
+	case 0:
+		return nil
+	}
+	return &SemType{And: from, dueTo: dueTo}
+}
+
+func semTypeListFrom(from *SemType, dueTo *SemExpr) *SemType {
+	return &SemType{ListOf: from, dueTo: dueTo}
+}
+
+func semTypeDictFrom(k []*SemType, v []*SemType, dueTo *SemExpr) *SemType {
 	if (len(k) == 0) || (len(v) == 0) {
 		return nil
 	}
-	return &SemType{DictOf: [2]*SemType{semTypeOrFrom(k), semTypeOrFrom(v)}}
+	return &SemType{DictOf: [2]*SemType{semTypeOrFrom(k, dueTo), semTypeOrFrom(v, dueTo)}, dueTo: dueTo}
+}
+
+func semTypePrimScalar(from MoValPrimType, dueTo *SemExpr) *SemType {
+	return &SemType{PrimScalar: from, dueTo: dueTo}
+}
+
+func (me *SemExpr) setTypeOrAddErr(ty *SemType, errFrom *SemExpr) {
+	if errFrom == nil {
+		errFrom = me
+	}
+	if me.Type == nil {
+		me.Type = ty
+	} else if !me.Type.Eq(ty) {
+		err := errFrom.From.SrcSpan.newDiagErr(ErrCodeTypeMismatch, me.Type, ty)
+		err.Rel = srcFileLocs(ty.dueTo, me.Type.dueTo)
+		me.ErrsOwn.Add(err)
+	}
 }

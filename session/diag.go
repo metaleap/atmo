@@ -47,6 +47,7 @@ const (
 	ErrCodeNotComparable    DiagCode = "NotComparable"
 	ErrCodeNotConvertible   DiagCode = "NotConvertible"
 	ErrCodeDuplTopDecl      DiagCode = "DuplTopDecl"
+	ErrCodeTypeMismatch     DiagCode = "TypeMismatch"
 
 	// semantic (warnings / infos / hints)
 	HintCodeUnused DiagCode = "Unused"
@@ -80,6 +81,7 @@ var (
 		ErrCodeNotComparable:    "operands `%s` and `%s` cannot be compared in %s terms",
 		ErrCodeNotConvertible:   "cannot convert `%s` to %s",
 		ErrCodeDuplTopDecl:      "top-level declaration `%s` already defined",
+		ErrCodeTypeMismatch:     "type mismatch: `%s` vs. `%s`",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}
@@ -91,12 +93,15 @@ type Diag struct {
 	Message string
 	Span    SrcFileSpan `json:"-"`
 	Code    DiagCode
-	Rel     *SrcFileLocs `json:",omitempty"`
+	Rel     []*SrcFileLocs `json:",omitempty"`
 }
 
-func (me *Diag) equals(it *Diag) bool {
-	return (me == it) || ((me != nil) && (it != nil) &&
-		(me.Code == it.Code) && (me.Kind == it.Kind) && (me.Message == it.Message))
+func (me *Diag) equals(to *Diag, includingSpans bool) bool {
+	return (me == to) || ((me != nil) && (to != nil) &&
+		(me.Code == to.Code) && (me.Kind == to.Kind) && (me.Message == to.Message) &&
+		((!includingSpans) || (me.Span.Eq(&to.Span) && sl.Eq(me.Rel, to.Rel, func(l1 *SrcFileLocs, l2 *SrcFileLocs) bool {
+			return (l1.File == l2.File) && (sl.Eq(l1.Spans, l2.Spans, (*SrcFileSpan).Eq))
+		}))))
 }
 
 func (me *Diag) Error() string  { return me.String() }
@@ -189,7 +194,7 @@ func refreshAndPublishDiags(force bool, provokingFilePaths ...string) {
 	for src_file_path, new_diags := range new_diags {
 		old_diags := allDiags[src_file_path]
 		if !slices.EqualFunc(old_diags, new_diags, func(diag1 *Diag, diag2 *Diag) bool {
-			return (diag1 == diag2) || (*diag1 == *diag2)
+			return (diag1.equals(diag2, true))
 		}) {
 			have_changes = true
 			break
