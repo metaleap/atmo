@@ -92,9 +92,6 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	}
 
 	call.Callee.Fact(SemFact{Kind: SemFactCallable}, self)
-	for _, arg := range call.Args {
-		arg.EnsureResolvesIfIdent()
-	}
 }
 
 type SemScope struct {
@@ -103,8 +100,8 @@ type SemScope struct {
 }
 
 type SemScopeEntry struct {
-	DeclVal           *SemExpr
-	SubsequentSetVals SemExprs
+	DeclParamOrSetCall *SemExpr
+	SubsequentSetCalls SemExprs
 }
 
 func (me *SemScope) Lookup(ident MoValIdent, ownOnly bool, identExpr *SemExpr) (*SemScope, *SemScopeEntry) {

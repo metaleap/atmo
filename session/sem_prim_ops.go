@@ -2,6 +2,7 @@ package session
 
 import (
 	"atmo/util"
+	"atmo/util/sl"
 	"atmo/util/str"
 )
 
@@ -56,7 +57,6 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 				self.ErrsOwn.Add(name.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.MoVal, ident.MoVal[0:1]))
 			}
 
-			_ = value.EnsureResolvesIfIdent()
 			if value_ident := value.MaybeIdent(); (value_ident != "") && (semPrimOps[value_ident] != nil) {
 				self.ErrsOwn.Add(value.From.SrcSpan.newDiagErr(ErrCodeNotAValue, value_ident))
 			}
@@ -64,12 +64,12 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 			if !is_name_invalid {
 				scope, resolved := self.Scope.Lookup(ident.MoVal, false, nil)
 				if resolved == nil {
-					self.Scope.Own[ident.MoVal] = &SemScopeEntry{DeclVal: value}
+					self.Scope.Own[ident.MoVal] = &SemScopeEntry{DeclParamOrSetCall: self}
 				} else {
-					resolved.SubsequentSetVals = append(resolved.SubsequentSetVals, value)
+					resolved.SubsequentSetCalls = append(resolved.SubsequentSetCalls, self)
 					if (scope == self.Scope) && (self.Parent == nil) {
 						err := self.From.SrcSpan.newDiagErr(ErrCodeDuplTopDecl, ident.MoVal)
-						err.Rel = &SrcFileLocs{File: resolved.DeclVal.From.SrcFile, Spans: []*SrcFileSpan{resolved.DeclVal.From.SrcSpan}, IsSet: []bool{true}, IsGet: []bool{false}}
+						err.Rel = &SrcFileLocs{File: resolved.DeclParamOrSetCall.From.SrcFile, Spans: []*SrcFileSpan{resolved.DeclParamOrSetCall.From.SrcSpan}, IsSet: []bool{true}, IsGet: []bool{false}}
 						self.ErrsOwn.Add(err)
 					}
 				}
@@ -100,16 +100,22 @@ func (me *SrcPack) semPrimOpFn(self *SemExpr) {
 	self.Fact(SemFact{Kind: SemFactPrimType, Of: MoPrimTypeFunc}, self)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		if params_list, body_list := semCheckIs[SemValList](MoPrimTypeList, call.Args[0]), semCheckIs[SemValList](MoPrimTypeList, call.Args[1]); (params_list != nil) && (body_list != nil) {
+			var ok_params SemExprs
 			for _, param := range params_list.Items {
 				if ident := semCheckIs[SemValIdent](MoPrimTypeIdent, param); ident != nil {
 					if ident.MoVal.IsReserved() {
 						self.ErrsOwn.Add(param.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.MoVal, ident.MoVal[0:1]))
+					} else {
+						ok_params = append(ok_params, param)
 					}
 				}
 			}
 			fn := &SemValFunc{
 				Scope:  &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
-				Params: params_list.Items,
+				Params: ok_params,
+			}
+			for _, param := range fn.Params {
+				fn.Scope.Own[param.Val.(*SemValIdent).MoVal] = &SemScopeEntry{DeclParamOrSetCall: param}
 			}
 			switch len(body_list.Items) {
 			case 0:
@@ -127,6 +133,9 @@ func (me *SrcPack) semPrimOpFn(self *SemExpr) {
 			if fn.Body != nil {
 				fn.Body.Walk(nil, func(it *SemExpr) {
 					it.Scope = fn.Scope
+					if entry := it.ResolvedIfIdent(false); (entry != nil) && sl.Has(fn.Params, entry.DeclParamOrSetCall) {
+						entry.DeclParamOrSetCall.FactsFrom(it)
+					}
 				})
 				self.Val = fn
 			}

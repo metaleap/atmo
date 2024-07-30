@@ -1,6 +1,7 @@
 package session
 
 import (
+	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -59,9 +60,9 @@ func (me *SemExpr) Each(do func(it *SemExpr)) {
 	}
 }
 
-func (me *SemExpr) EnsureResolvesIfIdent() *SemScopeEntry {
+func (me *SemExpr) ResolvedIfIdent(must bool) *SemScopeEntry {
 	if ident := me.MaybeIdent(); ident != "" {
-		if _, entry := me.Scope.Lookup(ident, false, me); entry != nil {
+		if _, entry := me.Scope.Lookup(ident, false, util.If(must, me, nil)); entry != nil {
 			return entry
 		}
 	}
@@ -81,10 +82,15 @@ func (me *SemExpr) Fact(fact SemFact, from *SemExpr) {
 	}
 	if it := me.Facts[fact]; !sl.Has(it, from) {
 		me.Facts[fact] = append(it, from)
-		if entry := me.EnsureResolvesIfIdent(); entry != nil {
-			entry.DeclVal.Fact(fact, from)
-			for _, it := range entry.SubsequentSetVals {
-				it.Fact(fact, from)
+		if entry := me.ResolvedIfIdent(false); entry != nil {
+			switch decl := entry.DeclParamOrSetCall.Val.(type) {
+			case *SemValCall:
+				decl.Args[1].Fact(fact, from)
+			case *SemValIdent:
+				entry.DeclParamOrSetCall.Fact(fact, from)
+			}
+			for _, it := range entry.SubsequentSetCalls {
+				it.Val.(*SemValCall).Args[1].Fact(fact, from)
 			}
 		}
 	}
@@ -110,10 +116,15 @@ func (me *SemExpr) HasFact(kind SemFactKind, of any, orResolvedIdent bool, orAnc
 	}
 	dueTo = me.Facts[SemFact{Kind: kind, Of: of}]
 	if (len(dueTo) == 0) && orResolvedIdent {
-		if entry := me.EnsureResolvesIfIdent(); entry != nil {
-			dueTo = entry.DeclVal.HasFact(kind, of, orResolvedIdent, orAncestor, orDescendant)
-			for _, other := range entry.SubsequentSetVals {
-				dueTo = append(dueTo, other.HasFact(kind, of, orResolvedIdent, orAncestor, orDescendant)...)
+		if entry := me.ResolvedIfIdent(false); entry != nil {
+			switch decl := entry.DeclParamOrSetCall.Val.(type) {
+			case *SemValCall:
+				dueTo = decl.Args[1].HasFact(kind, of, orResolvedIdent, orAncestor, orDescendant)
+			case *SemValIdent:
+				dueTo = entry.DeclParamOrSetCall.HasFact(kind, of, orResolvedIdent, orAncestor, orDescendant)
+			}
+			for _, set_call := range entry.SubsequentSetCalls {
+				dueTo = append(dueTo, set_call.Val.(*SemValCall).Args[1].HasFact(kind, of, orResolvedIdent, orAncestor, orDescendant)...)
 			}
 		}
 	}
