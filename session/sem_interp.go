@@ -23,7 +23,7 @@ func (me *SrcPack) semRefresh() {
 	}
 
 	for _, top_expr := range me.Trees.Sem.TopLevel {
-		me.semInterpApply(top_expr)
+		me.semTypingAppl(top_expr)
 	}
 }
 
@@ -110,8 +110,10 @@ func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {
 	return nil, nil
 }
 
-func (me *SrcPack) semInterpExpr(self *SemExpr) {
+func (me *SrcPack) semTypingExpr(self *SemExpr) {
 	switch val := self.Val.(type) {
+	case *SemValScalar:
+		self.Type = &SemType{PrimScalar: val.MoVal.PrimType()}
 	case *SemValIdent:
 		_, entry := self.Scope.Lookup(val.MoVal)
 		if entry != nil {
@@ -119,9 +121,9 @@ func (me *SrcPack) semInterpExpr(self *SemExpr) {
 			default:
 				panic("new bug introduced")
 			case *SemValIdent: // ident refers to func param
-			case *SemValCall:
+			case *SemValCall: // the @set call
 				self.Val = decl.Args[1]
-				me.semInterpApply(self)
+				me.semTypingAppl(self)
 			}
 		} else if prim_fn := moPrimOpsEager[val.MoVal]; prim_fn == nil {
 			_, is_lazy_prim_op := moPrimOpsLazy[val.MoVal]
@@ -130,26 +132,34 @@ func (me *SrcPack) semInterpExpr(self *SemExpr) {
 			self.Val = prim_fn
 		}
 	case *SemValList:
+		types := map[*SemType]util.Void{}
 		for _, item := range val.Items {
-			me.semInterpApply(item)
+			me.semTypingAppl(item)
+			types[item.Type] = util.Void{}
 		}
+		self.Type = semTypeOrFrom(types)
 	case *SemValDict:
+		key_types, val_types := map[*SemType]util.Void{}, map[*SemType]util.Void{}
 		for i, key := range val.Keys {
-			me.semInterpApply(key)
-			me.semInterpApply(val.Vals[i])
+			me.semTypingAppl(key)
+			key_types[key.Type] = util.Void{}
+			me.semTypingAppl(val.Vals[i])
+			val_types[val.Vals[i].Type] = util.Void{}
 		}
+		self.Type = semTypeDictFrom(key_types, val_types)
 	case *SemValCall:
-		me.semInterpApply(val.Callee)
+		me.semTypingAppl(val.Callee)
 		for _, arg := range val.Args {
-			me.semInterpApply(arg)
+			me.semTypingAppl(arg)
 		}
+		// typing happens in our caller which is `semTypingAppl`
 	}
 }
 
-func (me *SrcPack) semInterpApply(self *SemExpr) {
+func (me *SrcPack) semTypingAppl(self *SemExpr) {
 	call, _ := self.Val.(*SemValCall)
 	if call == nil {
-		me.semInterpExpr(self)
+		me.semTypingExpr(self)
 		return
 	}
 
@@ -162,7 +172,7 @@ func (me *SrcPack) semInterpApply(self *SemExpr) {
 		return
 	}
 
-	me.semInterpExpr(self)
+	me.semTypingExpr(self)
 	switch fn := call.Callee.Val.(type) {
 	case func(*SrcPack, *SemExpr):
 		fn(me, self)
@@ -175,8 +185,7 @@ func (me *SrcPack) semInterpApply(self *SemExpr) {
 
 func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
-	self.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeVoid}, call.Callee)
 	if len(call.Args) > 1 {
-		me.semInterpApply(call.Args[1])
+		me.semTypingAppl(call.Args[1])
 	}
 }

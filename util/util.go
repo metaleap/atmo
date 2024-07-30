@@ -9,6 +9,8 @@ import (
 	"atmo/util/str"
 )
 
+type Void struct{}
+
 func Ptr[T any](it T) *T { return &it }
 func UnPtr[T any](it *T) (ret T) {
 	if it != nil {

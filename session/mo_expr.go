@@ -70,7 +70,7 @@ func (me MoValPrimType) Str(forDiag bool) string {
 	case MoPrimTypeFunc:
 		return util.If(forDiag, "function", "@Func")
 	}
-	panic(me)
+	return "@Never"
 }
 
 type MoVal interface {

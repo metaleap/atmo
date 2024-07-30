@@ -1,6 +1,8 @@
 package session
 
 import (
+	"atmo/util"
+	"atmo/util/kv"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -13,6 +15,7 @@ type SemExpr struct {
 	ErrsOwn Diags     `json:",omitempty"`
 	Val     any
 	Facts   map[SemFact]SemExprs `json:"-"`
+	Type    *SemType             `json:"-"`
 }
 
 type SemValScalar struct {
@@ -219,13 +222,8 @@ type SemFactKind int
 
 const (
 	_ SemFactKind = iota
-	SemFactCallable
 	SemFactUnused
 	SemFactEffectful
-	SemFactScalar
-	SemFactPrimType
-	SemFactFuncIsMacro
-	SemFactQQuote
 )
 
 type SemFact struct {
@@ -237,20 +235,10 @@ func (me *SemFact) String() (ret string) {
 	switch me.Kind {
 	default:
 		ret = "?!"
-	case SemFactCallable:
-		ret = "callable"
 	case SemFactEffectful:
 		ret = "effectful"
 	case SemFactUnused:
 		ret = "unused"
-	case SemFactScalar:
-		ret = "scalar"
-	case SemFactPrimType:
-		ret = "primType"
-	case SemFactFuncIsMacro:
-		ret = "fnMacro"
-	case SemFactQQuote:
-		ret = "qQuote"
 	}
 	if me.Data != nil {
 		of := me.Data
@@ -263,12 +251,38 @@ func (me *SemFact) String() (ret string) {
 }
 
 type SemType struct {
-	Scalar MoValPrimType
-	ListOf *SemType
-	DictOf [2]*SemType
-	Func   []SemType
-	Or     []*SemType
-	And    []*SemType
+	PrimScalar MoValPrimType
+	ListOf     *SemType
+	DictOf     [2]*SemType
+	Func       []*SemType
+	Or         []*SemType
+	And        []*SemType
+}
+
+func (me *SemType) Eq(to *SemType) bool {
+	switch {
+	case me == to:
+		return true
+	case (me == nil) || (to == nil):
+		return false
+	case me.PrimScalar > 0:
+		return me.PrimScalar == to.PrimScalar
+	case me.ListOf != nil:
+		return me.ListOf.Eq(to.ListOf)
+	case me.DictOf[0] != nil:
+		return me.DictOf[0].Eq(to.DictOf[0]) && me.DictOf[1].Eq(to.DictOf[1])
+	case len(me.Func) > 0:
+		return sl.Eq(me.Func, to.Func, (*SemType).Eq)
+	case len(me.Or) > 0:
+		return sl.Eq(me.Or, to.Or, (*SemType).Eq)
+	case len(me.And) > 0:
+		return sl.Eq(me.And, to.And, (*SemType).Eq)
+	}
+	return false
+}
+
+func (me *SemType) Never() bool {
+	return (me == nil) || (me.PrimScalar == 0) && (me.ListOf == nil) && ((me.DictOf[0] == nil) || (me.DictOf[1] == nil)) && (len(me.Func) == 0) && (len(me.Or) == 0) && (len(me.And) == 0)
 }
 
 func (me *SemType) String() string {
@@ -278,8 +292,10 @@ func (me *SemType) String() string {
 }
 func (me *SemType) str(w Writer) {
 	switch {
-	case me.Scalar > 0:
-		w.WriteString(me.Scalar.Str(false))
+	case me == nil:
+		w.WriteString(MoValPrimType(0).Str(false))
+	case me.PrimScalar > 0:
+		w.WriteString(me.PrimScalar.Str(false))
 	case me.ListOf != nil:
 		w.WriteString("[")
 		me.ListOf.str(w)
@@ -320,4 +336,33 @@ func (me *SemType) str(w Writer) {
 	default:
 		w.WriteString(str.Fmt("%#v", *me))
 	}
+}
+
+func semTypeOrFrom(m map[*SemType]util.Void) *SemType {
+	types := kv.Keys(m)
+	switch len(types) {
+	case 1:
+		return types[0]
+	case 0:
+		return nil
+	}
+	return &SemType{Or: types}
+}
+
+func semTypeAndFrom(m map[*SemType]util.Void) *SemType {
+	types := kv.Keys(m)
+	switch len(types) {
+	case 1:
+		return types[0]
+	case 0:
+		return nil
+	}
+	return &SemType{And: types}
+}
+
+func semTypeDictFrom(k map[*SemType]util.Void, v map[*SemType]util.Void) *SemType {
+	if (len(k) == 0) || (len(v) == 0) {
+		return nil
+	}
+	return &SemType{DictOf: [2]*SemType{semTypeOrFrom(k), semTypeOrFrom(v)}}
 }
