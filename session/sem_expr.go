@@ -308,9 +308,9 @@ func (me *SemType) str(w Writer) {
 		w.WriteString("}")
 	case len(me.Func) > 0:
 		w.WriteString("(")
-		for i, it := range me.Or {
+		for i, it := range me.Func {
 			if i > 0 {
-				w.WriteString(" → ")
+				w.WriteString("→")
 			}
 			it.str(w)
 		}
@@ -348,6 +348,10 @@ func semTypeFuncFrom(from []*SemType, dueTo *SemExpr) *SemType {
 	return &SemType{Func: from, dueTo: dueTo}
 }
 
+func semTypeFuncPrims(dueTo *SemExpr, from ...MoValPrimType) *SemType {
+	return semTypeFuncFrom(sl.To(from, func(it MoValPrimType) *SemType { return semTypePrimScalar(it, dueTo) }), dueTo)
+}
+
 func semTypeOrFrom(from []*SemType, dueTo *SemExpr) *SemType {
 	switch len(from) {
 	case 1:
@@ -373,9 +377,6 @@ func semTypeListFrom(from *SemType, dueTo *SemExpr) *SemType {
 }
 
 func semTypeDictFrom(k []*SemType, v []*SemType, dueTo *SemExpr) *SemType {
-	if (len(k) == 0) || (len(v) == 0) {
-		return nil
-	}
 	return &SemType{DictOf: [2]*SemType{semTypeOrFrom(k, dueTo), semTypeOrFrom(v, dueTo)}, dueTo: dueTo}
 }
 

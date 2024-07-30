@@ -134,7 +134,7 @@ func init() {
 				if info := intel.Info(src_file, lspPosToPos(&params.Position)); info != nil {
 					items := info.Items.Where(session.IntelItemKindDescription)
 					strs := sl.Where(sl.To(items, func(it session.IntelItem) string { return it.Value }), func(s string) bool { return s != "" })
-					if text := str.Join(strs, "\n___\n"); text != "" {
+					if text := str.Join(strs, "\n\n___\n\n"); text != "" {
 						ret = &lsp.Hover{
 							Contents: lsp.MarkupContent{Value: text, Kind: lsp.MarkupKindMarkdown},
 						}

@@ -190,6 +190,7 @@ func (me *SrcPack) semTypingAppl(self *SemExpr) {
 
 func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
+	self.setTypeOrAddErr(semTypePrimScalar(MoPrimTypeVoid, call.Callee), nil)
 	if len(call.Args) > 1 {
 		me.semTypingAppl(call.Args[1])
 		call.Args[0].Type = call.Args[1].Type
@@ -198,6 +199,7 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr) {
 
 func (me *SrcPack) semPrimFnNot(self *SemExpr) {
 	call := self.Val.(*SemValCall)
+	call.Callee.setTypeOrAddErr(semTypeFuncPrims(call.Callee, MoPrimTypeBool, MoPrimTypeBool), nil)
 	ty := semTypePrimScalar(MoPrimTypeBool, call.Callee)
 	self.setTypeOrAddErr(ty, nil)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
