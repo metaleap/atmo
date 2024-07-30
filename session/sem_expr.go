@@ -114,7 +114,7 @@ func (me *SemExpr) HasFact(kind SemFactKind, of any, orResolvedIdent bool, orAnc
 	if me.Facts == nil {
 		return
 	}
-	dueTo = me.Facts[SemFact{Kind: kind, Of: of}]
+	dueTo = me.Facts[SemFact{Kind: kind, Data: of}]
 	if (len(dueTo) == 0) && orResolvedIdent {
 		if entry := me.ResolvedIfIdent(false); entry != nil {
 			switch decl := entry.DeclParamOrSetCall.Val.(type) {
@@ -258,11 +258,13 @@ const (
 	SemFactScalar
 	SemFactPrimType
 	SemFactFuncIsMacro
+	SemFactQQuote
+	SemFactBool
 )
 
 type SemFact struct {
 	Kind SemFactKind
-	Of   any `json:",omitempty"`
+	Data any `json:",omitempty"`
 }
 
 func (me *SemFact) String() (ret string) {
@@ -281,9 +283,13 @@ func (me *SemFact) String() (ret string) {
 		ret = "primType"
 	case SemFactFuncIsMacro:
 		ret = "fnMacro"
+	case SemFactQQuote:
+		ret = "qQuote"
+	case SemFactBool:
+		ret = "bool"
 	}
-	if me.Of != nil {
-		of := me.Of
+	if me.Data != nil {
+		of := me.Data
 		if val, _ := of.(MoVal); val != nil {
 			of = MoValToString(val)
 		}

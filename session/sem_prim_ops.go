@@ -20,13 +20,22 @@ func init() {
 		moPrimOpFn:     (*SrcPack).semPrimOpFn,
 		moPrimOpMacro:  (*SrcPack).semPrimOpFn,
 		moPrimOpFnCall: (*SrcPack).semPrimOpFnCall,
+		moPrimOpQuote:  (*SrcPack).semPrimOpQuote,
+		moPrimOpQQuote: (*SrcPack).semPrimOpQQuote,
+		moPrimOpExpand: (*SrcPack).semPrimOpExpand,
+		moPrimOpCaseOf: (*SrcPack).semPrimOpCaseOf,
 	}
 }
 
 func (me *SrcPack) semCheckCount(wantAtLeast int, wantAtMost int, have SemExprs, errDst *SemExpr, forArgs bool) bool {
 	if wantAtLeast >= 0 {
 		plural := util.If((wantAtLeast <= wantAtMost) && (wantAtLeast != 1), "s", "")
-		moniker := util.If(!forArgs, "expression"+plural, "arg"+plural+" for this call")
+		moniker := util.If(!forArgs, "expression"+plural, "arg"+plural+" for callee")
+		if forArgs && (errDst != nil) {
+			if call, _ := errDst.Val.(*SemValCall); (call != nil) && (call.Callee.From != nil) && (call.Callee.From.SrcNode != nil) && (call.Callee.From.SrcNode.Src != "") {
+				moniker += " `" + call.Callee.From.SrcNode.Src + "`"
+			}
+		}
 		if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
 			errDst.ErrsOwn.Add(errDst.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d %s, not %d", wantAtLeast, moniker, len(have))))
 			return false
@@ -99,7 +108,7 @@ func (me *SrcPack) semPrimOpDo(self *SemExpr) {
 func (me *SrcPack) semPrimOpFn(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Fact(SemFact{Kind: SemFactCallable}, self)
-	self.Fact(SemFact{Kind: SemFactPrimType, Of: MoPrimTypeFunc}, self)
+	self.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeFunc}, self)
 	is_macro := (call.Callee.Val.(*SemValIdent).MoVal == moPrimOpMacro)
 	if is_macro {
 		self.Fact(SemFact{Kind: SemFactFuncIsMacro}, call.Callee)
@@ -154,6 +163,38 @@ func (me *SrcPack) semPrimOpFnCall(self *SemExpr) {
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		if args_list := semCheckIs[SemValList](MoPrimTypeList, call.Args[1]); args_list != nil {
 			call.Args[0].Fact(SemFact{Kind: SemFactCallable}, self)
+		}
+	}
+}
+
+func (me *SrcPack) semPrimOpQuote(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		self.Fact(SemFact{Kind: SemFactQQuote, Data: false}, call.Callee)
+	}
+}
+
+func (me *SrcPack) semPrimOpQQuote(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		self.Fact(SemFact{Kind: SemFactQQuote, Data: true}, call.Callee)
+	}
+}
+
+func (me *SrcPack) semPrimOpExpand(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		_ = semCheckIs[SemValCall](MoPrimTypeCall, call.Args[0])
+	}
+}
+
+func (me *SrcPack) semPrimOpCaseOf(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		if dict := semCheckIs[SemValDict](MoPrimTypeDict, call.Args[0]); dict != nil {
+			for _, key := range dict.Keys {
+				key.Fact(SemFact{Kind: SemFactBool}, call.Callee)
+			}
 		}
 	}
 }

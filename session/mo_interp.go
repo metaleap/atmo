@@ -162,10 +162,10 @@ tco_loop:
 func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 	switch val := expr.Val.(type) {
 	case MoValIdent:
-		if (val[0] != '@') || (moPrimIdents[val] == nil) { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
+		if val[0] != '@' { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
 			owner_env, found := env.lookupOwner(val)
 			if (found != nil) && found.PreEvalTopLevelPreEnvUnevaledYet { // top-level @set was put unevaled into env under the name it has yet to set
-				_ = me.evalAndApply(owner_env, found) // eval that @set call, to put the actual value for the name in env instead, return is ignored because it's just @none or an @Err
+				_ = me.evalAndApply(owner_env, found) // eval that @set call, to put the actual value for the name in env instead, return is ignored because it's just @void or an @Err
 				found = env.lookup(val)
 			}
 			if found == nil {
@@ -377,6 +377,10 @@ func (me *Interp) check(want MoValPrimType, wantAtLeast int, wantAtMost int, hav
 	return nil
 }
 
+func (me *Interp) newErrExpectedBool(noBool *MoExpr) *Diag {
+	return me.diagSpan(false, true, noBool).newDiagErr(ErrCodeExpectedFoo, "a boolean expression instead of `"+noBool.String()+"`")
+}
+
 type MoEnv struct {
 	Parent *MoEnv
 	Own    map[MoValIdent]*MoExpr
@@ -385,10 +389,6 @@ type MoEnv struct {
 func (me *Interp) ensureRootEnvPopulated() {
 	if len(rootEnv.Own) > 0 {
 		return
-	}
-	// prim idents (@true, @false, @nil) into rootEnv
-	for name, expr := range moPrimIdents {
-		rootEnv.set(name, expr)
 	}
 	// builtin eager prim-op funcs into rootEnv
 	for name, fn := range moPrimOpsEager {

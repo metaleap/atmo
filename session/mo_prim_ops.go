@@ -22,6 +22,7 @@ const (
 	moPrimOpCaseOf        MoValIdent = "@caseOf"
 	moPrimOpAnd           MoValIdent = "@and"
 	moPrimOpOr            MoValIdent = "@or"
+	moPrimFnNot           MoValIdent = "@not"
 	moPrimOpMacro         MoValIdent = "@macro"
 	moPrimOpExpand        MoValIdent = "@expand"
 	moPrimOpFn            MoValIdent = "@fn"
@@ -106,6 +107,7 @@ func init() {
 		moPrimFnNumFloatSub: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) - opr.(MoValNumFloat) }),
 		moPrimFnNumFloatMul: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
 		moPrimFnNumFloatDiv: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
+		moPrimFnNot:         (*Interp).primFnBoolNot,
 		moPrimFnCast:        (*Interp).primFnCast,
 		moPrimFnEq:          (*Interp).primFnEq,
 		moPrimFnNeq:         (*Interp).primFnNeq,
@@ -177,7 +179,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		return nil, me.exprErr(err, args[1])
 	}
 	owner_env.set(name, new_value)
-	return nil, me.exprFrom(moValNone, args...)
+	return nil, me.exprVoid(args...)
 }
 
 func (me *Interp) primOpDo(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
@@ -394,11 +396,21 @@ func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	return nil, me.exprBool(false, args...)
 }
 
-func (me *Interp) newErrExpectedBool(noBool *MoExpr) *Diag {
-	return me.diagSpan(false, true, noBool).newDiagErr(ErrCodeExpectedFoo, "a boolean expression instead of `"+noBool.String()+"`")
-}
-
 // eager prim-ops below, lazy ones above
+
+func (me *Interp) primFnBoolNot(env *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return me.exprErr(err)
+	}
+	switch {
+	case args[0].EqFalse():
+		return me.exprBool(true, args...)
+	case args[0].EqTrue():
+		return me.exprBool(false, args...)
+	default:
+		return me.exprErr(me.newErrExpectedBool(args[0]))
+	}
+}
 
 func makeArithPrimOp[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) moFnEager {
 	return func(me *Interp, _ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -454,7 +466,7 @@ func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	default:
 		args[0].WriteTo(InterpStdout)
 	}
-	return me.exprFrom(moValNone, args...)
+	return me.exprVoid(args...)
 }
 
 func (me *Interp) primFnListLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -510,7 +522,7 @@ func (me *Interp) primFnListSet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	it := *list
 	it[idx] = args[2]
 	*list = it
-	return me.exprFrom(moValNone, args...)
+	return me.exprVoid(args...)
 }
 
 func (me *Interp) primFnListRange(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -734,7 +746,7 @@ func (me *Interp) primFnDictGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	found := args[0].Val.(*MoValDict).Get(args[1])
 	if found == nil {
-		return me.exprFrom(moValNone, args...)
+		return me.exprVoid(args...)
 	}
 	return me.exprFrom(found, args...)
 }
@@ -751,7 +763,7 @@ func (me *Interp) primFnDictSet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	dict := args[0].Val.(*MoValDict)
 	dict.Set(args[1], args[2])
-	return me.exprFrom(moValNone, args...)
+	return me.exprVoid(args...)
 }
 
 func (me *Interp) primFnDictDel(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -766,7 +778,7 @@ func (me *Interp) primFnDictDel(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	dict := args[0].Val.(*MoValDict)
 	dict.Del(args[1])
-	return me.exprFrom(moValNone, args...)
+	return me.exprVoid(args...)
 }
 
 func (me *Interp) primFnDictLen(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -897,7 +909,7 @@ func (me *Interp) primFnErrVal(_ *MoEnv, args ...*MoExpr) *MoExpr {
 
 func (me *Interp) primFnSessReset(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	me.replReset()
-	return moValNone
+	return me.exprVoid(args...)
 }
 
 func (me *Interp) primFnEq(_ *MoEnv, args ...*MoExpr) *MoExpr {

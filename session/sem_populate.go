@@ -19,23 +19,10 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 	switch it := moExpr.Val.(type) {
 	default:
 		panic(it)
-	case MoValNumInt:
-		me.semPopulateScalar(ret, it)
-	case MoValNumUint:
-		me.semPopulateScalar(ret, it)
-	case MoValNumFloat:
-		me.semPopulateScalar(ret, it)
-	case MoValChar:
-		me.semPopulateScalar(ret, it)
-	case MoValStr:
+	case MoValVoid, MoValBool, MoValNumInt, MoValNumUint, MoValNumFloat, MoValChar, MoValStr:
 		me.semPopulateScalar(ret, it)
 	case MoValIdent:
-		switch it {
-		case moValTrue.Val.(MoValIdent), moValFalse.Val.(MoValIdent), moValNone.Val.(MoValIdent):
-			me.semPopulateScalar(ret, it)
-		default:
-			me.semPopulateIdent(ret, it)
-		}
+		me.semPopulateIdent(ret, it)
 	case *MoValList:
 		me.semPopulateList(ret, it)
 	case *MoValDict:
@@ -50,8 +37,8 @@ func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
 	scalar := &SemValScalar{MoVal: it}
 	self.Val = scalar
 	me.Trees.Sem.Index.Lits[it] = append(me.Trees.Sem.Index.Lits[it], self)
-	self.Fact(SemFact{Kind: SemFactScalar, Of: it}, self)
-	self.Fact(SemFact{Kind: SemFactPrimType, Of: it.PrimType()}, self)
+	self.Fact(SemFact{Kind: SemFactScalar, Data: it}, self)
+	self.Fact(SemFact{Kind: SemFactPrimType, Data: it.PrimType()}, self)
 }
 
 func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
@@ -65,7 +52,7 @@ func (me *SrcPack) semPopulateList(self *SemExpr, it *MoValList) {
 	for i, item := range *it {
 		list.Items[i] = me.semExprFromMoExpr(self.Scope, item, self)
 	}
-	self.Fact(SemFact{Kind: SemFactPrimType, Of: MoPrimTypeList}, self)
+	self.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeList}, self)
 }
 
 func (me *SrcPack) semPopulateDict(self *SemExpr, it *MoValDict) {
@@ -75,7 +62,7 @@ func (me *SrcPack) semPopulateDict(self *SemExpr, it *MoValDict) {
 		dict.Keys[i] = me.semExprFromMoExpr(self.Scope, item.Key, self)
 		dict.Vals[i] = me.semExprFromMoExpr(self.Scope, item.Val, self)
 	}
-	self.Fact(SemFact{Kind: SemFactPrimType, Of: MoPrimTypeDict}, self)
+	self.Fact(SemFact{Kind: SemFactPrimType, Data: MoPrimTypeDict}, self)
 }
 
 func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {

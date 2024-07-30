@@ -11,25 +11,17 @@ import (
 	"atmo/util/str"
 )
 
-var (
-	moPrimIdents = map[MoValIdent]*MoExpr{
-		moValNone.Val.(MoValIdent):  moValNone,
-		moValTrue.Val.(MoValIdent):  moValTrue,
-		moValFalse.Val.(MoValIdent): moValFalse,
-	}
-	moValNone  = &MoExpr{Val: MoValIdent("@none")}
-	moValTrue  = &MoExpr{Val: MoValIdent("@true")}
-	moValFalse = &MoExpr{Val: MoValIdent("@false")}
-)
-
 type moFnEager = func(ctx *Interp, env *MoEnv, args ...*MoExpr) *MoExpr
 type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr)
 
 type MoValPrimType int
 
 const (
-	MoPrimTypePrimTypeTag MoValPrimType = iota
+	_ MoValPrimType = iota
+	MoPrimTypeVoid
+	MoPrimTypePrimTypeTag
 	MoPrimTypeIdent
+	MoPrimTypeBool
 	MoPrimTypeNumInt
 	MoPrimTypeNumUint
 	MoPrimTypeNumFloat
@@ -53,6 +45,10 @@ func (me MoValPrimType) Str(forDiag bool) string {
 		return util.If(forDiag, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
 		return util.If(forDiag, "identifier", "@Ident")
+	case MoPrimTypeVoid:
+		return util.If(forDiag, "void", "@Void")
+	case MoPrimTypeBool:
+		return util.If(forDiag, "boolean", "@Bool")
 	case MoPrimTypeNumInt:
 		return util.If(forDiag, "signed-integer number", "@Int")
 	case MoPrimTypeNumUint:
@@ -83,6 +79,8 @@ type MoVal interface {
 
 type MoValPrimTypeTag MoValPrimType
 type MoValIdent string
+type MoValVoid struct{}
+type MoValBool bool
 type MoValNumInt int64
 type MoValNumUint uint64
 type MoValNumFloat float64
@@ -107,6 +105,8 @@ type moDictEntry struct {
 
 func (MoValPrimTypeTag) PrimType() MoValPrimType { return MoPrimTypePrimTypeTag }
 func (MoValIdent) PrimType() MoValPrimType       { return MoPrimTypeIdent }
+func (MoValVoid) PrimType() MoValPrimType        { return MoPrimTypeVoid }
+func (MoValBool) PrimType() MoValPrimType        { return MoPrimTypeBool }
 func (MoValNumInt) PrimType() MoValPrimType      { return MoPrimTypeNumInt }
 func (MoValNumUint) PrimType() MoValPrimType     { return MoPrimTypeNumUint }
 func (MoValNumFloat) PrimType() MoValPrimType    { return MoPrimTypeNumFloat }
@@ -196,9 +196,15 @@ type MoExpr struct {
 	PreEvalTopLevelPreEnvUnevaledYet bool
 }
 
-func (me *MoExpr) EqTrue() bool  { return (me == moValTrue) || (me.Val == moValTrue.Val) }
-func (me *MoExpr) EqFalse() bool { return (me == moValFalse) || (me.Val == moValFalse.Val) }
-func (me *MoExpr) EqNone() bool  { return (me == moValNone) || (me.Val == moValNone.Val) }
+func (me *MoExpr) EqTrue() bool {
+	val, is := me.Val.(MoValBool)
+	return is && bool(val)
+}
+func (me *MoExpr) EqFalse() bool {
+	val, is := me.Val.(MoValBool)
+	return is && !bool(val)
+}
+func (me *MoExpr) EqVoid() bool { return (me.Val.PrimType() == MoPrimTypeVoid) }
 func (me *MoExpr) Eq(to *MoExpr) bool {
 	if me == to {
 		return true
@@ -285,7 +291,10 @@ func (me *Interp) exprFrom(expr *MoExpr, srcSpanCtx ...*MoExpr) *MoExpr {
 	return ret
 }
 func (me *Interp) exprBool(b bool, srcSpanCtx ...*MoExpr) *MoExpr {
-	return me.exprFrom(util.If(b, moValTrue, moValFalse), srcSpanCtx...)
+	return me.expr(MoValBool(b), nil, nil, srcSpanCtx...)
+}
+func (me *Interp) exprVoid(srcSpanCtx ...*MoExpr) *MoExpr {
+	return me.expr(MoValVoid{}, nil, nil, srcSpanCtx...)
 }
 
 func (me *Interp) isSetCall(expr *MoExpr) (ret MoValIdent) {
@@ -316,6 +325,10 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 		w.WriteString(MoValPrimType(it).Str(false))
 	case MoValIdent:
 		w.WriteString(string(it))
+	case MoValVoid:
+		w.WriteString("@void")
+	case MoValBool:
+		w.WriteString(util.If(bool(it), "@true", "@false"))
 	case MoValNumInt:
 		w.WriteString(str.FromI64(int64(it), 10))
 	case MoValNumUint:
@@ -412,7 +425,16 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 		if node.IsIdentSepish() {
 			return nil, node.newDiagErr(false, ErrCodeExpectedFoo, "expression instead of `"+node.Src+"` here")
 		}
-		val = MoValIdent(node.Src)
+		switch ident := MoValIdent(node.Src); ident {
+		case "@true":
+			val = MoValBool(true)
+		case "@false":
+			val = MoValBool(false)
+		case "@void":
+			val = MoValVoid{}
+		default:
+			val = MoValIdent(node.Src)
+		}
 	case AstNodeKindLit:
 		switch it := node.Lit.(type) {
 		case rune:
