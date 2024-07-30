@@ -870,11 +870,6 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 				ret = MoValNumUint(ui)
 			}
 		}
-	case MoPrimTypePrimTypeTag:
-		switch it := convertee.Val.(type) {
-		case MoValNumUint:
-			ret = MoValPrimTypeTag(it)
-		}
 	case MoPrimTypeStr:
 		ret = MoValStr(convertee.String())
 	default:

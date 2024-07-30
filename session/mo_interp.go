@@ -127,7 +127,6 @@ tco_loop:
 					did_call = true
 					switch fn := evaled_callee.Val.(type) {
 					default:
-						panic(str.Fmt("%T", evaled_callee))
 						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(ErrCodeUncallable, evaled_callee.String()))
 					case MoValFnPrim:
 						expr = fn(me, env, evaled_call_args...)
@@ -163,18 +162,16 @@ tco_loop:
 func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 	switch val := expr.Val.(type) {
 	case MoValIdent:
-		if val[0] != '@' { // using prim idents as values (outside of stdlib) would be obscurely-rare or more likely mistaken, so the map-lookup on `@` prefix is OK
-			owner_env, found := env.lookupOwner(val)
-			if (found != nil) && found.PreEvalTopLevelPreEnvUnevaledYet { // top-level @set was put unevaled into env under the name it has yet to set
-				_ = me.evalAndApply(owner_env, found) // eval that @set call, to put the actual value for the name in env instead, return is ignored because it's just @void or an @Err
-				found = env.lookup(val)
-			}
-			if found == nil {
-				_, is_lazy_prim_op := moPrimOpsLazy[val]
-				return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, ErrCodeUndefined, ErrCodeNotAValue), val))
-			}
-			return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
-		} // else: prefer to return expr itself so that there's a better-fitting SrcNode for diags
+		owner_env, found := env.lookupOwner(val)
+		if (found != nil) && found.PreEvalTopLevelPreEnvUnevaledYet { // top-level @set was put unevaled into env under the name it has yet to set
+			_ = me.evalAndApply(owner_env, found) // eval that @set call, to put the actual value for the name in env instead, return is ignored because it's just @void or an @Err
+			found = env.lookup(val)
+		}
+		if found == nil {
+			_, is_lazy_prim_op := moPrimOpsLazy[val]
+			return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, ErrCodeUndefined, ErrCodeNotAValue), val))
+		}
+		return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 	case *MoValList:
 		list := make(MoValList, len(*val))
 		for i, item := range *val {
