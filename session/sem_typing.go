@@ -4,7 +4,6 @@ import (
 	"maps"
 	"strings"
 
-	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -13,62 +12,17 @@ func (me *SrcPack) semInferTypes() {
 	env := maps.Clone(semTypingPrimOpsEnv)
 	for i, top_expr := range me.Trees.Sem.TopLevel {
 		var it semTypeInfer
-		ty := it.newTypeVar(top_expr)
-		expr := it.infer(me, top_expr, ty, env)
-		top_expr.ErrsOwn.Add(it.solveConstraints(top_expr)...)
-		me.Trees.Sem.TopLevel[i] = it.substExpr(expr)
+		top_expr.Type = it.newTypeVar(top_expr)
+		it.infer(me, top_expr, env)
+		errs := it.solveConstraints(top_expr)
+		top_expr.ErrsOwn.Add(errs...)
+		it.substExpr(top_expr)
+		me.Trees.Sem.TopLevel[i] = top_expr
 	}
 }
 
 func (me *SemExpr) newUntypable() SemType {
 	return semTypeNew(me, MoPrimTypeUntyped)
-}
-
-func (me *SemExpr) with(ty SemType, val any) *SemExpr {
-	if ((ty == nil) || (ty == me.Type)) && (val == nil) {
-		return me
-	}
-
-	const no_copy = true
-	if no_copy {
-		if ty != nil {
-			me.Type = ty
-		}
-		if val != nil {
-			me.Val = val
-		}
-		return me
-	}
-
-	dupl := *me
-	if val != nil {
-		dupl.Val = val
-	}
-	me.Each(func(it *SemExpr) { util.Assert(it.Parent == me, nil) })
-	dupl.Each(func(it *SemExpr) { it.Parent = &dupl })
-	if (ty != nil) && (ty != dupl.Type) {
-		var ty_fixup func(SemType) SemType
-		ty_fixup = func(ty SemType) SemType {
-			switch ty := ty.(type) {
-			default:
-				panic(ty)
-			case *semTypeVar:
-				if ty.dueTo == me {
-					ty.dueTo = &dupl
-				}
-				return ty
-			case *semTypeCtor:
-				if ty.dueTo == me {
-					ty.dueTo = &dupl
-				}
-				ty.args = sl.To(ty.args, ty_fixup)
-				return ty
-			}
-		}
-		dupl.Type = ty_fixup(ty)
-	}
-
-	return &dupl
 }
 
 type SemType interface {
@@ -84,12 +38,12 @@ type semTypeCtor struct {
 }
 type semTypeVar struct {
 	dueTo *SemExpr
-	index int
+	idx   int
 }
 
 func (me *semTypeVar) Eq(to SemType) bool {
 	it, _ := to.(*semTypeVar)
-	return (it != nil) && ((me == it) || (*me == *it))
+	return (it != nil) && ((me == it) || (me.idx == it.idx))
 }
 func (me *semTypeCtor) Eq(to SemType) bool {
 	it, _ := to.(*semTypeCtor)
@@ -99,7 +53,7 @@ func (me *semTypeVar) From() *SemExpr  { return me.dueTo }
 func (me *semTypeCtor) From() *SemExpr { return me.dueTo }
 func (me *semTypeVar) Str(w *strings.Builder) {
 	w.WriteString("¿")
-	w.WriteString(str.FromInt(me.index))
+	w.WriteString(str.FromInt(me.idx))
 }
 func (me *semTypeCtor) Str(w *strings.Builder) {
 	if w.Len() > 123 { // infinite-type guard
@@ -129,7 +83,7 @@ func SemTypeToString(ty SemType) string {
 }
 
 type semTypeInfer struct {
-	subst       []SemType
+	substs      []SemType
 	constraints sl.Of[SemTypeConstraint]
 }
 
@@ -144,136 +98,62 @@ func (me *semTypeInfer) solveConstraints(errDst *SemExpr) (ret []*Diag) {
 			}
 		}
 	}
-	me.constraints = nil
 	return
 }
 
-func (me *semTypeInfer) substExpr(expr *SemExpr) *SemExpr {
+func (me *semTypeInfer) substExpr(expr *SemExpr) {
 	switch val := expr.Val.(type) {
 	case *SemValFunc:
-		new_ty_ret := val.TRet
-		if new_ty_ret != nil {
-			new_ty_ret = me.substitute(new_ty_ret)
-		}
-		new_params := sl.To(val.Params, func(p *SemExpr) *SemExpr { return p.with(me.substitute(p.Type), nil) })
-		new_body := me.substExpr(val.Body)
-		return expr.with(nil, &SemValFunc{Scope: val.Scope, Params: SemExprs(new_params), Body: new_body, TRet: new_ty_ret, IsMacro: val.IsMacro})
-	case *SemValCall:
-		new_callee := me.substExpr(val.Callee)
-		new_args := sl.To(val.Args, me.substExpr)
-		return expr.with(nil, &SemValCall{Callee: new_callee, Args: SemExprs(new_args)})
-	case *SemValList:
-		new_ty_item := val.TItem
-		if new_ty_item != nil {
-			new_ty_item = me.substitute(new_ty_item)
-		}
-		new_items := sl.To(val.Items, me.substExpr)
-		return expr.with(nil, &SemValList{TItem: new_ty_item, Items: SemExprs(new_items)})
-	case *SemValDict:
-		new_ty_key, new_ty_val := val.TKey, val.TVal
-		if new_ty_key != nil {
-			new_ty_key = me.substitute(new_ty_key)
-		}
-		if new_ty_val != nil {
-			new_ty_val = me.substitute(new_ty_val)
-		}
-		new_keys := sl.To(val.Keys, me.substExpr)
-		new_vals := sl.To(val.Vals, me.substExpr)
-		return expr.with(nil, &SemValDict{TKey: new_ty_key, TVal: new_ty_val, Keys: SemExprs(new_keys), Vals: SemExprs(new_vals)})
+		_ = val
 	}
-	return expr
 }
 
-func (me *semTypeInfer) substitute(ty SemType) SemType {
-	switch it := ty.(type) {
-	case *semTypeCtor:
-		return semTypeNew(it.dueTo, it.prim, sl.To(it.args, me.substitute)...)
-	case *semTypeVar:
-		if !me.subst[it.index].Eq(ty) {
-			return me.substitute(me.subst[it.index])
-		}
+func (me *semTypeInfer) substType(ty SemType) SemType {
+	tv, _ := ty.(*semTypeVar)
+	tc, _ := ty.(*semTypeCtor)
+	switch {
+	case (tv != nil) && !tv.Eq(me.substs[tv.idx]):
+		return me.substType(me.substs[tv.idx])
+	case tc != nil:
+		return &semTypeCtor{dueTo: tc.dueTo, prim: tc.prim, args: sl.To(tc.args, me.substType)}
 	}
 	return ty
 }
 
-func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
+func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]SemType) {
 	switch val := expr.Val.(type) {
-	case *SemValScalar:
-		me.constraints.Add(semTypeEq(expr, tyExpected, semTypeNew(expr, val.MoVal.PrimType())))
-		return expr.with(tyExpected, nil)
-	case *SemValList:
-		new_ty_item := val.TItem
-		if new_ty_item == nil {
-			new_ty_item = me.newTypeVar(expr)
-		}
-		new_items := sl.To(val.Items, func(item *SemExpr) *SemExpr { return me.infer(ctx, item, new_ty_item, env) })
-		me.constraints.Add(semTypeEq(expr, tyExpected, semTypeNew(expr, MoPrimTypeList, new_ty_item)))
-		return expr.with(tyExpected, &SemValList{TItem: new_ty_item, Items: SemExprs(new_items)})
-	case *SemValDict:
-		new_ty_key, new_ty_val := val.TKey, val.TVal
-		if new_ty_key == nil {
-			new_ty_key = me.newTypeVar(expr)
-		}
-		if new_ty_val == nil {
-			new_ty_val = me.newTypeVar(expr)
-		}
-		new_keys := sl.To(val.Keys, func(k *SemExpr) *SemExpr { return me.infer(ctx, k, new_ty_key, env) })
-		new_vals := sl.To(val.Keys, func(v *SemExpr) *SemExpr { return me.infer(ctx, v, new_ty_key, env) })
-		me.constraints.Add(semTypeEq(expr, tyExpected, semTypeNew(expr, MoPrimTypeDict, new_ty_key, new_ty_val)))
-		return expr.with(tyExpected, &SemValDict{TKey: new_ty_key, TVal: new_ty_val, Keys: SemExprs(new_keys), Vals: SemExprs(new_vals)})
+	case *SemValFunc:
+
+	case *SemValCall:
+		ty_args := sl.To(val.Args, func(arg *SemExpr) SemType { return me.newTypeVar(arg) })
+		ty_fn := semTypeNew(expr, MoPrimTypeFunc, append(ty_args, expr.Type)...)
+		val.Callee.Type = ty_fn
+		me.infer(ctx, val.Callee, env)
+		var idx int
+		sl.Each(val.Args, func(arg *SemExpr) { arg.Type = ty_args[idx]; me.infer(ctx, arg, env); idx++ })
 	case *SemValIdent:
-		ty_var := env[val.Ident]
-		if ty_var == nil {
+		ty_ident := env[val.Ident]
+		if ty_ident == nil {
 			expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Ident))
 		} else {
-			me.constraints.Add(semTypeEq(expr, tyExpected, ty_var))
+			me.constraints.Add(semTypeEq(expr, expr.Type, ty_ident))
 		}
-		return expr.with(tyExpected, nil)
-	case *SemValFunc:
-		new_ty_ret := val.TRet
-		if new_ty_ret == nil {
-			new_ty_ret = me.newTypeVar(expr)
-		}
-		new_ty_params := sl.To(val.Params, func(p *SemExpr) SemType {
-			if p.Type == nil {
-				return me.newTypeVar(p)
-			}
-			return p.Type
-		})
-		var idx int
-		new_params := sl.To(new_ty_params, func(t SemType) *SemExpr {
-			p := val.Params[idx]
-			idx++
-			return p.with(t, nil)
-		})
-		new_env := maps.Clone(env)
-		for _, param := range new_params {
-			new_env[param.MaybeIdent()] = param.Type
-		}
-		new_body := me.infer(ctx, val.Body, new_ty_ret, new_env)
-		me.constraints.Add(semTypeEq(expr, tyExpected, semTypeNew(expr, MoPrimTypeFunc, append(new_ty_params, new_ty_ret)...)))
-		return expr.with(tyExpected, &SemValFunc{Scope: val.Scope, Params: SemExprs(new_params), Body: new_body, TRet: new_ty_ret, IsMacro: val.IsMacro})
-	case *SemValCall:
-		var prim_op func(*SrcPack, *semTypeInfer, *SemExpr, SemType, map[MoValIdent]SemType) *SemExpr
-		if callee := val.Callee.MaybeIdent(); callee != "" {
-			prim_op = semTypingPrimOpsDo[callee]
-		}
-		if prim_op != nil {
-			return prim_op(ctx, me, expr, tyExpected, env)
+	case *SemValScalar:
+		new_ty_expr := semTypeNew(expr, val.MoVal.PrimType())
+		me.constraints.Add(semTypeEq(expr, expr.Type, new_ty_expr))
+	case *SemValList:
+		var new_ty_items SemType
+		if ty_list := expr.Type.(*semTypeCtor); (ty_list != nil) && (ty_list.prim == MoPrimTypeList) && (len(ty_list.args) == 1) {
+			new_ty_items = ty_list.args[0]
 		} else {
-			ty_args := sl.To(val.Args, func(arg *SemExpr) SemType { return me.newTypeVar(arg) })
-			ty_fn := semTypeNew(expr, MoPrimTypeFunc, append(ty_args, tyExpected)...)
-			var idx int
-			new_fn := me.infer(ctx, val.Callee, ty_fn, env)
-			new_args := sl.To(ty_args, func(ty SemType) *SemExpr {
-				arg := val.Args[idx]
-				idx++
-				return me.infer(ctx, arg, ty, env)
-			})
-			return expr.with(tyExpected, &SemValCall{Callee: new_fn, Args: SemExprs(new_args)})
+			new_ty_items = me.newTypeVar(expr)
 		}
+		new_ty_expr := semTypeNew(expr, MoPrimTypeList, new_ty_items)
+		me.constraints.Add(semTypeEq(expr, expr.Type, new_ty_expr))
+		sl.Each(val.Items, func(item *SemExpr) { item.Type = new_ty_items; me.infer(ctx, item, env) })
+	case *SemValDict:
+		expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypeInfer.infer(someDict)"))
 	}
-	panic(expr)
 }
 
 func (me *semTypeInfer) unify(t1 SemType, t2 SemType, errDst *SemExpr) (err *Diag) {
@@ -294,28 +174,28 @@ func (me *semTypeInfer) unify(t1 SemType, t2 SemType, errDst *SemExpr) (err *Dia
 			}
 		}
 
-	case (tv1 != nil) && (tv2 != nil) && (tv1.index == tv2.index):
+	case (tv1 != nil) && (tv2 != nil) && (tv1.idx == tv2.idx):
 		return
 
-	case (tv1 != nil) && !me.subst[tv1.index].Eq(t1):
-		return me.unify(me.subst[tv1.index], t2, errDst)
+	case (tv1 != nil) && !tv1.Eq(me.substs[tv1.idx]):
+		return me.unify(me.substs[tv1.idx], t2, errDst)
 
-	case (tv2 != nil) && !me.subst[tv2.index].Eq(t2):
-		return me.unify(t1, me.subst[tv2.index], errDst)
+	case (tv2 != nil) && !tv2.Eq(me.substs[tv2.idx]):
+		return me.unify(t1, me.substs[tv2.idx], errDst)
 
 	case tv1 != nil:
-		if me.occursIn(tv1.index, t2) {
+		if me.occursIn(tv1.idx, t2) {
 			err = errDst.From.SrcSpan.newDiagErr(ErrCodeTypeInfinite, SemTypeToString(t2))
 			break
 		}
-		me.subst[tv1.index] = t2
+		me.substs[tv1.idx] = t2
 
 	case tv2 != nil:
-		if me.occursIn(tv2.index, t1) {
+		if me.occursIn(tv2.idx, t1) {
 			err = errDst.From.SrcSpan.newDiagErr(ErrCodeTypeInfinite, SemTypeToString(t1))
 			break
 		}
-		me.subst[tv2.index] = t1
+		me.substs[tv2.idx] = t1
 
 	}
 
@@ -339,12 +219,12 @@ func (me *semTypeInfer) occursIn(index int, ty SemType) bool {
 	tv, _ := ty.(*semTypeVar)
 	tc, _ := ty.(*semTypeCtor)
 	switch {
-	case (tv != nil) && !me.subst[tv.index].Eq(ty):
-		return me.occursIn(index, me.subst[tv.index])
+	case (tv != nil) && !tv.Eq(me.substs[tv.idx]):
+		return me.occursIn(index, me.substs[tv.idx])
 	case tv != nil:
-		return tv.index == index
+		return tv.idx == index
 	case tc != nil:
-		return sl.HasWhere(tc.args, func(it SemType) bool { return me.occursIn(index, it) })
+		return sl.Any(tc.args, func(tArg SemType) bool { return me.occursIn(index, tArg) })
 	}
 	return false
 }
@@ -356,15 +236,27 @@ func semTypeNew(dueTo *SemExpr, prim MoValPrimType, args ...SemType) SemType {
 	return &semTypeCtor{dueTo: dueTo, prim: prim, args: args}
 }
 func (me *semTypeInfer) newTypeVar(dueTo *SemExpr) (ret SemType) {
-	ret = &semTypeVar{dueTo: dueTo, index: len(me.subst)}
-	me.subst = append(me.subst, ret)
+	ret = &semTypeVar{dueTo: dueTo, idx: len(me.substs)}
+	me.substs = append(me.substs, ret)
 	return
 }
 
-type SemTypeConstraint interface{}
+type SemTypeConstraint interface {
+	isConstraint()
+	String() string
+}
 
 type semTypeConstraintEq struct {
 	dueTo *SemExpr
 	T1    SemType
 	T2    SemType
+}
+
+func (*semTypeConstraintEq) isConstraint() {}
+func (me *semTypeConstraintEq) String() string {
+	var buf strings.Builder
+	me.T1.Str(&buf)
+	buf.WriteString("==")
+	me.T2.Str(&buf)
+	return buf.String()
 }

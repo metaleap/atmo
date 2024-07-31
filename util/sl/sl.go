@@ -87,10 +87,6 @@ func IdxsWhere[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) 
 	return
 }
 
-func HasWhere[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) bool {
-	return (IdxWhere(slice, pred) >= 0)
-}
-
 func Has[TSlice ~[]TItem, TItem comparable](slice TSlice, needle TItem) bool {
 	for i := range slice {
 		if slice[i] == needle {

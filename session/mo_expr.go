@@ -142,7 +142,7 @@ func (me *MoValDict) Without(keys ...*MoExpr) *MoValDict {
 		return me
 	}
 	return util.Ptr(sl.Where(*me, func(entry moDictEntry) bool {
-		return !sl.HasWhere(keys, func(k *MoExpr) bool { return k.Eq(entry.Key) })
+		return !sl.Any(keys, func(k *MoExpr) bool { return k.Eq(entry.Key) })
 	}))
 }
 
@@ -235,7 +235,7 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 		}
 		dict := *it
 		for i := range dict {
-			if !sl.HasWhere(*other, func(other moDictEntry) bool { return other.Key.Eq(dict[i].Key) && other.Val.Eq(dict[i].Val) }) {
+			if !sl.Any(*other, func(other moDictEntry) bool { return other.Key.Eq(dict[i].Key) && other.Val.Eq(dict[i].Val) }) {
 				return false
 			}
 		}

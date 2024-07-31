@@ -190,12 +190,12 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 
 func (me *SrcPack) semTypingPrimOpFnOrMacro(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "new bug intro'd: encountered `@fn` or `@macro` call in type-inference"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimOpFnCall(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpCaseOf"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 	// call := expr.Val.(*SemValCall)
 	// if me.semCheckCount(2, 2, call.Args, expr, true) {
 	// 	if callee, call_args := call.Args[0], semCheckIs[SemValList](MoPrimTypeList, call.Args[1]); call_args != nil {
@@ -207,165 +207,165 @@ func (me *SrcPack) semTypingPrimOpFnCall(ctx *semTypeInfer, expr *SemExpr, tyExp
 
 func (me *SrcPack) semTypingPrimOpSet(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpSet"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimOpCaseOf(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpCaseOf"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimOpDo(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpDo"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimOpExpand(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpExpand"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimOpQQuote(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpQQuote"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimOpQuote(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpQuote"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimOpSpliceUnquote(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpSpliceUnquote"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimOpUnquote(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpUnquote"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnReplPrint(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnReplPrint"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnCast(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnCast"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnEq(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnEq"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnNeq(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnNeq"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnGeq(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnGeq"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnLeq(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnLeq"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnLt(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnLt"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnGt(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnGt"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnPrimTypeTag(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnPrimTypeTag"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnListGet(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnListGet"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnListSet(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnListSet"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnListRange(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnListRange"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnListLen(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnListLen"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnListConcat(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnListConcat"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnDictHas(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnDictHas"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnDictGet(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnDictGet"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnDictSet(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnDictSet"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnDictDel(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnDictDel"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnDictLen(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnDictLen"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnErrNew(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnErrNew"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnErrVal(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnErrVal"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnStr(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnStr"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnExprStr(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnExprStr"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnExprParse(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnExprParse"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }
 
 func (me *SrcPack) semTypingPrimFnExprEval(ctx *semTypeInfer, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimFnExprEval"))
-	return expr.with(expr.newUntypable(), nil)
+	return expr
 }

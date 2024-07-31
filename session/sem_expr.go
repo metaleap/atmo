@@ -13,7 +13,7 @@ type SemExpr struct {
 	ErrsOwn Diags     `json:",omitempty"`
 	Val     any
 	Facts   map[SemFact]SemExprs `json:"-"`
-	Type    SemType              `json:"-"`
+	Type    SemType
 }
 
 type SemValScalar struct {
@@ -31,21 +31,17 @@ type SemValCall struct {
 
 type SemValList struct {
 	Items SemExprs
-	TItem SemType
 }
 
 type SemValDict struct {
 	Keys SemExprs
 	Vals SemExprs
-	TKey SemType
-	TVal SemType
 }
 
 type SemValFunc struct {
 	Scope   *SemScope
 	Params  SemExprs
 	Body    *SemExpr
-	TRet    SemType
 	IsMacro bool
 }
 

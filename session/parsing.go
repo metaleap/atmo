@@ -399,7 +399,7 @@ func (me AstNodes) first() *AstNode { return me[0] }
 
 func (me AstNodes) has(recurse bool, where func(node *AstNode) bool) (ret bool) {
 	if !recurse {
-		ret = sl.HasWhere(me, where)
+		ret = sl.Any(me, where)
 	} else {
 		me.walk(func(it *AstNode) bool {
 			ret = ret || where(it)
