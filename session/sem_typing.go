@@ -66,16 +66,54 @@ type semTypeInfer struct {
 	constraints []SemTypeConstraint
 }
 
+func (me *SrcPack) semTypeInfer(expr *SemExpr, env map[MoValIdent]SemType) (SemType, *Diag) {
+	var it semTypeInfer
+	ty := it.infer(expr, env)
+	if err := it.solveConstraints(expr); err != nil {
+		return nil, err
+	}
+	return it.substitute(ty), nil
+}
+
+func (me *semTypeInfer) solveConstraints(errDst *SemExpr) *Diag {
+	for _, constraint := range me.constraints {
+		switch it := constraint.(type) {
+		default:
+			panic(it)
+		case *semTypeConstraintEq:
+			return me.unify(it.T1, it.T2, errDst)
+		}
+	}
+	me.constraints = nil
+	return nil
+}
+
+func (me *semTypeInfer) substitute(ty SemType) SemType {
+	switch it := ty.(type) {
+	case *semTypeCtor:
+		return semTypeNew(it.dueTo, it.prim, sl.To(it.args, me.substitute)...)
+	case *semTypeVar:
+		if !me.subst[it.index].Eq(ty) {
+			return me.substitute(me.subst[it.index])
+		}
+	}
+	return ty
+}
+
 func (me *semTypeInfer) infer(expr *SemExpr, env map[MoValIdent]SemType) SemType {
 	switch val := expr.Val.(type) {
 	case *SemValScalar:
-		return semTypeNew(expr, val.MoVal.PrimType())
+		return semTypeNew(expr, val.MoVal.PrimType()), nil
 	case *SemValList:
-		return semTypeNew(expr, MoPrimTypeList, me.newTypeVar(expr))
+		return semTypeNew(expr, MoPrimTypeList, me.newTypeVar(expr)), nil
 	case *SemValDict:
-		return semTypeNew(expr, MoPrimTypeDict, me.newTypeVar(expr), me.newTypeVar(expr))
+		return semTypeNew(expr, MoPrimTypeDict, me.newTypeVar(expr), me.newTypeVar(expr)), nil
 	case *SemValIdent:
-		return env[val.MoVal]
+		ty := env[val.MoVal]
+		if ty == nil {
+			return semTypeNew(expr, MoPrimTypeNever), nil
+		}
+		return ty, nil
 	case *SemValFunc:
 		own_env := maps.Clone(env)
 		param_type_vars := make([]SemType, len(val.Params))
@@ -83,22 +121,40 @@ func (me *semTypeInfer) infer(expr *SemExpr, env map[MoValIdent]SemType) SemType
 			param_type_vars[i] = me.newTypeVar(param)
 			own_env[param.Val.(*SemValIdent).MoVal] = param_type_vars[i]
 		}
-		ty_ret := me.infer(val.Body, own_env)
-		return semTypeNew(expr, MoPrimTypeFunc, append(param_type_vars, ty_ret)...)
+		ty_ret, err := me.infer(val.Body, own_env)
+		if err != nil {
+			return nil, err
+		}
+		return semTypeNew(expr, MoPrimTypeFunc, append(param_type_vars, ty_ret)...), nil
 	case *SemValCall:
-		switch callee:=val.Callee.MaybeIdent() {
-		case moPrimOpFn,moPrimOpMacro:
-			panic("new bug intro'd: encountered @fn or @macro call in type-inference")
+		switch callee := val.Callee.MaybeIdent(); callee {
+		default:
+			return me.inferForCallWith(env, expr, val.Callee, val.Args...), nil
+		case moPrimOpFn, moPrimOpMacro:
+			return nil, expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "new bug intro'd: encountered "+callee+" call in type-inference")
+		case moPrimOpFnCall:
+			return me.inferForCallWith(env, expr, val.Args[0], val.Args[1].Val.(*SemValList).Items...), nil
 		case moPrimOpCaseOf:
 		case moPrimOpDo:
-		case moPrimOpExpand,moPrimOpQQuote,moPrimOpQuote,moPrimOpSpliceUnquote,moPrimOpUnquote:
-		case moPrimOpFnCall:
+		case moPrimOpExpand, moPrimOpQQuote, moPrimOpQuote, moPrimOpSpliceUnquote, moPrimOpUnquote:
 		case moPrimOpSet:
-		default:
-
+			return semTypeNew(val.Callee, MoPrimTypeVoid), nil
 		}
 	}
-	panic(expr)
+	return semTypeNew(expr, MoPrimTypeNever), nil
+}
+
+func (me *semTypeInfer) inferForCallWith(env map[MoValIdent]SemType, call *SemExpr, callee *SemExpr, callArgs ...*SemExpr) SemType {
+	ty_callee, err := me.infer(callee, env)
+	ty_args := make([]SemType, len(callArgs))
+	for i, arg := range callArgs {
+		ty_args[i] = me.infer(arg, env)
+	}
+	ty_ret := me.newTypeVar(call)
+	me.constraints = append(me.constraints, &semTypeConstraintEq{dueTo: call,
+		T1: ty_callee,
+		T2: semTypeNew(call, MoPrimTypeFunc, append(ty_args, ty_ret)...)})
+	return ty_ret, nil
 }
 
 func (me *semTypeInfer) unify(t1 SemType, t2 SemType, errDst *SemExpr) (err *Diag) {
@@ -179,6 +235,7 @@ func (me *semTypeInfer) newTypeVar(dueTo *SemExpr) (ret SemType) {
 type SemTypeConstraint interface{}
 
 type semTypeConstraintEq struct {
-	T1 SemType
-	T2 SemType
+	dueTo *SemExpr
+	T1    SemType
+	T2    SemType
 }
