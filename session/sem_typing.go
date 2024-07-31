@@ -15,9 +15,7 @@ func (me *SrcPack) semInferTypes() {
 		var it semTypeInfer
 		ty := it.newTypeVar(top_expr)
 		expr := it.infer(me, top_expr, ty, env)
-		if err := it.solveConstraints(top_expr); err != nil {
-			top_expr.ErrsOwn.Add(err)
-		}
+		top_expr.ErrsOwn.Add(it.solveConstraints(top_expr)...)
 		me.Trees.Sem.TopLevel[i] = it.substExpr(expr)
 	}
 }
@@ -28,6 +26,17 @@ func (me *SemExpr) newUntypable() SemType {
 
 func (me *SemExpr) with(ty SemType, val any) *SemExpr {
 	if ((ty == nil) || (ty == me.Type)) && (val == nil) {
+		return me
+	}
+
+	const no_copy = true
+	if no_copy {
+		if ty != nil {
+			me.Type = ty
+		}
+		if val != nil {
+			me.Val = val
+		}
 		return me
 	}
 
@@ -78,16 +87,20 @@ type semTypeVar struct {
 	index int
 }
 
-func (me *semTypeCtor) Eq(to SemType) bool {
-	it, _ := to.(*semTypeCtor)
-	return (it != nil) && ((me == it) || ((me.prim == it.prim) && sl.Eq(me.args, it.args, SemType.Eq)))
-}
 func (me *semTypeVar) Eq(to SemType) bool {
 	it, _ := to.(*semTypeVar)
 	return (it != nil) && ((me == it) || (*me == *it))
 }
-func (me *semTypeCtor) From() *SemExpr { return me.dueTo }
+func (me *semTypeCtor) Eq(to SemType) bool {
+	it, _ := to.(*semTypeCtor)
+	return (it != nil) && ((me == it) || ((me.prim == it.prim) && sl.Eq(me.args, it.args, SemType.Eq)))
+}
 func (me *semTypeVar) From() *SemExpr  { return me.dueTo }
+func (me *semTypeCtor) From() *SemExpr { return me.dueTo }
+func (me *semTypeVar) Str(w *strings.Builder) {
+	w.WriteString("°")
+	w.WriteString(str.FromInt(me.index))
+}
 func (me *semTypeCtor) Str(w *strings.Builder) {
 	if w.Len() > 123 { // infinite-type guard
 		w.WriteString("..")
@@ -105,9 +118,6 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 		w.WriteByte('>')
 	}
 }
-func (me *semTypeVar) Str(w *strings.Builder) {
-	w.WriteString(str.FromInt(me.index))
-}
 
 func SemTypeToString(ty SemType) string {
 	if ty == nil {
@@ -123,17 +133,19 @@ type semTypeInfer struct {
 	constraints sl.Of[SemTypeConstraint]
 }
 
-func (me *semTypeInfer) solveConstraints(errDst *SemExpr) *Diag {
+func (me *semTypeInfer) solveConstraints(errDst *SemExpr) (ret []*Diag) {
 	for _, constraint := range me.constraints {
 		switch it := constraint.(type) {
 		default:
 			panic(it)
 		case *semTypeConstraintEq:
-			return me.unify(it.T1, it.T2, errDst)
+			if err := me.unify(it.T1, it.T2, errDst); err != nil {
+				ret = append(ret, err)
+			}
 		}
 	}
 	me.constraints = nil
-	return nil
+	return
 }
 
 func (me *semTypeInfer) substExpr(expr *SemExpr) *SemExpr {
@@ -308,10 +320,17 @@ func (me *semTypeInfer) unify(t1 SemType, t2 SemType, errDst *SemExpr) (err *Dia
 	}
 
 	if err != nil {
+		from := errDst
+		from1, from2 := t1.From(), t2.From()
+		if (from1 == nil) || (from2 == nil) {
+			if call, _ := from.Val.(*SemValCall); call != nil {
+				from = call.Callee
+			}
+		}
 		err.Rel = srcFileLocs([]string{
 			str.Fmt("type `%s` decided here", SemTypeToString(t1)),
 			str.Fmt("type `%s` decided here", SemTypeToString(t2)),
-		}, t1.From(), t2.From())
+		}, sl.FirstNonNil(from1, from), sl.FirstNonNil(from2, from))
 	}
 	return
 }

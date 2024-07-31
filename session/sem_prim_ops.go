@@ -9,6 +9,7 @@ import (
 var (
 	semTypingPrimOpsEnv map[MoValIdent]SemType
 	semTypingPrimOpsDo  map[MoValIdent]func(*SrcPack, *semTypeInfer, *SemExpr, SemType, map[MoValIdent]SemType) *SemExpr
+	semTypingPrimFnsDo  map[MoValIdent]func(*SrcPack, *semTypeInfer, *SemExpr, SemType, map[MoValIdent]SemType) SemType
 )
 
 func init() {
