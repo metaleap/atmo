@@ -120,7 +120,7 @@ func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
 					str_facts += k.String() + ", "
 				}
 				str_facts = util.If(str_facts == "", "none, ", str_facts)
-				str_facts = /*SemTypeToString(it.Type) +*/ "\n\nFacts: " + str_facts[:len(str_facts)-len(", ")] + "\n\n"
+				str_facts = SemTypeToString(it.Type) + "\n\nFacts: " + str_facts[:len(str_facts)-len(", ")] + "\n\n"
 				ret.Items = append(ret.Items, IntelItem{
 					Kind: IntelItemKindDescription, Value: "\n\n```atmo\n\n" + it.From.SrcNode.Src + "\n```\n\n" + str_facts + "\n\n",
 				})
