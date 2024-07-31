@@ -11,14 +11,12 @@ import (
 func (me *SrcPack) semInferTypes() {
 	env := maps.Clone(semTypingPrimOpsEnv)
 	for _, top_expr := range me.Trees.Sem.TopLevel {
-		if top_expr.Type == nil {
-			var it semTypeInfer
-			ty := it.infer(me, top_expr, env)
-			if err := it.solveConstraints(top_expr); err != nil {
-				top_expr.ErrsOwn.Add(err)
-			}
-			top_expr.Type = it.substitute(ty)
+		var it semTypeInfer
+		ty := it.infer(me, top_expr, env)
+		if err := it.solveConstraints(top_expr); err != nil {
+			top_expr.ErrsOwn.Add(err)
 		}
+		it.substituteExpr(top_expr, ty)
 	}
 }
 
@@ -98,6 +96,20 @@ func (me *semTypeInfer) solveConstraints(errDst *SemExpr) *Diag {
 	}
 	me.constraints = nil
 	return nil
+}
+
+func (me *semTypeInfer) substituteExpr(expr *SemExpr, ty SemType) {
+	switch val := expr.Val.(type) {
+	case *SemValScalar:
+		_ = val
+		expr.Type = ty
+	case *SemValIdent:
+		expr.Type = ty
+	case *SemValList:
+	case *SemValDict:
+	case **SemValFunc:
+	case *SemValCall:
+	}
 }
 
 func (me *semTypeInfer) substitute(ty SemType) SemType {
