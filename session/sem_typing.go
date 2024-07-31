@@ -23,7 +23,7 @@ func (me *SrcPack) semInferTypes() {
 }
 
 func (me *SemExpr) newUntypable() SemType {
-	return semTypeNew(me, MoPrimTypeUnknown)
+	return semTypeNew(me, MoPrimTypeUntyped)
 }
 
 type SemType interface {
@@ -74,6 +74,9 @@ func (me *semTypeVar) Str(w *strings.Builder) {
 }
 
 func SemTypeToString(ty SemType) string {
+	if ty == nil {
+		return MoPrimTypeUntyped.Str(false)
+	}
 	var buf strings.Builder
 	ty.Str(&buf)
 	return buf.String()
@@ -146,13 +149,6 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 		} else {
 			return me.inferForCallWith(ctx, env, expr, val.Callee, val.Args...)
 		}
-		// switch callee := val.Callee.MaybeIdent(); callee {
-		// case moPrimOpSet:
-		// 	return semTypeNew(val.Callee, MoPrimTypeVoid)
-		// case moPrimOpCaseOf:
-		// case moPrimOpDo:
-		// case moPrimOpExpand, moPrimOpQQuote, moPrimOpQuote, moPrimOpSpliceUnquote, moPrimOpUnquote:
-		// }
 	}
 	return ty_on_err
 }

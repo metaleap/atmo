@@ -169,19 +169,19 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						}
 						switch val := from.Val.(type) {
 						case func(*session.SrcPack, *session.SemExpr):
-							ret.Val = map[string]any{ /*"Ty": from.Type.String(),*/ "Kind": "func", "Params": []any{}}
+							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "func", "Params": []any{}}
 						case *session.SemValIdent:
-							ret.Val = map[string]any{ /*"Ty": from.Type.String(),*/ "Kind": "scalar", "MoVal": val.MoVal}
+							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "scalar", "MoVal": val.MoVal}
 						case *session.SemValScalar:
-							ret.Val = map[string]any{ /*"Ty": from.Type.String(),*/ "Kind": "scalar", "MoVal": val.MoVal}
+							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "scalar", "MoVal": val.MoVal}
 						case *session.SemValList:
-							ret.Val = map[string]any{ /*"Ty": from.Type.String(),*/ "Kind": "list", "Items": sl.To(val.Items, convert)}
+							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "list", "Items": sl.To(val.Items, convert)}
 						case *session.SemValDict:
-							ret.Val = map[string]any{ /*"Ty": from.Type.String(),*/ "Kind": "dict", "Keys": sl.To(val.Keys, convert), "Vals": sl.To(val.Vals, convert)}
+							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "dict", "Keys": sl.To(val.Keys, convert), "Vals": sl.To(val.Vals, convert)}
 						case *session.SemValCall:
-							ret.Val = map[string]any{ /*"Ty": from.Type.String(),*/ "Kind": "call", "Callee": convert(val.Callee), "Args": sl.To(val.Args, convert)}
+							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "call", "Callee": convert(val.Callee), "Args": sl.To(val.Args, convert)}
 						case *session.SemValFunc:
-							ret.Val = map[string]any{ /*"Ty": from.Type.String(),*/ "Kind": "func", "Params": sl.To(val.Params, convert), "Body": convert(val.Body),
+							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "func", "Params": sl.To(val.Params, convert), "Body": convert(val.Body),
 								"Scope": kv.Keys(val.Scope.Own)}
 						}
 						return
