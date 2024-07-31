@@ -98,7 +98,7 @@ func (me *semTypeCtor) Eq(to SemType) bool {
 func (me *semTypeVar) From() *SemExpr  { return me.dueTo }
 func (me *semTypeCtor) From() *SemExpr { return me.dueTo }
 func (me *semTypeVar) Str(w *strings.Builder) {
-	w.WriteString("°")
+	w.WriteString("¿")
 	w.WriteString(str.FromInt(me.index))
 }
 func (me *semTypeCtor) Str(w *strings.Builder) {
