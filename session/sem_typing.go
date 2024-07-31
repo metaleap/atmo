@@ -16,7 +16,7 @@ func (me *SrcPack) semInferTypes() {
 		if err := it.solveConstraints(top_expr); err != nil {
 			top_expr.ErrsOwn.Add(err)
 		}
-		it.substituteExpr(top_expr, ty)
+		top_expr.Type = it.substitute(ty)
 	}
 }
 
@@ -98,20 +98,6 @@ func (me *semTypeInfer) solveConstraints(errDst *SemExpr) *Diag {
 	return nil
 }
 
-func (me *semTypeInfer) substituteExpr(expr *SemExpr, ty SemType) {
-	switch val := expr.Val.(type) {
-	case *SemValScalar:
-		_ = val
-		expr.Type = ty
-	case *SemValIdent:
-		expr.Type = ty
-	case *SemValList:
-	case *SemValDict:
-	case **SemValFunc:
-	case *SemValCall:
-	}
-}
-
 func (me *semTypeInfer) substitute(ty SemType) SemType {
 	switch it := ty.(type) {
 	case *semTypeCtor:
@@ -143,23 +129,14 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 		}
 		return ty
 	case *SemValFunc:
-		if val.Body.Type == nil {
-			val.Body.Type = me.newTypeVar(expr)
-		}
-
 		own_env := maps.Clone(env)
-		param_types := make([]SemType, len(val.Params))
+		param_type_vars := make([]SemType, len(val.Params))
 		for i, param := range val.Params {
-			if param.Type == nil {
-				param.Type = me.newTypeVar(param)
-			}
-			param_types[i], own_env[param.Val.(*SemValIdent).MoVal] = param.Type, param.Type
+			param_type_vars[i] = me.newTypeVar(param)
+			own_env[param.Val.(*SemValIdent).MoVal] = param_type_vars[i]
 		}
 		ty_ret := me.infer(ctx, val.Body, own_env)
-		ty_fn := semTypeNew(expr, MoPrimTypeFunc, append(param_types, ty_ret)...)
-		me.constraints = append(me.constraints, &semTypeConstraintEq{dueTo: expr,
-			T1: expr.Type, T2: ty_fn})
-		return ty_fn
+		return semTypeNew(expr, MoPrimTypeFunc, append(param_type_vars, ty_ret)...)
 	case *SemValCall:
 		var prim_op func(*SrcPack, *semTypeInfer, *SemExpr, map[MoValIdent]SemType) SemType
 		if callee := val.Callee.MaybeIdent(); callee != "" {

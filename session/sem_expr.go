@@ -42,6 +42,7 @@ type SemValFunc struct {
 	Scope   *SemScope
 	Params  SemExprs
 	Body    *SemExpr
+	Ret     SemType
 	IsMacro bool
 }
 
