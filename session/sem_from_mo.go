@@ -19,7 +19,7 @@ func (me *SrcPack) semRefresh() {
 	}
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		me.semInferTypes()
-		me.semPopulateScope()
+		// me.semPopulateScope()
 	}
 }
 

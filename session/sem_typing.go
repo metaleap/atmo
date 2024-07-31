@@ -11,13 +11,14 @@ import (
 
 func (me *SrcPack) semInferTypes() {
 	env := maps.Clone(semTypingPrimOpsEnv)
-	for _, top_expr := range me.Trees.Sem.TopLevel {
+	for i, top_expr := range me.Trees.Sem.TopLevel {
 		var it semTypeInfer
-		ty := it.infer(me, top_expr, env)
+		ty := it.newTypeVar(top_expr)
+		expr := it.infer(me, top_expr, ty, env)
 		if err := it.solveConstraints(top_expr); err != nil {
 			top_expr.ErrsOwn.Add(err)
 		}
-		top_expr.Type = it.substitute(ty)
+		me.Trees.Sem.TopLevel[i] = it.substExpr(expr)
 	}
 }
 
@@ -34,7 +35,7 @@ func (me *SemExpr) with(ty SemType, val any) *SemExpr {
 	if val != nil {
 		dupl.Val = val
 	}
-	me.Each(func(it *SemExpr) { util.Assert(it.Parent == me) })
+	me.Each(func(it *SemExpr) { util.Assert(it.Parent == me, nil) })
 	dupl.Each(func(it *SemExpr) { it.Parent = &dupl })
 	if (ty != nil) && (ty != dupl.Type) {
 		var ty_fixup func(SemType) SemType
@@ -138,6 +139,13 @@ func (me *semTypeInfer) solveConstraints(errDst *SemExpr) *Diag {
 func (me *semTypeInfer) substExpr(expr *SemExpr) *SemExpr {
 	switch val := expr.Val.(type) {
 	case *SemValFunc:
+		new_ty_ret := val.TRet
+		if new_ty_ret != nil {
+			new_ty_ret = me.substitute(new_ty_ret)
+		}
+		new_params := sl.To(val.Params, func(p *SemExpr) *SemExpr { return p.with(me.substitute(p.Type), nil) })
+		new_body := me.substExpr(val.Body)
+		return expr.with(nil, &SemValFunc{Scope: val.Scope, Params: SemExprs(new_params), Body: new_body, TRet: new_ty_ret, IsMacro: val.IsMacro})
 	case *SemValCall:
 		new_callee := me.substExpr(val.Callee)
 		new_args := sl.To(val.Args, me.substExpr)
@@ -177,7 +185,6 @@ func (me *semTypeInfer) substitute(ty SemType) SemType {
 }
 
 func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, tyExpected SemType, env map[MoValIdent]SemType) *SemExpr {
-	ty_on_err := expr.newUntypable()
 	switch val := expr.Val.(type) {
 	case *SemValScalar:
 		me.constraints.Add(semTypeEq(expr, tyExpected, semTypeNew(expr, val.MoVal.PrimType())))
@@ -206,7 +213,6 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, tyExpected SemType, e
 		ty_var := env[val.Ident]
 		if ty_var == nil {
 			expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Ident))
-			ty_var = ty_on_err
 		} else {
 			me.constraints.Add(semTypeEq(expr, tyExpected, ty_var))
 		}
