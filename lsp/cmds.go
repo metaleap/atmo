@@ -171,7 +171,7 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						case func(*session.SrcPack, *session.SemExpr):
 							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "func", "Params": []any{}}
 						case *session.SemValIdent:
-							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "scalar", "MoVal": val.MoVal}
+							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "scalar", "MoVal": val.Ident}
 						case *session.SemValScalar:
 							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "scalar", "MoVal": val.MoVal}
 						case *session.SemValList:

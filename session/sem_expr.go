@@ -21,7 +21,7 @@ type SemValScalar struct {
 }
 
 type SemValIdent struct {
-	MoVal MoValIdent
+	Ident MoValIdent
 }
 
 type SemValCall struct {
@@ -31,18 +31,21 @@ type SemValCall struct {
 
 type SemValList struct {
 	Items SemExprs
+	TItem SemType
 }
 
 type SemValDict struct {
 	Keys SemExprs
 	Vals SemExprs
+	TKey SemType
+	TVal SemType
 }
 
 type SemValFunc struct {
 	Scope   *SemScope
 	Params  SemExprs
 	Body    *SemExpr
-	Ret     SemType
+	TRet    SemType
 	IsMacro bool
 }
 
@@ -136,7 +139,7 @@ func (me *SemExpr) MaybeCalleeOfCall() bool {
 func (me *SemExpr) MaybeIdent() MoValIdent {
 	ident, _ := me.Val.(*SemValIdent)
 	if ident != nil {
-		return ident.MoVal
+		return ident.Ident
 	}
 	return ""
 }

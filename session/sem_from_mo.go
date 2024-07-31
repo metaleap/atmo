@@ -19,6 +19,7 @@ func (me *SrcPack) semRefresh() {
 	}
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		me.semInferTypes()
+		me.semPopulateScope()
 	}
 }
 
@@ -48,7 +49,7 @@ func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
 }
 
 func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
-	ident := &SemValIdent{MoVal: it}
+	ident := &SemValIdent{Ident: it}
 	self.Val = ident
 }
 
@@ -76,13 +77,19 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	for _, arg := range it[1:] {
 		call.Args = append(call.Args, me.semExprFromMoExpr(self.Scope, arg, self))
 	}
+}
 
-	switch ident := call.Callee.MaybeIdent(); ident {
-	case moPrimOpSet:
-		me.semPrepScopeOnSet(self)
-	case moPrimOpFn, moPrimOpMacro:
-		me.semPrepScopeOnFn(self)
-	}
+func (me *SrcPack) semPopulateScope() {
+	me.Trees.Sem.TopLevel.Walk(nil, nil, func(self *SemExpr) {
+		if call, _ := self.Val.(*SemValCall); call != nil {
+			switch ident := call.Callee.MaybeIdent(); ident {
+			case moPrimOpSet:
+				me.semPrepScopeOnSet(self)
+			case moPrimOpFn, moPrimOpMacro:
+				me.semPrepScopeOnFn(self)
+			}
+		}
+	})
 }
 
 type SemScope struct {
