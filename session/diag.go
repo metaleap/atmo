@@ -83,7 +83,7 @@ var (
 		ErrCodeNotConvertible:   "cannot convert `%s` to %s",
 		ErrCodeDuplTopDecl:      "top-level declaration `%s` already defined",
 		ErrCodeTypeMismatch:     "type mismatch: `%s` vs. `%s`",
-		ErrCodeTypeInfinite:     "infinite type detected",
+		ErrCodeTypeInfinite:     "infinite type detected: `%s`",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}
