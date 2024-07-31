@@ -8,6 +8,24 @@ import (
 	"atmo/util/str"
 )
 
+func (me *SrcPack) semInferTypes() {
+	env := maps.Clone(semTypingPrimOpsEnv)
+	for _, top_expr := range me.Trees.Sem.TopLevel {
+		if top_expr.Type == nil {
+			var it semTypeInfer
+			ty := it.infer(me, top_expr, env)
+			if err := it.solveConstraints(top_expr); err != nil {
+				top_expr.ErrsOwn.Add(err)
+			}
+			top_expr.Type = it.substitute(ty)
+		}
+	}
+}
+
+func (me *SemExpr) newUntypable() SemType {
+	return semTypeNew(me, MoPrimTypeUnknown)
+}
+
 type SemType interface {
 	Eq(SemType) bool
 	From() *SemExpr
@@ -66,15 +84,6 @@ type semTypeInfer struct {
 	constraints []SemTypeConstraint
 }
 
-func (me *SrcPack) semTypeInfer(expr *SemExpr, env map[MoValIdent]SemType) (SemType, *Diag) {
-	var it semTypeInfer
-	ty := it.infer(expr, env)
-	if err := it.solveConstraints(expr); err != nil {
-		return nil, err
-	}
-	return it.substitute(ty), nil
-}
-
 func (me *semTypeInfer) solveConstraints(errDst *SemExpr) *Diag {
 	for _, constraint := range me.constraints {
 		switch it := constraint.(type) {
@@ -100,20 +109,24 @@ func (me *semTypeInfer) substitute(ty SemType) SemType {
 	return ty
 }
 
-func (me *semTypeInfer) infer(expr *SemExpr, env map[MoValIdent]SemType) SemType {
+func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]SemType) SemType {
+	ty_on_err := expr.newUntypable()
+	if expr.Type != nil {
+		return expr.Type
+	}
 	switch val := expr.Val.(type) {
 	case *SemValScalar:
-		return semTypeNew(expr, val.MoVal.PrimType()), nil
+		return semTypeNew(expr, val.MoVal.PrimType())
 	case *SemValList:
-		return semTypeNew(expr, MoPrimTypeList, me.newTypeVar(expr)), nil
+		return semTypeNew(expr, MoPrimTypeList, me.newTypeVar(expr))
 	case *SemValDict:
-		return semTypeNew(expr, MoPrimTypeDict, me.newTypeVar(expr), me.newTypeVar(expr)), nil
+		return semTypeNew(expr, MoPrimTypeDict, me.newTypeVar(expr), me.newTypeVar(expr))
 	case *SemValIdent:
 		ty := env[val.MoVal]
 		if ty == nil {
-			return semTypeNew(expr, MoPrimTypeNever), nil
+			ty = ty_on_err
 		}
-		return ty, nil
+		return ty
 	case *SemValFunc:
 		own_env := maps.Clone(env)
 		param_type_vars := make([]SemType, len(val.Params))
@@ -121,40 +134,40 @@ func (me *semTypeInfer) infer(expr *SemExpr, env map[MoValIdent]SemType) SemType
 			param_type_vars[i] = me.newTypeVar(param)
 			own_env[param.Val.(*SemValIdent).MoVal] = param_type_vars[i]
 		}
-		ty_ret, err := me.infer(val.Body, own_env)
-		if err != nil {
-			return nil, err
-		}
-		return semTypeNew(expr, MoPrimTypeFunc, append(param_type_vars, ty_ret)...), nil
+		ty_ret := me.infer(ctx, val.Body, own_env)
+		return semTypeNew(expr, MoPrimTypeFunc, append(param_type_vars, ty_ret)...)
 	case *SemValCall:
-		switch callee := val.Callee.MaybeIdent(); callee {
-		default:
-			return me.inferForCallWith(env, expr, val.Callee, val.Args...), nil
-		case moPrimOpFn, moPrimOpMacro:
-			return nil, expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "new bug intro'd: encountered "+callee+" call in type-inference")
-		case moPrimOpFnCall:
-			return me.inferForCallWith(env, expr, val.Args[0], val.Args[1].Val.(*SemValList).Items...), nil
-		case moPrimOpCaseOf:
-		case moPrimOpDo:
-		case moPrimOpExpand, moPrimOpQQuote, moPrimOpQuote, moPrimOpSpliceUnquote, moPrimOpUnquote:
-		case moPrimOpSet:
-			return semTypeNew(val.Callee, MoPrimTypeVoid), nil
+		var prim_op func(*SrcPack, *semTypeInfer, *SemExpr, map[MoValIdent]SemType) SemType
+		if callee := val.Callee.MaybeIdent(); callee != "" {
+			prim_op = semTypingPrimOpsDo[callee]
 		}
+		if prim_op != nil {
+			return prim_op(ctx, me, expr, env)
+		} else {
+			return me.inferForCallWith(ctx, env, expr, val.Callee, val.Args...)
+		}
+		// switch callee := val.Callee.MaybeIdent(); callee {
+		// case moPrimOpSet:
+		// 	return semTypeNew(val.Callee, MoPrimTypeVoid)
+		// case moPrimOpCaseOf:
+		// case moPrimOpDo:
+		// case moPrimOpExpand, moPrimOpQQuote, moPrimOpQuote, moPrimOpSpliceUnquote, moPrimOpUnquote:
+		// }
 	}
-	return semTypeNew(expr, MoPrimTypeNever), nil
+	return ty_on_err
 }
 
-func (me *semTypeInfer) inferForCallWith(env map[MoValIdent]SemType, call *SemExpr, callee *SemExpr, callArgs ...*SemExpr) SemType {
-	ty_callee, err := me.infer(callee, env)
+func (me *semTypeInfer) inferForCallWith(ctx *SrcPack, env map[MoValIdent]SemType, call *SemExpr, callee *SemExpr, callArgs ...*SemExpr) SemType {
+	ty_callee := me.infer(ctx, callee, env)
 	ty_args := make([]SemType, len(callArgs))
 	for i, arg := range callArgs {
-		ty_args[i] = me.infer(arg, env)
+		ty_args[i] = me.infer(ctx, arg, env)
 	}
 	ty_ret := me.newTypeVar(call)
 	me.constraints = append(me.constraints, &semTypeConstraintEq{dueTo: call,
 		T1: ty_callee,
 		T2: semTypeNew(call, MoPrimTypeFunc, append(ty_args, ty_ret)...)})
-	return ty_ret, nil
+	return ty_ret
 }
 
 func (me *semTypeInfer) unify(t1 SemType, t2 SemType, errDst *SemExpr) (err *Diag) {

@@ -13,6 +13,7 @@ type SemExpr struct {
 	ErrsOwn Diags     `json:",omitempty"`
 	Val     any
 	Facts   map[SemFact]SemExprs `json:"-"`
+	Type    SemType              `json:"-"`
 }
 
 type SemValScalar struct {

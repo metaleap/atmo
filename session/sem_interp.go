@@ -17,7 +17,9 @@ func (me *SrcPack) semRefresh() {
 		it := me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil)
 		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, it)
 	}
-
+	if !me.Trees.Sem.TopLevel.AnyErrs() {
+		me.semInferTypes()
+	}
 }
 
 func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *SemExpr) *SemExpr {
