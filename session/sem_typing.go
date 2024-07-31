@@ -1,12 +1,15 @@
 package session
 
 import (
-	"atmo/util/str"
 	"strings"
+
+	"atmo/util/sl"
+	"atmo/util/str"
 )
 
 type semType interface {
-	str(Writer)
+	eq(semType) bool
+	str(*strings.Builder)
 }
 
 type semTypeCtor struct {
@@ -14,9 +17,18 @@ type semTypeCtor struct {
 	args []semType
 }
 
-func (me *semTypeCtor) str(w Writer) {
+func (me *semTypeCtor) eq(to semType) bool {
+	it, _ := to.(*semTypeCtor)
+	return (it != nil) && ((me == it) || ((me.prim == it.prim) && sl.Eq(me.args, it.args, semType.eq)))
+}
+
+func (me *semTypeCtor) str(w *strings.Builder) {
 	w.WriteString(me.prim.Str(false))
 	w.WriteString("<")
+	if w.Len() > 256 { // infinite-type guard
+		w.WriteString("...>")
+		return
+	}
 	for _, ty := range me.args {
 		ty.str(w)
 	}
@@ -27,7 +39,12 @@ type semTypeVar struct {
 	index int
 }
 
-func (me *semTypeVar) str(w Writer) {
+func (me *semTypeVar) eq(to semType) bool {
+	it, _ := to.(*semTypeVar)
+	return (it != nil) && ((me == it) || (*me == *it))
+}
+
+func (me *semTypeVar) str(w *strings.Builder) {
 	w.WriteString("<")
 	w.WriteString(str.FromInt(me.index))
 	w.WriteString(">")
@@ -69,13 +86,13 @@ func semTypeUnify(t1 semType, t2 semType, errDst *SemExpr) *Diag {
 
 	case tv1 != nil:
 		if semTypeOccursIn(tv1.index, t2) {
-			return errDst.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "occurs-in")
+			return errDst.From.SrcSpan.newDiagErr(ErrCodeTypeInfinite)
 		}
 		subst[tv1.index] = t2
 
 	case tv2 != nil:
 		if semTypeOccursIn(tv2.index, t1) {
-			return errDst.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "occurs-in")
+			return errDst.From.SrcSpan.newDiagErr(ErrCodeTypeInfinite)
 		}
 		subst[tv2.index] = t1
 
@@ -84,6 +101,16 @@ func semTypeUnify(t1 semType, t2 semType, errDst *SemExpr) *Diag {
 	return nil
 }
 
-func semTypeOccursIn(int, semType) bool {
+func semTypeOccursIn(index int, ty semType) bool {
+	tv, _ := ty.(*semTypeVar)
+	tc, _ := ty.(*semTypeCtor)
+	switch {
+	case (tv != nil) && !subst[tv.index].eq(ty):
+		return semTypeOccursIn(index, subst[tv.index])
+	case tv != nil:
+		return tv.index == index
+	case tc != nil:
+		return sl.HasWhere(tc.args, func(it semType) bool { return semTypeOccursIn(index, it) })
+	}
 	return false
 }

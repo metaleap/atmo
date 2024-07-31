@@ -48,6 +48,7 @@ const (
 	ErrCodeNotConvertible   DiagCode = "NotConvertible"
 	ErrCodeDuplTopDecl      DiagCode = "DuplTopDecl"
 	ErrCodeTypeMismatch     DiagCode = "TypeMismatch"
+	ErrCodeTypeInfinite     DiagCode = "TypeInfinite"
 
 	// semantic (warnings / infos / hints)
 	HintCodeUnused DiagCode = "Unused"
@@ -82,6 +83,7 @@ var (
 		ErrCodeNotConvertible:   "cannot convert `%s` to %s",
 		ErrCodeDuplTopDecl:      "top-level declaration `%s` already defined",
 		ErrCodeTypeMismatch:     "type mismatch: `%s` vs. `%s`",
+		ErrCodeTypeInfinite:     "infinite type detected",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}
