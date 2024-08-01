@@ -17,7 +17,7 @@ type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr)
 type MoValPrimType int
 
 const (
-	MoPrimTypeUntyped MoValPrimType = iota // used by type-inference for untypables such as undefined idents
+	MoPrimTypeAny MoValPrimType = iota // also used by type-inference for untypables such as undefined idents
 	MoPrimTypeVoid
 	MoPrimTypePrimTypeTag
 	MoPrimTypeIdent
@@ -32,6 +32,7 @@ const (
 	MoPrimTypeList
 	MoPrimTypeCall
 	MoPrimTypeFunc
+	MoPrimTypeOr
 )
 
 func (me MoValPrimType) isAtomic() bool {
@@ -69,6 +70,8 @@ func (me MoValPrimType) Str(forDiag bool) string {
 		return util.If(forDiag, "call expression", "@Call")
 	case MoPrimTypeFunc:
 		return util.If(forDiag, "function", "@Func")
+	case MoPrimTypeOr:
+		return util.If(forDiag, "union", "@Or")
 	}
 	return "@Untyped"
 }

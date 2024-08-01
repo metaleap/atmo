@@ -38,7 +38,7 @@ func init() {
 		moPrimFnStrCharAt:   ty_fn_prims(MoPrimTypeStr, MoPrimTypeNumUint, MoPrimTypeChar),
 		moPrimFnStrRange:    ty_fn_prims(MoPrimTypeStr, MoPrimTypeNumUint, MoPrimTypeNumUint, MoPrimTypeStr),
 		moPrimFnStrConcat:   ty_fn(semTypeNew(nil, MoPrimTypeList, ty_prim(MoPrimTypeStr)), ty_prim(MoPrimTypeStr)),
-		moPrimFnReplEnv:     ty_fn(semTypeNew(nil, MoPrimTypeDict, ty_prim(MoPrimTypeIdent), ty_prim(MoPrimTypeUntyped))),
+		moPrimFnReplEnv:     ty_fn(semTypeNew(nil, MoPrimTypeDict, ty_prim(MoPrimTypeIdent), ty_prim(MoPrimTypeAny))),
 		moPrimFnReplReset:   ty_fn_prims(MoPrimTypeVoid),
 	}
 	semTypingPrimOpsDo = map[MoValIdent]func(*SrcPack, *semTypeInfer, *SemExpr, map[MoValIdent]SemType){
@@ -188,6 +188,10 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 	}
 }
 
+func (me *SrcPack) semTypingPrimOpSet(ctx *semTypeInfer, expr *SemExpr, env map[MoValIdent]SemType) {
+	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpSet"))
+}
+
 func (me *SrcPack) semTypingPrimOpAnd(ctx *semTypeInfer, expr *SemExpr, env map[MoValIdent]SemType) {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpAnd"))
 }
@@ -202,17 +206,6 @@ func (me *SrcPack) semTypingPrimOpFnOrMacro(ctx *semTypeInfer, expr *SemExpr, en
 
 func (me *SrcPack) semTypingPrimOpFnCall(ctx *semTypeInfer, expr *SemExpr, env map[MoValIdent]SemType) {
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpCaseOf"))
-	// call := expr.Val.(*SemValCall)
-	// if me.semCheckCount(2, 2, call.Args, expr, true) {
-	// 	if callee, call_args := call.Args[0], semCheckIs[SemValList](MoPrimTypeList, call.Args[1]); call_args != nil {
-	// 		return ctx.inferForCallWith(me, env, expr, callee, call_args.Items...)
-	// 	}
-	// }
-	// return expr.with(expr.newUntypable(),nil)
-}
-
-func (me *SrcPack) semTypingPrimOpSet(ctx *semTypeInfer, expr *SemExpr, env map[MoValIdent]SemType) {
-	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypingPrimOpSet"))
 }
 
 func (me *SrcPack) semTypingPrimOpCaseOf(ctx *semTypeInfer, expr *SemExpr, env map[MoValIdent]SemType) {

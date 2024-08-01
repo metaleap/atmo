@@ -22,7 +22,7 @@ func (me *SrcPack) semInferTypes() {
 }
 
 func (me *SemExpr) newUntypable() SemType {
-	return semTypeNew(me, MoPrimTypeUntyped)
+	return semTypeNew(me, MoPrimTypeAny)
 }
 
 type SemType interface {
@@ -99,7 +99,7 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 
 func SemTypeToString(ty SemType) string {
 	if ty == nil {
-		return MoPrimTypeUntyped.Str(false)
+		return MoPrimTypeAny.Str(false)
 	}
 	var buf strings.Builder
 	ty.Str(&buf)
@@ -203,10 +203,19 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 		ty_fn := semTypeNew(val.Callee, MoPrimTypeFunc, append(ty_args, expr.Type)...)
 		val.Callee.Type = ty_fn
 
-		me.infer(ctx, val.Callee, env)
-
-		var idx int
-		sl.Each(val.Args, func(arg *SemExpr) { arg.Type = ty_args[idx]; me.infer(ctx, arg, env); idx++ })
+		var prim_op func(*SrcPack, *semTypeInfer, *SemExpr, map[MoValIdent]SemType)
+		if ident := val.Callee.MaybeIdent(); ident != "" {
+			if prim_op = semTypingPrimOpsDo[ident]; prim_op == nil {
+				prim_op = semTypingPrimFnsDo[ident]
+			}
+		}
+		if prim_op != nil {
+			prim_op(ctx, me, expr, env)
+		} else {
+			me.infer(ctx, val.Callee, env)
+			var idx int
+			sl.Each(val.Args, func(arg *SemExpr) { arg.Type = ty_args[idx]; me.infer(ctx, arg, env); idx++ })
+		}
 	case *SemValIdent:
 		ty_ident := env[val.Ident]
 		if ty_ident == nil {
@@ -230,8 +239,22 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 			new_ty_items = me.newTypeVar(expr)
 		}
 		new_ty_expr := semTypeNew(expr, MoPrimTypeList, new_ty_items)
-		me.constraints.Add(semTypeEq(expr, expr.Type, new_ty_expr))
 		sl.Each(val.Items, func(item *SemExpr) { item.Type = new_ty_items; me.infer(ctx, item, env) })
+		// { // technically superfluous block. just for err-msg UX purposes so we can see "@Foo vs. [@Bar]" rather than "@Foo vs [T4]" or some such
+		// 	var ty_item SemType
+		// 	for _, item := range val.Items {
+		// 		if ty_item == nil {
+		// 			ty_item = item.Type
+		// 		} else if !ty_item.Eq(item.Type) {
+		// 			ty_item = nil
+		// 			break
+		// 		}
+		// 	}
+		// 	if tc, _ := ty_item.(*semTypeCtor); tc != nil {
+		// 		new_ty_expr = semTypeNew(expr, MoPrimTypeList, ty_item)
+		// 	}
+		// }
+		me.constraints.Add(semTypeEq(expr, expr.Type, new_ty_expr))
 		expr.Type = new_ty_expr
 	case *SemValDict:
 		expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypeInfer.infer(someDict)"))

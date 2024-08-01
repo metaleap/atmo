@@ -11,15 +11,18 @@ func init() {
 }
 
 func (me *SrcPack) semRefresh() {
-	me.Trees.Sem.TopLevel = nil
+	me.Trees.Sem.TopLevel = make(SemExprs, 0, len(me.Trees.MoOrig))
 	me.Trees.Sem.Scope = SemScope{Own: map[MoValIdent]*SemScopeEntry{}}
 	for _, top_expr := range me.Trees.MoOrig {
 		it := me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil)
 		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, it)
 	}
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
-		me.semInferTypes()
-		// me.semPopulateScope()
+		// me.semInferTypes()
+		me.semPopulateScope()
+		for _, top_expr := range me.Trees.Sem.TopLevel {
+			me.semEval(top_expr, &me.Trees.Sem.Scope)
+		}
 	}
 }
 
