@@ -23,11 +23,25 @@ func init() {
 		moPrimOpCaseOf: (*SrcPack).semPrimOpCaseOf,
 	}
 	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
-		moPrimFnNot:        (*SrcPack).semPrimFnNot,
-		moPrimFnReplEnv:    (*SrcPack).semPrimFnReplEnv,
-		moPrimFnReplPrint:  (*SrcPack).semPrimFnReplPrint,
-		moPrimFnReplReset:  (*SrcPack).semPrimFnReplReset,
-		moPrimFnNumUintAdd: semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) + opr.(MoValNumUint) }),
+		moPrimFnNot:         (*SrcPack).semPrimFnNot,
+		moPrimFnReplEnv:     (*SrcPack).semPrimFnReplEnv,
+		moPrimFnReplPrint:   (*SrcPack).semPrimFnReplPrint,
+		moPrimFnReplReset:   (*SrcPack).semPrimFnReplReset,
+		moPrimFnNumUintAdd:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) + opr.(MoValNumUint) }),
+		moPrimFnNumUintSub:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) - opr.(MoValNumUint) }),
+		moPrimFnNumUintMul:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) * opr.(MoValNumUint) }),
+		moPrimFnNumUintDiv:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) / opr.(MoValNumUint) }),
+		moPrimFnNumUintMod:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) % opr.(MoValNumUint) }),
+		moPrimFnNumIntAdd:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) + opr.(MoValNumInt) }),
+		moPrimFnNumIntSub:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) - opr.(MoValNumInt) }),
+		moPrimFnNumIntMul:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) * opr.(MoValNumInt) }),
+		moPrimFnNumIntDiv:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) / opr.(MoValNumInt) }),
+		moPrimFnNumIntMod:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) % opr.(MoValNumInt) }),
+		moPrimFnNumFloatAdd: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) + opr.(MoValNumFloat) }),
+		moPrimFnNumFloatSub: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) - opr.(MoValNumFloat) }),
+		moPrimFnNumFloatMul: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
+		moPrimFnNumFloatDiv: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
+		moPrimFnCast:        (*SrcPack).semPrimFnCast,
 	}
 	{
 		t, fn := semTypeNew, MoPrimTypeFunc
@@ -329,8 +343,24 @@ func (me *SrcPack) semPrimFnReplReset(self *SemExpr, scope *SemScope) {
 	_ = me.semCheckCount(0, 0, call.Args, self, true)
 }
 
+func (me *SrcPack) semPrimFnCast(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeUntyped)
+	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
+	if me.semCheckCount(2, 2, call.Args, self, true) {
+		if me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypePrimTypeTag)) {
+
+		}
+	}
+}
+
 func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) func(*SrcPack, *SemExpr, *SemScope) {
 	return func(me *SrcPack, self *SemExpr, scope *SemScope) {
+		defer func() { // statically-computed div/mod by 0
+			if err := recover(); err != nil {
+				self.ErrsOwn.Add(self.ErrNew(ErrCodeComputationFailed, err))
+			}
+		}()
 		call := self.Val.(*SemValCall)
 		self.Type = semTypeNew(call.Callee, t)
 		sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope); me.semCheckType(arg, self.Type) })
