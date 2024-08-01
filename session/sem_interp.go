@@ -136,6 +136,9 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 				self.Fact(SemFact{Kind: SemFactPrimFn}, self)
 			} else if decl, _ := entry.DeclParamOrCallOrFuncOrPrimIdent.Val.(*SemValScalar); decl != nil {
 				self.Fact(SemFact{Kind: SemFactPrimIdent}, self)
+				if self.isPrecomputedPermissible() {
+					me.semReplaceExprValWithComputedValIfPermissible(self, decl.MoVal, entry.Type)
+				}
 			}
 		}
 	case *SemValFunc:
@@ -376,7 +379,13 @@ func (me *SrcPack) semPrimFnCast(self *SemExpr, scope *SemScope) {
 				self.Type = semTypeNew(call.Args[0], (MoValPrimType(val.MoVal.(MoValPrimTypeTag))))
 				if self.isPrecomputedPermissible() && (self.From != nil) {
 					result := me.Interp.ExprEval(self.From)
-					println(result.String())
+					if err := result.Err(); err != nil {
+						self.ErrsOwn.Add(result.Err())
+					} else if to_sem := me.semExprFromMoExpr(scope, result, self.Parent); (to_sem != nil) && !to_sem.HasErrs() {
+						if me.semEval(to_sem, scope); !to_sem.HasErrs() {
+							me.semReplaceExprValWithComputedValIfPermissible(self, to_sem.Val, to_sem.Type)
+						}
+					}
 				}
 			}
 		}

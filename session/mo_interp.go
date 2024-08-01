@@ -41,22 +41,27 @@ func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 	}
 
 	me := Interp{Pack: inPack, FauxFile: replFauxFile}
-	me.envReset()
-	me.ensureRootEnvPopulated()
+	me.resetEnv()
 	me.Pack.Interp = &me
 	return &me
 }
 
-func (me *Interp) envReset() {
+func (me *Interp) resetEnv() {
 	me.Env = newMoEnv(&interpRootEnv, nil, nil)
+	me.ensureRootEnvPopulated()
+}
+
+func (me *Interp) resetForSem() {
+	me.ClearStackTrace()
+	me.resetEnv()
 }
 
 // for REPL use-cases only!
-func (me *Interp) replReset() {
+func (me *Interp) resetForRepl() {
 	Access(func(sess StateAccess, _ Intel) {
 		allDiags = map[string]sl.Of[*Diag]{}
 		me.ClearStackTrace()
-		me.envReset()
+		me.resetEnv()
 		me.Pack.Interp, me.Pack.Trees.MoOrig, me.Pack.Trees.MoEvaled = me, nil, nil
 		for _, src_file := range me.Pack.Files {
 			src_file.diags.LexErrs, src_file.diags.LastReadErr, src_file.diags.Ast2Mo, src_file.Src.Ast, src_file.Src.Toks, src_file.Src.Text =

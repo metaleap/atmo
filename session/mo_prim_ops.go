@@ -908,7 +908,7 @@ func (me *Interp) primFnErrVal(_ *MoEnv, args ...*MoExpr) *MoExpr {
 }
 
 func (me *Interp) primFnReplReset(_ *MoEnv, args ...*MoExpr) *MoExpr {
-	me.replReset()
+	me.resetForRepl()
 	return me.exprVoid(args...)
 }
 

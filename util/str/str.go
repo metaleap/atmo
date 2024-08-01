@@ -45,10 +45,16 @@ var (
 	Repeat   = strings.Repeat
 )
 
-func FmtV(v any) string                    { return Fmt("%v", v) }
-func GoLike(v any) string                  { return Fmt("%#v", v) }
-func FromFloat(f float64, prec int) string { return strconv.FormatFloat(f, 'f', prec, 64) }
-func Base36(i int) string                  { return FromI64(int64(i), 36) }
+func FmtV(v any) string   { return Fmt("%v", v) }
+func GoLike(v any) string { return Fmt("%#v", v) }
+func Base36(i int) string { return FromI64(int64(i), 36) }
+func FromFloat(f float64, prec int) string {
+	ret := strconv.FormatFloat(f, 'f', prec, 64)
+	if (prec < 0) && Idx(ret, '.') < 0 {
+		ret += ".0"
+	}
+	return ret
+}
 
 func Replace(s string, repl Dict) string {
 	replacer := Replacer(s, repl)

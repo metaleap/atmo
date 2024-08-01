@@ -12,6 +12,10 @@ func (me *SrcPack) semRefresh() {
 		it := me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil)
 		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, it)
 	}
+	if me.Interp == nil {
+		_ = newInterp(me, nil)
+	}
+	me.moPrePackEval()
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		// me.semInferTypes()
 		me.semPopulateRootScope()

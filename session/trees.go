@@ -59,15 +59,8 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 		}
 
 		me.Trees.MoEvaled = nil
-		me.Interp.envReset()
 		// first, handle top-level `@set` exprs: we add them to env but un-evaled, just so ident evals (env lookups) will find them (and eval them)
-		for _, top_expr := range me.Trees.MoOrig {
-			if ident := me.Interp.isSetCall(top_expr); ident != "" {
-				dup := *top_expr
-				dup.PreEvalTopLevelPreEnvUnevaledYet = true
-				me.Interp.Env.set(ident, &dup)
-			}
-		}
+		me.moPrePackEval()
 		// now, we eval
 		for _, top_expr := range me.Trees.MoOrig {
 			dup := *top_expr
@@ -80,6 +73,17 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 	}
 
 	return
+}
+
+func (me *SrcPack) moPrePackEval() {
+	me.Interp.resetForSem()
+	for _, top_expr := range me.Trees.MoOrig {
+		if ident := me.Interp.isSetCall(top_expr); ident != "" {
+			dup := *top_expr
+			dup.PreEvalTopLevelPreEnvUnevaledYet = true
+			me.Interp.Env.set(ident, &dup)
+		}
+	}
 }
 
 func (me *SrcPack) treesRefreshCanSkip() bool {
