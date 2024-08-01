@@ -828,19 +828,20 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	var ret MoVal
 	switch convert_to {
-	case MoPrimTypeCall, MoPrimTypeDict, MoPrimTypeFunc, MoPrimTypeList:
+	case MoPrimTypeCall, MoPrimTypeDict, MoPrimTypeFunc, MoPrimTypeList, MoPrimTypeBool, MoPrimTypeVoid, MoPrimTypeOr:
 		break
-	case MoPrimTypeChar:
-		switch it := convertee.Val.(type) {
-		case MoValNumUint:
-			ret = MoValChar(rune(int32(it)))
-		}
+
 	case MoPrimTypeErr:
 		ret = MoValErr{ErrVal: convertee}
 	case MoPrimTypeIdent:
 		switch it := convertee.Val.(type) {
 		case MoValStr:
 			ret = MoValIdent(it)
+		}
+	case MoPrimTypeChar:
+		switch it := convertee.Val.(type) {
+		case MoValNumUint:
+			ret = MoValChar(rune(int32(it)))
 		}
 	case MoPrimTypeNumFloat:
 		switch it := convertee.Val.(type) {
@@ -869,6 +870,8 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		case MoValNumFloat:
 			ret = MoValNumUint(it)
 		case MoValNumInt:
+			ret = MoValNumUint(it)
+		case MoValChar:
 			ret = MoValNumUint(it)
 		case MoValStr:
 			if ui, err := str.ToU64(string(it), 10, 64); err == nil {

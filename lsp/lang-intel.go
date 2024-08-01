@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"html"
+
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
 	"atmo/util"
@@ -136,7 +138,7 @@ func init() {
 					strs := sl.Where(sl.To(items, func(it session.IntelItem) string { return it.Value }), func(s string) bool { return s != "" })
 					if text := str.Join(strs, "\n\n___\n\n"); text != "" {
 						ret = &lsp.Hover{
-							Contents: lsp.MarkupContent{Value: text, Kind: lsp.MarkupKindMarkdown},
+							Contents: lsp.MarkupContent{Value: html.EscapeString(text), Kind: lsp.MarkupKindMarkdown},
 						}
 						if info.SpanFull != nil {
 							ret.Range = util.Ptr(lspRangeFromSpan(info.SpanFull))

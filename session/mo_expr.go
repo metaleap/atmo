@@ -436,27 +436,29 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 		case "@void":
 			val = MoValVoid{}
 		default:
-			for _, prim_type_tag := range []MoValPrimType{
-				MoPrimTypeUntyped,
-				MoPrimTypeVoid,
-				MoPrimTypePrimTypeTag,
-				MoPrimTypeIdent,
-				MoPrimTypeBool,
-				MoPrimTypeNumInt,
-				MoPrimTypeNumUint,
-				MoPrimTypeNumFloat,
-				MoPrimTypeChar,
-				MoPrimTypeStr,
-				MoPrimTypeErr,
-				MoPrimTypeDict,
-				MoPrimTypeList,
-				MoPrimTypeCall,
-				MoPrimTypeFunc,
-				MoPrimTypeOr,
-			} {
-				if prim_type_tag.Str(false) == string(ident) {
-					val = MoValPrimTypeTag(prim_type_tag)
-					break
+			if (ident[0] == '@') && (len(ident) > 1) && (ident[1] >= 'A') && (ident[1] <= 'Z') {
+				for _, prim_type_tag := range []MoValPrimType{
+					MoPrimTypeUntyped,
+					MoPrimTypeVoid,
+					MoPrimTypePrimTypeTag,
+					MoPrimTypeIdent,
+					MoPrimTypeBool,
+					MoPrimTypeNumInt,
+					MoPrimTypeNumUint,
+					MoPrimTypeNumFloat,
+					MoPrimTypeChar,
+					MoPrimTypeStr,
+					MoPrimTypeErr,
+					MoPrimTypeDict,
+					MoPrimTypeList,
+					MoPrimTypeCall,
+					MoPrimTypeFunc,
+					MoPrimTypeOr,
+				} {
+					if prim_type_tag.Str(false) == string(ident) {
+						val = MoValPrimTypeTag(prim_type_tag)
+						break
+					}
 				}
 			}
 			if val == nil {
