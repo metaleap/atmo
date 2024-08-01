@@ -6,8 +6,9 @@ import (
 )
 
 var (
-	semEvalPrimOps map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope)
-	semEvalPrimFns map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope)
+	semEvalPrimOps     map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope)
+	semEvalPrimFns     map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope)
+	semEvalPrimFnTypes map[MoValIdent]SemType
 )
 
 func init() {
@@ -21,7 +22,62 @@ func init() {
 		moPrimOpQQuote: (*SrcPack).semPrimOpQuote,
 		moPrimOpCaseOf: (*SrcPack).semPrimOpCaseOf,
 	}
-	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){}
+	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
+		moPrimFnNot: (*SrcPack).semPrimFnNot,
+	}
+	{
+		t, fn := semTypeNew, MoPrimTypeFunc
+		t_any, t_void, t_bool, t_str, t_chr, t_int, t_uint, t_float, t_ident, t_primtypetag := t(nil, MoPrimTypeUntyped), t(nil, MoPrimTypeVoid), t(nil, MoPrimTypeBool), t(nil, MoPrimTypeStr), t(nil, MoPrimTypeChar), t(nil, MoPrimTypeNumInt), t(nil, MoPrimTypeNumUint), t(nil, MoPrimTypeNumFloat), t(nil, MoPrimTypeIdent), t(nil, MoPrimTypePrimTypeTag)
+		t_ord, t_list, t_dict := t(nil, MoPrimTypeOr, t_int, t_uint, t_float, t_chr, t_str), t(nil, MoPrimTypeList, t_any), t(nil, MoPrimTypeList, t_any, t_any)
+		semEvalPrimFnTypes = map[MoValIdent]SemType{
+			moPrimFnReplEnv:     t(nil, fn, t(nil, MoPrimTypeDict, t_ident, t_any)),
+			moPrimFnReplPrint:   t(nil, fn, t_any, t_void),
+			moPrimFnReplReset:   t(nil, fn, t_void),
+			moPrimFnNumIntAdd:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumIntSub:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumIntMul:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumIntDiv:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumIntMod:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumUintAdd:  t(nil, fn, t_uint, t_uint, t_uint),
+			moPrimFnNumUintSub:  t(nil, fn, t_uint, t_uint, t_uint),
+			moPrimFnNumUintMul:  t(nil, fn, t_uint, t_uint, t_uint),
+			moPrimFnNumUintDiv:  t(nil, fn, t_uint, t_uint, t_uint),
+			moPrimFnNumUintMod:  t(nil, fn, t_uint, t_uint, t_uint),
+			moPrimFnNumFloatAdd: t(nil, fn, t_float, t_float, t_float),
+			moPrimFnNumFloatSub: t(nil, fn, t_float, t_float, t_float),
+			moPrimFnNumFloatMul: t(nil, fn, t_float, t_float, t_float),
+			moPrimFnNumFloatDiv: t(nil, fn, t_float, t_float, t_float),
+			moPrimFnCast:        t(nil, fn, t_primtypetag, t_any, t_any),
+			moPrimFnNot:         t(nil, fn, t_bool, t_bool),
+			moPrimFnEq:          t(nil, fn, t_any, t_any, t_bool),
+			moPrimFnNeq:         t(nil, fn, t_any, t_any, t_bool),
+			moPrimFnGeq:         t(nil, fn, t_ord, t_ord, t_bool),
+			moPrimFnLeq:         t(nil, fn, t_ord, t_ord, t_bool),
+			moPrimFnLt:          t(nil, fn, t_ord, t_ord, t_bool),
+			moPrimFnGt:          t(nil, fn, t_ord, t_ord, t_bool),
+			moPrimFnPrimTypeTag: t(nil, fn, t_any, t_primtypetag),
+			moPrimFnListGet:     t(nil, fn, t_list, t_uint, t_any),
+			moPrimFnListSet:     t(nil, fn, t_list, t_uint, t_any, t_void),
+			moPrimFnListRange:   t(nil, fn, t_list, t_uint, t_uint, t_list),
+			moPrimFnListLen:     t(nil, fn, t_list, t_uint),
+			moPrimFnListConcat:  t(nil, fn, semTypeNew(nil, MoPrimTypeList, t_list)),
+			moPrimFnDictHas:     t(nil, fn, t_dict, t_any, t_bool),
+			moPrimFnDictGet:     t(nil, fn, t_dict, t_any, t_any),
+			moPrimFnDictSet:     t(nil, fn, t_dict, t_any, t_any, t_void),
+			moPrimFnDictDel:     t(nil, fn, t_dict, t_list, t_void),
+			moPrimFnDictLen:     t(nil, fn, t_dict, t_uint),
+			moPrimFnErrNew:      t(nil, fn, t_any, semTypeNew(nil, MoPrimTypeErr, t_any)),
+			moPrimFnErrVal:      nil,
+			moPrimFnStrConcat:   nil,
+			moPrimFnStrLen:      nil,
+			moPrimFnStrCharAt:   nil,
+			moPrimFnStrRange:    nil,
+			moPrimFnStr:         nil,
+			moPrimFnExprStr:     nil,
+			moPrimFnExprParse:   nil,
+			moPrimFnExprEval:    nil,
+		}
+	}
 }
 
 func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
@@ -213,4 +269,9 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 			}
 		}
 	}
+}
+
+func (me *SrcPack) semPrimFnNot(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	_ = me.semCheckCount(1, 1, call.Args, self, true)
 }

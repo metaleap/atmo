@@ -90,9 +90,9 @@ func init() {
 		moPrimOpDo:     (*Interp).primOpDo,
 	}
 	moPrimOpsEager = map[MoValIdent]moFnEager{
-		moPrimFnReplEnv:     (*Interp).primFnSessEnv,
-		moPrimFnReplPrint:   (*Interp).primFnSessPrint,
-		moPrimFnReplReset:   (*Interp).primFnSessReset,
+		moPrimFnReplEnv:     (*Interp).primFnReplEnv,
+		moPrimFnReplPrint:   (*Interp).primFnReplPrint,
+		moPrimFnReplReset:   (*Interp).primFnReplReset,
 		moPrimFnNumIntAdd:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) + opr.(MoValNumInt) }),
 		moPrimFnNumIntSub:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) - opr.(MoValNumInt) }),
 		moPrimFnNumIntMul:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) * opr.(MoValNumInt) }),
@@ -424,7 +424,7 @@ func makeArithPrimOp[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimTy
 	}
 }
 
-func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) *MoExpr {
+func (me *Interp) primFnReplEnv(env *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(0, 0, args); err != nil {
 		return me.exprErr(err)
 	}
@@ -453,7 +453,7 @@ func (me *Interp) primFnSessEnv(env *MoEnv, args ...*MoExpr) *MoExpr {
 	return ret
 }
 
-func (me *Interp) primFnSessPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
+func (me *Interp) primFnReplPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprErr(err)
 	}
@@ -777,7 +777,12 @@ func (me *Interp) primFnDictDel(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		return me.exprErr(err)
 	}
 	dict := args[0].Val.(*MoValDict)
-	dict.Del(args[1])
+	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
+		return me.exprErr(err)
+	}
+	for _, key_to_del := range *(args[1].Val.(*MoValList)) {
+		dict.Del(key_to_del)
+	}
 	return me.exprVoid(args...)
 }
 
@@ -902,7 +907,7 @@ func (me *Interp) primFnErrVal(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	return me.exprFrom(err_val, args...)
 }
 
-func (me *Interp) primFnSessReset(_ *MoEnv, args ...*MoExpr) *MoExpr {
+func (me *Interp) primFnReplReset(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	me.replReset()
 	return me.exprVoid(args...)
 }

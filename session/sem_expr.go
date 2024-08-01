@@ -215,6 +215,8 @@ const (
 	SemFactUnused
 	SemFactEffectful
 	SemFactPreComputed
+	SemFactPrimOp
+	SemFactPrimFn
 )
 
 type SemFact struct {
@@ -232,6 +234,10 @@ func (me *SemFact) String() (ret string) {
 		ret = "unused"
 	case SemFactPreComputed:
 		ret = "staticallyComputed"
+	case SemFactPrimFn:
+		ret = "primFn"
+	case SemFactPrimOp:
+		ret = "primOp"
 	}
 	if me.Data != nil {
 		of := me.Data

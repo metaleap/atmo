@@ -9,7 +9,7 @@ func (me *SrcPack) semRefresh() {
 	}
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		// me.semInferTypes()
-		me.semPopulateScope()
+		me.semPopulateRootScope()
 		for _, top_expr := range me.Trees.Sem.TopLevel {
 			me.semEval(top_expr, &me.Trees.Sem.Scope)
 		}
@@ -73,7 +73,22 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 	}
 }
 
-func (me *SrcPack) semPopulateScope() {
+func (me *SrcPack) semPopulateRootScope() {
+	_ = semEvalPrimFnTypes
+	for name, prim_fn := range semEvalPrimFns {
+		fn := &SemExpr{
+			Scope: &me.Trees.Sem.Scope,
+			Val: &SemValFunc{
+				primImpl: prim_fn,
+			},
+		}
+		var ty SemType
+		fn.Fact(SemFact{Kind: SemFactPrimFn}, fn)
+		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
+			Type: ty,
+		}
+	}
+
 	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
 		if call, _ := self.Val.(*SemValCall); call != nil {
 			if ident := call.Callee.MaybeIdent(); (ident == moPrimOpQQuote) || (ident == moPrimOpQuote) {

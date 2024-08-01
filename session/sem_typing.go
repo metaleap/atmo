@@ -350,14 +350,16 @@ func (me *semTypeInfer) newTypeVar(dueTo *SemExpr) (ret SemType) {
 }
 
 func semTypeEnsureDueTo(dueTo *SemExpr, ty SemType) SemType {
-	switch ty := ty.(type) {
-	case *semTypeCtor:
-		if (ty.dueTo == nil) || sl.Any(ty.tyArgs, func(targ SemType) bool { return targ.From() == nil }) {
-			return semTypeNew(dueTo, ty.prim, sl.To(ty.tyArgs, func(targ SemType) SemType { return semTypeEnsureDueTo(dueTo, targ) })...)
-		}
-	case *semTypeVar:
-		if ty.dueTo == nil {
-			ty.dueTo = dueTo
+	if dueTo != nil {
+		switch ty := ty.(type) {
+		case *semTypeCtor:
+			if (ty.dueTo == nil) || sl.Any(ty.tyArgs, func(targ SemType) bool { return targ.From() == nil }) {
+				return semTypeNew(dueTo, ty.prim, sl.To(ty.tyArgs, func(targ SemType) SemType { return semTypeEnsureDueTo(dueTo, targ) })...)
+			}
+		case *semTypeVar:
+			if ty.dueTo == nil {
+				ty.dueTo = dueTo
+			}
 		}
 	}
 	return ty
