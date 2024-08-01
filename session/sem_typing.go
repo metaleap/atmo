@@ -213,7 +213,7 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 		val.Callee.Type = ty_fn
 
 		var prim_op func(*SrcPack, *semTypeInfer, *SemExpr, map[MoValIdent]SemType)
-		if ident := val.Callee.MaybeIdent(); ident != "" {
+		if ident := val.Callee.MaybeIdent(false); ident != "" {
 			if prim_op = semTypingPrimOpsDo[ident]; prim_op == nil {
 				prim_op = semTypingPrimFnsDo[ident]
 			}

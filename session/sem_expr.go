@@ -22,7 +22,10 @@ type SemValScalar struct {
 }
 
 type SemValIdent struct {
-	Ident MoValIdent
+	Ident   MoValIdent
+	IsDecl  bool // if true, either IsParam or IsSet also is
+	IsParam bool // if true, so is IsDecl
+	IsSet   bool
 }
 
 type SemValCall struct {
@@ -129,12 +132,31 @@ func (me *SemExpr) HasFact(kind SemFactKind, of any, orAncestor bool, orDescenda
 	return
 }
 
-func (me *SemExpr) MaybeIdent() MoValIdent {
+func (me *SemExpr) MaybeIdent(canBeDecl bool) MoValIdent {
 	ident, _ := me.Val.(*SemValIdent)
-	if ident != nil {
+	if (ident != nil) && (canBeDecl || !ident.IsDecl) {
 		return ident.Ident
 	}
 	return ""
+}
+
+func (me *SrcPack) MaybeRefs(expr *SemExpr, filterBy *SrcFile) (sets SemExprs, gets SemExprs) {
+	name := expr.MaybeIdent(true)
+	if _, entry := expr.Scope.Lookup(name); entry != nil {
+		sets = append(SemExprs{entry.DeclParamOrSetCallOrFunc}, entry.SubsequentSetCalls...)
+		walk_from := SemExprs{entry.DeclParamOrSetCallOrFunc.Parent}
+		if fn, _ := entry.DeclParamOrSetCallOrFunc.Val.(*SemValFunc); (fn != nil) || (walk_from[0] == nil) {
+			walk_from = me.Trees.Sem.TopLevel
+		}
+		walk_from.Walk(filterBy, nil, func(it *SemExpr) {
+			if ident := it.MaybeIdent(false); ident == name {
+				if _, e := it.Scope.Lookup(ident); e == entry {
+					gets = append(gets, it)
+				}
+			}
+		})
+	}
+	return
 }
 
 func (me *SemExpr) Walk(origValTooIfValPrecomputedFromExpr bool, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {

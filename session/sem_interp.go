@@ -28,7 +28,7 @@ func init() {
 	{
 		t, fn := semTypeNew, MoPrimTypeFunc
 		t_any, t_void, t_bool, t_str, t_chr, t_int, t_uint, t_float, t_ident, t_primtypetag := t(nil, MoPrimTypeUntyped), t(nil, MoPrimTypeVoid), t(nil, MoPrimTypeBool), t(nil, MoPrimTypeStr), t(nil, MoPrimTypeChar), t(nil, MoPrimTypeNumInt), t(nil, MoPrimTypeNumUint), t(nil, MoPrimTypeNumFloat), t(nil, MoPrimTypeIdent), t(nil, MoPrimTypePrimTypeTag)
-		t_ord, t_list, t_dict := t(nil, MoPrimTypeOr, t_int, t_uint, t_float, t_chr, t_str), t(nil, MoPrimTypeList, t_any), t(nil, MoPrimTypeList, t_any, t_any)
+		t_ord, t_list, t_dict, t_err := t(nil, MoPrimTypeOr, t_int, t_uint, t_float, t_chr, t_str), t(nil, MoPrimTypeList, t_any), t(nil, MoPrimTypeList, t_any, t_any), semTypeNew(nil, MoPrimTypeErr, t_any)
 		semEvalPrimFnTypes = map[MoValIdent]SemType{
 			moPrimFnReplEnv:     t(nil, fn, t(nil, MoPrimTypeDict, t_ident, t_any)),
 			moPrimFnReplPrint:   t(nil, fn, t_any, t_void),
@@ -66,16 +66,16 @@ func init() {
 			moPrimFnDictSet:     t(nil, fn, t_dict, t_any, t_any, t_void),
 			moPrimFnDictDel:     t(nil, fn, t_dict, t_list, t_void),
 			moPrimFnDictLen:     t(nil, fn, t_dict, t_uint),
-			moPrimFnErrNew:      t(nil, fn, t_any, semTypeNew(nil, MoPrimTypeErr, t_any)),
-			moPrimFnErrVal:      nil,
-			moPrimFnStrConcat:   nil,
-			moPrimFnStrLen:      nil,
-			moPrimFnStrCharAt:   nil,
-			moPrimFnStrRange:    nil,
-			moPrimFnStr:         nil,
-			moPrimFnExprStr:     nil,
-			moPrimFnExprParse:   nil,
-			moPrimFnExprEval:    nil,
+			moPrimFnErrNew:      t(nil, fn, t_any, t_err),
+			moPrimFnErrVal:      t(nil, fn, t_err, t_any),
+			moPrimFnStrLen:      t(nil, fn, t_str, t_uint),
+			moPrimFnStrConcat:   t(nil, fn, t_str, semTypeNew(nil, MoPrimTypeList, t_str), t_str),
+			moPrimFnStrCharAt:   t(nil, fn, t_str, t_uint, t_chr),
+			moPrimFnStrRange:    t(nil, fn, t_str, t_uint, t_uint, t_str),
+			moPrimFnStr:         t(nil, fn, t_any, t_str),
+			moPrimFnExprStr:     t(nil, fn, t_any, t_str),
+			moPrimFnExprParse:   t(nil, fn, t_str, t_any),
+			moPrimFnExprEval:    t(nil, fn, t_any, t_any),
 		}
 	}
 }
@@ -116,26 +116,37 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 		self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(p *SemExpr) SemType { return p.Type }), val.Body.Type)...)
 	case *SemValCall:
 		var prim_op func(*SrcPack, *SemExpr, *SemScope)
-		if ident := val.Callee.MaybeIdent(); ident != "" {
+		if ident := val.Callee.MaybeIdent(false); ident != "" {
 			prim_op = semEvalPrimOps[ident]
 		}
 		if prim_op != nil {
 			prim_op(me, self, scope)
 		} else {
+			self.Type = self.newUntyped()
 			me.semEval(val.Callee, scope)
 			sl.Each(val.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
-			switch callee := val.Callee.Val.(type) {
-			case *SemValFunc:
-				// dupl := *callee
-				// dupl.Scope = &SemScope{Own: maps.Clone(callee.Scope.Own), Parent: callee.Scope.Parent}
-				self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "CALL OF FUNC"))
-				_ = callee
-				self.Type = self.newUntyped()
-			default:
+			fn, _ := val.Callee.Val.(*SemValFunc)
+			if fn == nil {
+				if _, entry := scope.Lookup(val.Callee.MaybeIdent(false)); (entry != nil) && (entry.Type.(*semTypeCtor).prim == MoPrimTypeFunc) {
+					if len(entry.SubsequentSetCalls) > 0 {
+						self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "resolve func @set more than once"))
+					} else {
+						switch decl := entry.DeclParamOrSetCallOrFunc.Val.(type) {
+						default:
+							_ = decl
+						}
+					}
+				}
+			}
+			if fn == nil {
 				if !val.Callee.HasErrs() { // dont wanna be too noisy
 					val.Callee.ErrsOwn.Add(val.Callee.ErrNew(ErrCodeUncallable, val.Callee.From.String()))
 				}
-				self.Type = self.newUntyped()
+			} else if fn.primImpl != nil {
+				self.Type = semEvalPrimFnTypes[val.Callee.MaybeIdent(false)]
+				fn.primImpl(me, self, scope)
+			} else {
+				self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "call lambda"))
 			}
 		}
 	}
@@ -196,7 +207,7 @@ func (me *SrcPack) semPrimOpAndOr(self *SemExpr, scope *SemScope) {
 		val, _ := arg.Val.(*SemValScalar)
 		return (val != nil) && (val.MoVal.PrimType() == MoPrimTypeBool)
 	}) {
-		is_and := (call.Callee.MaybeIdent() == moPrimOpAnd)
+		is_and := (call.Callee.MaybeIdent(false) == moPrimOpAnd)
 		all_true, any_true := true, false
 		sl.Each(call.Args, func(arg *SemExpr) {
 			b := bool(arg.Val.(*SemValScalar).MoVal.(MoValBool))

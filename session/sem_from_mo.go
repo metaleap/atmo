@@ -1,5 +1,10 @@
 package session
 
+import (
+	"atmo/util/sl"
+	"atmo/util/str"
+)
+
 func (me *SrcPack) semRefresh() {
 	me.Trees.Sem.TopLevel = make(SemExprs, 0, len(me.Trees.MoOrig))
 	me.Trees.Sem.Scope = SemScope{Own: map[MoValIdent]*SemScopeEntry{}}
@@ -74,31 +79,32 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 }
 
 func (me *SrcPack) semPopulateRootScope() {
-	_ = semEvalPrimFnTypes
 	for name, prim_fn := range semEvalPrimFns {
-		fn := &SemExpr{
-			Scope: &me.Trees.Sem.Scope,
-			Val: &SemValFunc{
-				primImpl: prim_fn,
-			},
-		}
-		var ty SemType
+		fn_val := &SemValFunc{primImpl: prim_fn}
+		fn := &SemExpr{Scope: &me.Trees.Sem.Scope, Type: semEvalPrimFnTypes[name], Val: fn_val}
+		fn.Type = semTypeEnsureDueTo(fn, fn.Type)
+		var idx int
+		fn_val.Params = SemExprs(sl.To(fn.Type.(*semTypeCtor).tyArgs, func(t SemType) *SemExpr {
+			idx++
+			return &SemExpr{Parent: fn, Scope: fn.Scope, Type: t, Val: &SemValIdent{Ident: MoValIdent("arg" + str.FromInt(idx))}}
+		}))
 		fn.Fact(SemFact{Kind: SemFactPrimFn}, fn)
 		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
-			Type: ty,
+			Type:                     fn.Type,
+			DeclParamOrSetCallOrFunc: fn,
 		}
 	}
 
 	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
 		if call, _ := self.Val.(*SemValCall); call != nil {
-			if ident := call.Callee.MaybeIdent(); (ident == moPrimOpQQuote) || (ident == moPrimOpQuote) {
+			if ident := call.Callee.MaybeIdent(false); (ident == moPrimOpQQuote) || (ident == moPrimOpQuote) {
 				return false
 			}
 		}
 		return true
 	}, func(self *SemExpr) {
 		if call, _ := self.Val.(*SemValCall); call != nil {
-			switch ident := call.Callee.MaybeIdent(); ident {
+			switch ident := call.Callee.MaybeIdent(true); ident {
 			case moPrimOpSet:
 				me.semPrepScopeOnSet(self)
 			case moPrimOpFn, moPrimOpMacro:
@@ -114,9 +120,9 @@ type SemScope struct {
 }
 
 type SemScopeEntry struct {
-	DeclParamOrSetCall *SemExpr
-	SubsequentSetCalls SemExprs
-	Type               SemType
+	DeclParamOrSetCallOrFunc *SemExpr
+	SubsequentSetCalls       SemExprs
+	Type                     SemType
 }
 
 func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {
