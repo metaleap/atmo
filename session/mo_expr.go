@@ -36,7 +36,7 @@ const (
 )
 
 func (me MoValPrimType) isAtomic() bool {
-	return (me != MoPrimTypeErr) && (me != MoPrimTypeList) && (me != MoPrimTypeCall) && (me != MoPrimTypeDict) && (me != MoPrimTypeFunc)
+	return (me != MoPrimTypeUntyped) && (me != MoPrimTypeErr) && (me != MoPrimTypeList) && (me != MoPrimTypeCall) && (me != MoPrimTypeDict) && (me != MoPrimTypeFunc) && (me != MoPrimTypeOr)
 }
 
 func (me MoValPrimType) String() string { return me.Str(false) }
@@ -436,7 +436,32 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 		case "@void":
 			val = MoValVoid{}
 		default:
-			val = MoValIdent(node.Src)
+			for _, prim_type_tag := range []MoValPrimType{
+				MoPrimTypeUntyped,
+				MoPrimTypeVoid,
+				MoPrimTypePrimTypeTag,
+				MoPrimTypeIdent,
+				MoPrimTypeBool,
+				MoPrimTypeNumInt,
+				MoPrimTypeNumUint,
+				MoPrimTypeNumFloat,
+				MoPrimTypeChar,
+				MoPrimTypeStr,
+				MoPrimTypeErr,
+				MoPrimTypeDict,
+				MoPrimTypeList,
+				MoPrimTypeCall,
+				MoPrimTypeFunc,
+				MoPrimTypeOr,
+			} {
+				if prim_type_tag.Str(false) == string(ident) {
+					val = MoValPrimTypeTag(prim_type_tag)
+					break
+				}
+			}
+			if val == nil {
+				val = MoValIdent(node.Src)
+			}
 		}
 	case AstNodeKindLit:
 		switch it := node.Lit.(type) {

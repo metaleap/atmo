@@ -374,9 +374,11 @@ func (me *SrcPack) semPrimFnCast(self *SemExpr, scope *SemScope) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeUntyped)
 	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
 	if me.semCheckCount(2, 2, call.Args, self, true) {
-		if me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypePrimTypeTag)) {
+		ty_prim := semTypeNew(call.Callee, MoPrimTypePrimTypeTag)
+		if me.semCheckType(call.Args[0], ty_prim) {
 			if val, _ := call.Args[0].Val.(*SemValScalar); (val != nil) && (val.MoVal.PrimType() == MoPrimTypePrimTypeTag) {
 				self.Type = semTypeNew(call.Args[0], (MoValPrimType(val.MoVal.(MoValPrimTypeTag))))
+				call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, ty_prim, call.Args[1].Type, self.Type)
 				if self.isPrecomputedPermissible() && (self.From != nil) {
 					result := me.Interp.ExprEval(self.From)
 					if err := result.Err(); err != nil {

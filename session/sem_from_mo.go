@@ -29,8 +29,8 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 	ret := &SemExpr{From: moExpr, Parent: parent, Scope: scope}
 	switch it := moExpr.Val.(type) {
 	default:
-		panic(it)
-	case MoValVoid, MoValBool, MoValNumInt, MoValNumUint, MoValNumFloat, MoValChar, MoValStr:
+		panic(moExpr.String())
+	case MoValVoid, MoValBool, MoValNumInt, MoValNumUint, MoValNumFloat, MoValChar, MoValStr, MoValPrimTypeTag:
 		me.semPopulateScalar(ret, it)
 	case MoValIdent:
 		me.semPopulateIdent(ret, it)
@@ -83,32 +83,6 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 }
 
 func (me *SrcPack) semPopulateRootScope() {
-	for _, prim_type_tag := range []MoValPrimType{
-		MoPrimTypeUntyped,
-		MoPrimTypeVoid,
-		MoPrimTypePrimTypeTag,
-		MoPrimTypeIdent,
-		MoPrimTypeBool,
-		MoPrimTypeNumInt,
-		MoPrimTypeNumUint,
-		MoPrimTypeNumFloat,
-		MoPrimTypeChar,
-		MoPrimTypeStr,
-		MoPrimTypeErr,
-		MoPrimTypeDict,
-		MoPrimTypeList,
-		MoPrimTypeCall,
-		MoPrimTypeFunc,
-		MoPrimTypeOr,
-	} {
-		name, ty := MoValIdent(prim_type_tag.Str(false)), semTypeNew(nil, MoPrimTypePrimTypeTag)
-		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
-			Type: ty,
-			DeclParamOrCallOrFuncOrPrimIdent: &SemExpr{
-				Scope: &me.Trees.Sem.Scope, Type: ty, Val: &SemValScalar{MoVal: MoValPrimTypeTag(prim_type_tag)},
-			},
-		}
-	}
 	for name, prim_fn := range semEvalPrimFns {
 		fn_val := &SemValFunc{primImpl: prim_fn}
 		fn := &SemExpr{Scope: &me.Trees.Sem.Scope, Type: semEvalPrimFnTypes[name], Val: fn_val}
