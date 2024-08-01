@@ -17,7 +17,7 @@ type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr)
 type MoValPrimType int
 
 const (
-	MoPrimTypeAny MoValPrimType = iota // also used by type-inference for untypables such as undefined idents
+	MoPrimTypeUntyped MoValPrimType = iota // also used by type-inference for untypables such as undefined idents
 	MoPrimTypeVoid
 	MoPrimTypePrimTypeTag
 	MoPrimTypeIdent

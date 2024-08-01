@@ -83,7 +83,14 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 }
 
 func (me *SrcPack) semPopulateScope() {
-	me.Trees.Sem.TopLevel.Walk(nil, nil, func(self *SemExpr) {
+	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
+		if call, _ := self.Val.(*SemValCall); call != nil {
+			if ident := call.Callee.MaybeIdent(); (ident == moPrimOpQQuote) || (ident == moPrimOpQuote) {
+				return false
+			}
+		}
+		return true
+	}, func(self *SemExpr) {
 		if call, _ := self.Val.(*SemValCall); call != nil {
 			switch ident := call.Callee.MaybeIdent(); ident {
 			case moPrimOpSet:

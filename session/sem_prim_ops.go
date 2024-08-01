@@ -38,7 +38,7 @@ func init() {
 		moPrimFnStrCharAt:   ty_fn_prims(MoPrimTypeStr, MoPrimTypeNumUint, MoPrimTypeChar),
 		moPrimFnStrRange:    ty_fn_prims(MoPrimTypeStr, MoPrimTypeNumUint, MoPrimTypeNumUint, MoPrimTypeStr),
 		moPrimFnStrConcat:   ty_fn(semTypeNew(nil, MoPrimTypeList, ty_prim(MoPrimTypeStr)), ty_prim(MoPrimTypeStr)),
-		moPrimFnReplEnv:     ty_fn(semTypeNew(nil, MoPrimTypeDict, ty_prim(MoPrimTypeIdent), ty_prim(MoPrimTypeAny))),
+		moPrimFnReplEnv:     ty_fn(semTypeNew(nil, MoPrimTypeDict, ty_prim(MoPrimTypeIdent), ty_prim(MoPrimTypeUntyped))),
 		moPrimFnReplReset:   ty_fn_prims(MoPrimTypeVoid),
 	}
 	semTypingPrimOpsDo = map[MoValIdent]func(*SrcPack, *semTypeInfer, *SemExpr, map[MoValIdent]SemType){

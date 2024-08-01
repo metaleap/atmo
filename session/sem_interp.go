@@ -11,11 +11,13 @@ var (
 
 func init() {
 	semEvalPrimOps = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
-		moPrimOpSet: (*SrcPack).semPrimOpSet,
-		moPrimOpDo:  (*SrcPack).semPrimOpDo,
-		moPrimOpFn:  (*SrcPack).semPrimOpFn,
-		moPrimOpAnd: (*SrcPack).semPrimOpAndOr,
-		moPrimOpOr:  (*SrcPack).semPrimOpAndOr,
+		moPrimOpSet:    (*SrcPack).semPrimOpSet,
+		moPrimOpDo:     (*SrcPack).semPrimOpDo,
+		moPrimOpFn:     (*SrcPack).semPrimOpFn,
+		moPrimOpAnd:    (*SrcPack).semPrimOpAndOr,
+		moPrimOpOr:     (*SrcPack).semPrimOpAndOr,
+		moPrimOpQuote:  (*SrcPack).semPrimOpQuote,
+		moPrimOpQQuote: (*SrcPack).semPrimOpQuote,
 	}
 	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){}
 }
@@ -83,6 +85,7 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 }
 
 func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
+	// need no checks on args count or the ident being @set since those were performed by semPrepScopeOnSet
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	sl.Each(call.Args[1:], func(arg *SemExpr) { me.semEval(arg, scope) })
@@ -98,6 +101,7 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 
 func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
+	self.Type = self.newUntyped()
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		me.semEval(call.Args[0], scope)
 		if list := semCheckIs[SemValList](MoPrimTypeList, call.Args[0]); list != nil {
@@ -105,9 +109,6 @@ func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
 				self.Type = list.Items[len(list.Items)-1].Type
 			}
 		}
-	}
-	if self.Type == nil {
-		self.Type = self.newUntyped()
 	}
 }
 
@@ -138,6 +139,28 @@ func (me *SrcPack) semPrimOpAndOr(self *SemExpr, scope *SemScope) {
 			me.semPopulateScalar(self, MoValBool(all_true))
 		} else {
 			me.semPopulateScalar(self, MoValBool(any_true))
+		}
+	}
+}
+
+func (me *SrcPack) semPrimOpQuote(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = self.newUntyped()
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		switch val := call.Args[0].Val.(type) {
+		case *SemValScalar:
+			self.Type = semTypeNew(call.Callee, val.MoVal.PrimType())
+		case *SemValList:
+			self.Type = semTypeNew(call.Callee, MoPrimTypeList)
+		case *SemValDict:
+			self.Type = semTypeNew(call.Callee, MoPrimTypeDict)
+		case *SemValIdent:
+			self.Type = semTypeNew(call.Callee, MoPrimTypeIdent)
+		case *SemValCall:
+			self.Type = semTypeNew(call.Callee, MoPrimTypeCall)
+		case *SemValFunc:
+			self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "shouldn't happen"))
+			self.Type = semTypeNew(call.Callee, MoPrimTypeFunc)
 		}
 	}
 }

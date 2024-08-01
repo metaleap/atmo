@@ -22,7 +22,7 @@ func (me *SrcPack) semInferTypes() {
 }
 
 func (me *SemExpr) newUntyped() SemType {
-	return semTypeNew(me, MoPrimTypeAny)
+	return semTypeNew(me, MoPrimTypeUntyped)
 }
 
 type SemType interface {
@@ -83,7 +83,7 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 			targ.Str(w)
 		}
 		w.WriteByte(')')
-	case (me.prim == MoPrimTypeFunc) && (len(me.tyArgs) > 0):
+	case (me.prim == MoPrimTypeOr) && (len(me.tyArgs) > 0):
 		w.WriteByte('(')
 		for i, targ := range me.tyArgs {
 			if (i > 0) || (len(me.tyArgs) == 1) {
@@ -108,7 +108,7 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 
 func SemTypeToString(ty SemType) string {
 	if ty == nil {
-		return MoPrimTypeAny.Str(false)
+		return MoPrimTypeUntyped.Str(false)
 	}
 	var buf strings.Builder
 	ty.Str(&buf)
