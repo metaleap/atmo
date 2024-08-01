@@ -1,6 +1,7 @@
 package sl
 
 import (
+	"atmo/util"
 	"cmp"
 	"reflect"
 	"slices"
@@ -26,7 +27,7 @@ func WithoutIdxs[TSlice ~[]TItem, TItem any](slice TSlice, sansIdxs ...int) (ret
 	if len(sansIdxs) == 0 {
 		return slice
 	}
-	ret = make(TSlice, 0, len(slice)-len(sansIdxs))
+	ret = make(TSlice, 0, util.Max(0, len(slice)-len(sansIdxs)))
 	for i := range slice {
 		if !Has(sansIdxs, i) {
 			ret = append(ret, slice[i])

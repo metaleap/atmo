@@ -20,7 +20,7 @@ var (
 )
 
 func Main() {
-	session.DoSrcPackEvals, session.DoSrcPackSems = true, false
+	session.DoSrcPackEvals, session.DoSrcPackSems = true, true
 
 	if !checkHaveLineEditing() {
 		os.Stdout.WriteString("(For line-editing, remember to run `atmo repl` with `rlwrap` or similar.)\n\n")

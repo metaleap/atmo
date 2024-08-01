@@ -4,6 +4,7 @@ import (
 	"maps"
 	"strings"
 
+	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -351,13 +352,16 @@ func (me *semTypeInfer) newTypeVar(dueTo *SemExpr) (ret SemType) {
 
 func semTypeEnsureDueTo(dueTo *SemExpr, ty SemType) SemType {
 	if dueTo != nil {
+		nay := func(expr *SemExpr) bool {
+			return (expr == nil) || (expr.From == nil) || (expr.From.SrcFile == nil) || (expr.From.SrcSpan == nil)
+		}
 		switch ty := ty.(type) {
 		case *semTypeCtor:
-			if (ty.dueTo == nil) || sl.Any(ty.tyArgs, func(targ SemType) bool { return targ.From() == nil }) {
-				return semTypeNew(dueTo, ty.prim, sl.To(ty.tyArgs, func(targ SemType) SemType { return semTypeEnsureDueTo(dueTo, targ) })...)
+			if nah := nay(ty.dueTo); nah || sl.Any(ty.tyArgs, func(targ SemType) bool { return nay(targ.From()) }) {
+				return semTypeNew(util.If(nah, dueTo, ty.dueTo), ty.prim, sl.To(ty.tyArgs, func(targ SemType) SemType { return semTypeEnsureDueTo(dueTo, targ) })...)
 			}
 		case *semTypeVar:
-			if ty.dueTo == nil {
+			if nay(ty.dueTo) {
 				ty.dueTo = dueTo
 			}
 		}
@@ -385,7 +389,7 @@ func (me *semTypeConstraintEq) String() string {
 	return buf.String()
 }
 
-func (me *semTypeCtor) ensure(ty SemType) {
+func (me *semTypeCtor) ensureOrOr(ty SemType) {
 	if me.Eq(ty) {
 		return
 	} else if me.prim != MoPrimTypeOr {

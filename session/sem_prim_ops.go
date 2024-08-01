@@ -177,6 +177,8 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 						ident.IsParam, ident.IsDecl = true, true
 						ok_params = append(ok_params, param)
 					}
+				} else {
+					self.ErrsOwn.Add(param.ErrNew(ErrCodeExpectedFoo, str.Fmt("an identifier instead of `%s`", param.From.String())))
 				}
 			}
 			fn := &SemValFunc{

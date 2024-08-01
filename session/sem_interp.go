@@ -107,9 +107,16 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 		_, entry := scope.Lookup(val.Ident)
 		if entry == nil {
 			self.Type = self.newUntyped()
-			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(util.If(semEvalPrimOps[val.Ident] != nil, ErrCodeNotAValue, ErrCodeUndefined), val.Ident))
+			is_prim_op := semEvalPrimOps[val.Ident] != nil
+			if is_prim_op {
+				self.Fact(SemFact{Kind: SemFactPrimOp}, self)
+			}
+			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Ident))
 		} else {
-			self.Type = entry.Type
+			self.Type = semTypeEnsureDueTo(self, entry.Type)
+			if decl, _ := entry.DeclParamOrSetCallOrFunc.Val.(*SemValFunc); decl != nil {
+				self.Fact(SemFact{Kind: SemFactPrimFn}, self)
+			}
 		}
 	case *SemValFunc:
 		me.semEval(val.Body, val.Scope)
@@ -120,6 +127,7 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 			prim_op = semEvalPrimOps[ident]
 		}
 		if prim_op != nil {
+			val.Callee.Fact(SemFact{Kind: SemFactPrimOp}, val.Callee)
 			prim_op(me, self, scope)
 		} else {
 			self.Type = self.newUntyped()
@@ -128,13 +136,11 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 			fn, _ := val.Callee.Val.(*SemValFunc)
 			if fn == nil {
 				if _, entry := scope.Lookup(val.Callee.MaybeIdent(false)); (entry != nil) && (entry.Type.(*semTypeCtor).prim == MoPrimTypeFunc) {
-					if len(entry.SubsequentSetCalls) > 0 {
-						self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "resolve func @set more than once"))
-					} else {
-						switch decl := entry.DeclParamOrSetCallOrFunc.Val.(type) {
-						default:
-							_ = decl
-						}
+					switch decl := entry.DeclParamOrSetCallOrFunc.Val.(type) {
+					case *SemValFunc:
+						fn = decl
+					case *SemValIdent:
+						self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "FOO"))
 					}
 				}
 			}
@@ -162,13 +168,18 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	sl.Each(call.Args[1:], func(arg *SemExpr) { me.semEval(arg, scope) })
 	ty := call.Args[1].Type
-	_, entry := scope.Lookup(call.Args[0].Val.(*SemValIdent).Ident)
-	if entry.Type == nil {
-		entry.Type = ty
+	name := call.Args[0].MaybeIdent(true)
+	if name == "" {
+
 	} else {
-		entry.Type.(*semTypeCtor).ensure(ty)
+		_, entry := scope.Lookup(name)
+		if entry.Type == nil {
+			entry.Type = ty
+		} else {
+			entry.Type.(*semTypeCtor).ensureOrOr(ty)
+		}
+		call.Args[0].Type = entry.Type
 	}
-	call.Args[0].Type = entry.Type
 	self.Fact(SemFact{Kind: SemFactEffectful}, self)
 }
 
@@ -262,11 +273,13 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 					if key.HasFact(SemFactEffectful, nil, false, true) {
 						all_case_preds_statically_known = false
 					}
-					if me.semCheckType(key, semTypeNew(call.Callee, MoPrimTypeBool)) && all_case_preds_statically_known /*so far*/ {
+					if me.semCheckType(key, semTypeNew(call.Callee, MoPrimTypeBool)) {
 						if scalar, _ := key.Val.(*SemValScalar); (scalar == nil) || (scalar.MoVal.PrimType() != MoPrimTypeBool) {
 							all_case_preds_statically_known = false
-						} else if b := scalar.MoVal.(MoValBool); b {
+						} else if b := scalar.MoVal.(MoValBool); b && (new_val == nil) { // any prior @true branch _stays_ the winner
 							new_val = val
+						} else {
+							val.Fact(SemFact{Kind: SemFactUnused}, key)
 						}
 					}
 				}
@@ -284,5 +297,16 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 
 func (me *SrcPack) semPrimFnNot(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
-	_ = me.semCheckCount(1, 1, call.Args, self, true)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
+	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		if me.semCheckType(call.Args[0], self.Type) {
+			if scalar, _ := call.Args[0].Val.(*SemValScalar); (scalar != nil) && (scalar.MoVal.PrimType() == MoPrimTypeBool) && self.isPrecomputePermissible() {
+				if self.ValOrig == nil {
+					self.ValOrig = self.Val
+				}
+				me.semPopulateScalar(self, !scalar.MoVal.(MoValBool))
+			}
+		}
+	}
 }
