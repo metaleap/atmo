@@ -181,6 +181,19 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 	}
 }
 
+func (me *SrcPack) semInterpMaybe(self *SemExpr, scope *SemScope) {
+	if self.isPrecomputedPermissible() && (self.From != nil) {
+		result := me.Interp.ExprEval(self.From)
+		if err := result.Err(); err != nil {
+			self.ErrsOwn.Add(result.Err())
+		} else if to_sem := me.semExprFromMoExpr(scope, result, self.Parent); (to_sem != nil) && !to_sem.HasErrs() {
+			if me.semEval(to_sem, scope); !to_sem.HasErrs() {
+				me.semReplaceExprValWithComputedValIfPermissible(self, to_sem.Val, to_sem.Type)
+			}
+		}
+	}
+}
+
 func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 	// need no checks on args count or the ident being @set since those were performed by semPrepScopeOnSet
 	call := self.Val.(*SemValCall)
@@ -379,16 +392,7 @@ func (me *SrcPack) semPrimFnCast(self *SemExpr, scope *SemScope) {
 			if val, _ := call.Args[0].Val.(*SemValScalar); (val != nil) && (val.MoVal.PrimType() == MoPrimTypePrimTypeTag) {
 				self.Type = semTypeNew(call.Args[0], (MoValPrimType(val.MoVal.(MoValPrimTypeTag))))
 				call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, ty_prim, call.Args[1].Type, self.Type)
-				if self.isPrecomputedPermissible() && (self.From != nil) {
-					result := me.Interp.ExprEval(self.From)
-					if err := result.Err(); err != nil {
-						self.ErrsOwn.Add(result.Err())
-					} else if to_sem := me.semExprFromMoExpr(scope, result, self.Parent); (to_sem != nil) && !to_sem.HasErrs() {
-						if me.semEval(to_sem, scope); !to_sem.HasErrs() {
-							me.semReplaceExprValWithComputedValIfPermissible(self, to_sem.Val, to_sem.Type)
-						}
-					}
-				}
+				me.semInterpMaybe(self, scope)
 			}
 		}
 	}
