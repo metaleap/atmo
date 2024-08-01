@@ -202,7 +202,9 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 		ty_args := sl.To(val.Args, func(arg *SemExpr) SemType { return me.newTypeVar(arg) })
 		ty_fn := semTypeNew(val.Callee, MoPrimTypeFunc, append(ty_args, expr.Type)...)
 		val.Callee.Type = ty_fn
+
 		me.infer(ctx, val.Callee, env)
+
 		var idx int
 		sl.Each(val.Args, func(arg *SemExpr) { arg.Type = ty_args[idx]; me.infer(ctx, arg, env); idx++ })
 	case *SemValIdent:
