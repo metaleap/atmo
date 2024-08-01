@@ -148,9 +148,9 @@ func (me *SemExpr) MaybeIdent(canBeDecl bool) MoValIdent {
 func (me *SrcPack) MaybeRefs(expr *SemExpr, filterBy *SrcFile) (sets SemExprs, gets SemExprs) {
 	name := expr.MaybeIdent(true)
 	if _, entry := expr.Scope.Lookup(name); entry != nil {
-		sets = append(SemExprs{entry.DeclParamOrSetCallOrFunc}, entry.SubsequentSetCalls...)
-		walk_from := SemExprs{entry.DeclParamOrSetCallOrFunc.Parent}
-		if fn, _ := entry.DeclParamOrSetCallOrFunc.Val.(*SemValFunc); (fn != nil) || (walk_from[0] == nil) {
+		sets = append(SemExprs{entry.DeclParamOrCallOrFuncOrPrimIdent}, entry.SubsequentSetCalls...)
+		walk_from := SemExprs{entry.DeclParamOrCallOrFuncOrPrimIdent.Parent}
+		if fn, _ := entry.DeclParamOrCallOrFuncOrPrimIdent.Val.(*SemValFunc); (fn != nil) || (walk_from[0] == nil) {
 			walk_from = me.Trees.Sem.TopLevel
 		}
 		walk_from.Walk(filterBy, nil, func(it *SemExpr) {
@@ -302,6 +302,7 @@ const (
 	SemFactPreComputed
 	SemFactPrimOp
 	SemFactPrimFn
+	SemFactPrimIdent
 )
 
 type SemFact struct {
@@ -323,6 +324,8 @@ func (me *SemFact) String() (ret string) {
 		ret = "primFn"
 	case SemFactPrimOp:
 		ret = "primOp"
+	case SemFactPrimIdent:
+		ret = "primIdent"
 	}
 	if me.Data != nil {
 		of := me.Data

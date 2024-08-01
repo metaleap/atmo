@@ -11,10 +11,10 @@ import (
 )
 
 var (
-	InterpStderr Writer    = os.Stderr
-	InterpStdout Writer    = os.Stdout
-	InterpStdin  io.Reader = os.Stdin
-	rootEnv                = MoEnv{Own: map[MoValIdent]*MoExpr{}}
+	InterpStderr  Writer    = os.Stderr
+	InterpStdout  Writer    = os.Stdout
+	InterpStdin   io.Reader = os.Stdin
+	interpRootEnv           = MoEnv{Own: map[MoValIdent]*MoExpr{}}
 )
 
 type Writer interface {
@@ -48,7 +48,7 @@ func newInterp(inPack *SrcPack, replFauxFile *SrcFile) *Interp {
 }
 
 func (me *Interp) envReset() {
-	me.Env = newMoEnv(&rootEnv, nil, nil)
+	me.Env = newMoEnv(&interpRootEnv, nil, nil)
 }
 
 // for REPL use-cases only!
@@ -385,16 +385,19 @@ type MoEnv struct {
 }
 
 func (me *Interp) ensureRootEnvPopulated() {
-	if len(rootEnv.Own) > 0 {
+	if len(interpRootEnv.Own) > 0 {
 		return
 	}
 	// builtin eager prim-op funcs into rootEnv
 	for name, fn := range moPrimOpsEager {
-		rootEnv.set(name, me.expr(MoValFnPrim(fn), nil, nil))
+		interpRootEnv.set(name, me.expr(MoValFnPrim(fn), nil, nil))
 	}
 	for _, prim_type_tag := range []MoValPrimType{
+		MoPrimTypeUntyped,
+		MoPrimTypeVoid,
 		MoPrimTypePrimTypeTag,
 		MoPrimTypeIdent,
+		MoPrimTypeBool,
 		MoPrimTypeNumInt,
 		MoPrimTypeNumUint,
 		MoPrimTypeNumFloat,
@@ -405,8 +408,9 @@ func (me *Interp) ensureRootEnvPopulated() {
 		MoPrimTypeList,
 		MoPrimTypeCall,
 		MoPrimTypeFunc,
+		MoPrimTypeOr,
 	} {
-		rootEnv.set(MoValIdent(prim_type_tag.Str(false)), me.expr(MoValPrimTypeTag(prim_type_tag), nil, nil))
+		interpRootEnv.set(MoValIdent(prim_type_tag.Str(false)), me.expr(MoValPrimTypeTag(prim_type_tag), nil, nil))
 	}
 }
 

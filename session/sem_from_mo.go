@@ -79,6 +79,32 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 }
 
 func (me *SrcPack) semPopulateRootScope() {
+	for _, prim_type_tag := range []MoValPrimType{
+		MoPrimTypeUntyped,
+		MoPrimTypeVoid,
+		MoPrimTypePrimTypeTag,
+		MoPrimTypeIdent,
+		MoPrimTypeBool,
+		MoPrimTypeNumInt,
+		MoPrimTypeNumUint,
+		MoPrimTypeNumFloat,
+		MoPrimTypeChar,
+		MoPrimTypeStr,
+		MoPrimTypeErr,
+		MoPrimTypeDict,
+		MoPrimTypeList,
+		MoPrimTypeCall,
+		MoPrimTypeFunc,
+		MoPrimTypeOr,
+	} {
+		name, ty := MoValIdent(prim_type_tag.Str(false)), semTypeNew(nil, MoPrimTypePrimTypeTag)
+		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
+			Type: ty,
+			DeclParamOrCallOrFuncOrPrimIdent: &SemExpr{
+				Scope: &me.Trees.Sem.Scope, Type: ty, Val: &SemValScalar{MoVal: MoValPrimTypeTag(prim_type_tag)},
+			},
+		}
+	}
 	for name, prim_fn := range semEvalPrimFns {
 		fn_val := &SemValFunc{primImpl: prim_fn}
 		fn := &SemExpr{Scope: &me.Trees.Sem.Scope, Type: semEvalPrimFnTypes[name], Val: fn_val}
@@ -90,8 +116,8 @@ func (me *SrcPack) semPopulateRootScope() {
 		}))
 		fn.Fact(SemFact{Kind: SemFactPrimFn}, fn)
 		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
-			Type:                     fn.Type,
-			DeclParamOrSetCallOrFunc: fn,
+			Type:                             fn.Type,
+			DeclParamOrCallOrFuncOrPrimIdent: fn,
 		}
 	}
 
@@ -137,9 +163,9 @@ type SemScope struct {
 }
 
 type SemScopeEntry struct {
-	DeclParamOrSetCallOrFunc *SemExpr
-	SubsequentSetCalls       SemExprs
-	Type                     SemType
+	DeclParamOrCallOrFuncOrPrimIdent *SemExpr
+	SubsequentSetCalls               SemExprs
+	Type                             SemType
 }
 
 func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {

@@ -147,12 +147,12 @@ func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 				scope, resolved := self.Scope.Lookup(ident.Ident)
 				if resolved == nil {
 					ident.IsDecl = true
-					self.Scope.Own[ident.Ident] = &SemScopeEntry{DeclParamOrSetCallOrFunc: self}
+					self.Scope.Own[ident.Ident] = &SemScopeEntry{DeclParamOrCallOrFuncOrPrimIdent: self}
 				} else {
 					resolved.SubsequentSetCalls = append(resolved.SubsequentSetCalls, self)
 					if (scope == self.Scope) && (self.Parent == nil) {
 						err := self.From.SrcSpan.newDiagErr(ErrCodeDuplTopDecl, ident.Ident)
-						err.Rel = srcFileLocs([]string{str.Fmt("the other `%s` definition", ident.Ident)}, resolved.DeclParamOrSetCallOrFunc)
+						err.Rel = srcFileLocs([]string{str.Fmt("the other `%s` definition", ident.Ident)}, resolved.DeclParamOrCallOrFuncOrPrimIdent)
 						self.ErrsOwn.Add(err)
 					}
 				}
@@ -185,7 +185,7 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 				IsMacro: (call.Callee.Val.(*SemValIdent).Ident == moPrimOpMacro),
 			}
 			for _, param := range fn.Params {
-				fn.Scope.Own[param.Val.(*SemValIdent).Ident] = &SemScopeEntry{DeclParamOrSetCallOrFunc: param}
+				fn.Scope.Own[param.Val.(*SemValIdent).Ident] = &SemScopeEntry{DeclParamOrCallOrFuncOrPrimIdent: param}
 			}
 			switch len(body_list.Items) {
 			case 0:

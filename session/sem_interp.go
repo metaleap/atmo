@@ -132,8 +132,10 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Ident))
 		} else {
 			self.Type = semTypeEnsureDueTo(self, entry.Type)
-			if decl, _ := entry.DeclParamOrSetCallOrFunc.Val.(*SemValFunc); decl != nil {
+			if decl, _ := entry.DeclParamOrCallOrFuncOrPrimIdent.Val.(*SemValFunc); decl != nil {
 				self.Fact(SemFact{Kind: SemFactPrimFn}, self)
+			} else if decl, _ := entry.DeclParamOrCallOrFuncOrPrimIdent.Val.(*SemValScalar); decl != nil {
+				self.Fact(SemFact{Kind: SemFactPrimIdent}, self)
 			}
 		}
 	case *SemValFunc:
@@ -154,7 +156,7 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 			fn, _ := val.Callee.Val.(*SemValFunc)
 			if fn == nil {
 				if _, entry := scope.Lookup(val.Callee.MaybeIdent(false)); (entry != nil) && (entry.Type.(*semTypeCtor).prim == MoPrimTypeFunc) {
-					switch decl := entry.DeclParamOrSetCallOrFunc.Val.(type) {
+					switch decl := entry.DeclParamOrCallOrFuncOrPrimIdent.Val.(type) {
 					case *SemValFunc:
 						fn = decl
 					case *SemValIdent:
@@ -306,6 +308,27 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 	}
 }
 
+func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) func(*SrcPack, *SemExpr, *SemScope) {
+	return func(me *SrcPack, self *SemExpr, scope *SemScope) {
+		defer func() { // statically-computed div/mod by 0
+			if err := recover(); err != nil {
+				self.ErrsOwn.Add(self.ErrNew(ErrCodeComputationFailed, err))
+			}
+		}()
+		call := self.Val.(*SemValCall)
+		self.Type = semTypeNew(call.Callee, t)
+		sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope); me.semCheckType(arg, self.Type) })
+		if me.semCheckCount(2, 2, call.Args, self, true) && self.isPrecomputedPermissible() {
+			if scalar1, _ := call.Args[0].Val.(*SemValScalar); (scalar1 != nil) && (scalar1.MoVal.PrimType() == t) {
+				if scalar2, _ := call.Args[1].Val.(*SemValScalar); (scalar2 != nil) && (scalar2.MoVal.PrimType() == t) {
+					result := f(scalar1.MoVal, scalar2.MoVal)
+					me.semReplaceExprValWithComputedValIfPermissible(self, result, nil)
+				}
+			}
+		}
+	}
+}
+
 func (me *SrcPack) semPrimFnNot(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
@@ -349,26 +372,11 @@ func (me *SrcPack) semPrimFnCast(self *SemExpr, scope *SemScope) {
 	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		if me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypePrimTypeTag)) {
-
-		}
-	}
-}
-
-func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) func(*SrcPack, *SemExpr, *SemScope) {
-	return func(me *SrcPack, self *SemExpr, scope *SemScope) {
-		defer func() { // statically-computed div/mod by 0
-			if err := recover(); err != nil {
-				self.ErrsOwn.Add(self.ErrNew(ErrCodeComputationFailed, err))
-			}
-		}()
-		call := self.Val.(*SemValCall)
-		self.Type = semTypeNew(call.Callee, t)
-		sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope); me.semCheckType(arg, self.Type) })
-		if me.semCheckCount(2, 2, call.Args, self, true) && self.isPrecomputedPermissible() {
-			if scalar1, _ := call.Args[0].Val.(*SemValScalar); (scalar1 != nil) && (scalar1.MoVal.PrimType() == t) {
-				if scalar2, _ := call.Args[1].Val.(*SemValScalar); (scalar2 != nil) && (scalar2.MoVal.PrimType() == t) {
-					result := f(scalar1.MoVal, scalar2.MoVal)
-					me.semReplaceExprValWithComputedValIfPermissible(self, result, nil)
+			if val, _ := call.Args[0].Val.(*SemValScalar); (val != nil) && (val.MoVal.PrimType() == MoPrimTypePrimTypeTag) {
+				self.Type = semTypeNew(call.Args[0], (MoValPrimType(val.MoVal.(MoValPrimTypeTag))))
+				if self.isPrecomputedPermissible() && (self.From != nil) {
+					result := me.Interp.ExprEval(self.From)
+					println(result.String())
 				}
 			}
 		}
