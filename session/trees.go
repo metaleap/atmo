@@ -42,14 +42,14 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 	}
 	me.Trees.MoOrig = top_level
 
-	old_had_errs := me.Trees.MoEvaled.AnyErrs() || me.Trees.Sem.TopLevel.AnyErrs()
-	if any_pre_errs && !old_had_errs { // bug out & leave the old trees intact in this case, for editor clients (go2def etc)
+	old_had_diags := me.Trees.MoEvaled.AnyErrs() || me.Trees.Sem.TopLevel.AnyErrs() || (len(me.semNonErrDiags()) > 0)
+	if any_pre_errs && !old_had_diags { // bug out & leave the old trees intact in this case, for editor clients (go2def etc)
 		return
 	}
 
 	if DoSrcPackSems {
 		me.semRefresh()
-		encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_errs || me.Trees.Sem.TopLevel.AnyErrs()
+		encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_diags || me.Trees.Sem.TopLevel.AnyErrs() || (len(me.semNonErrDiags()) > 0)
 	}
 
 	if DoSrcPackEvals {
@@ -69,7 +69,7 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 				encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || evaled.HasErrs()
 			}
 		}
-		encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_errs || me.Trees.MoEvaled.AnyErrs()
+		encounteredDiagsRelevantChanges = encounteredDiagsRelevantChanges || old_had_diags || me.Trees.MoEvaled.AnyErrs()
 	}
 
 	return

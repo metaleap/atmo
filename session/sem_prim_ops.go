@@ -150,7 +150,7 @@ func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 					self.Scope.Own[ident.Ident] = &SemScopeEntry{DeclParamOrCallOrFuncOrPrimIdent: self}
 				} else {
 					resolved.SubsequentSetCalls = append(resolved.SubsequentSetCalls, self)
-					if (scope == self.Scope) && (self.Parent == nil) {
+					if (scope == self.Scope) && (scope == &me.Trees.Sem.Scope) {
 						err := self.From.SrcSpan.newDiagErr(ErrCodeDuplTopDecl, ident.Ident)
 						err.Rel = srcFileLocs([]string{str.Fmt("the other `%s` definition", ident.Ident)}, resolved.DeclParamOrCallOrFuncOrPrimIdent)
 						self.ErrsOwn.Add(err)
