@@ -23,8 +23,11 @@ func init() {
 		moPrimOpCaseOf: (*SrcPack).semPrimOpCaseOf,
 	}
 	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
-		moPrimFnNot:     (*SrcPack).semPrimFnNot,
-		moPrimFnReplEnv: (*SrcPack).semPrimFnReplEnv,
+		moPrimFnNot:        (*SrcPack).semPrimFnNot,
+		moPrimFnReplEnv:    (*SrcPack).semPrimFnReplEnv,
+		moPrimFnReplPrint:  (*SrcPack).semPrimFnReplPrint,
+		moPrimFnReplReset:  (*SrcPack).semPrimFnReplReset,
+		moPrimFnNumUintAdd: semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) + opr.(MoValNumUint) }),
 	}
 	{
 		t, fn := semTypeNew, MoPrimTypeFunc
@@ -34,11 +37,6 @@ func init() {
 			moPrimFnReplEnv:     t(nil, fn, t(nil, MoPrimTypeDict, t_ident, t_any)),
 			moPrimFnReplPrint:   t(nil, fn, t_any, t_void),
 			moPrimFnReplReset:   t(nil, fn, t_void),
-			moPrimFnNumIntAdd:   t(nil, fn, t_int, t_int, t_int),
-			moPrimFnNumIntSub:   t(nil, fn, t_int, t_int, t_int),
-			moPrimFnNumIntMul:   t(nil, fn, t_int, t_int, t_int),
-			moPrimFnNumIntDiv:   t(nil, fn, t_int, t_int, t_int),
-			moPrimFnNumIntMod:   t(nil, fn, t_int, t_int, t_int),
 			moPrimFnNumUintAdd:  t(nil, fn, t_uint, t_uint, t_uint),
 			moPrimFnNumUintSub:  t(nil, fn, t_uint, t_uint, t_uint),
 			moPrimFnNumUintMul:  t(nil, fn, t_uint, t_uint, t_uint),
@@ -48,6 +46,11 @@ func init() {
 			moPrimFnNumFloatSub: t(nil, fn, t_float, t_float, t_float),
 			moPrimFnNumFloatMul: t(nil, fn, t_float, t_float, t_float),
 			moPrimFnNumFloatDiv: t(nil, fn, t_float, t_float, t_float),
+			moPrimFnNumIntAdd:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumIntSub:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumIntMul:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumIntDiv:   t(nil, fn, t_int, t_int, t_int),
+			moPrimFnNumIntMod:   t(nil, fn, t_int, t_int, t_int),
 			moPrimFnCast:        t(nil, fn, t_primtypetag, t_any, t_any),
 			moPrimFnNot:         t(nil, fn, t_bool, t_bool),
 			moPrimFnEq:          t(nil, fn, t_any, t_any, t_bool),
@@ -296,7 +299,7 @@ func (me *SrcPack) semPrimFnNot(self *SemExpr, scope *SemScope) {
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		if me.semCheckType(call.Args[0], self.Type) {
 			if scalar, _ := call.Args[0].Val.(*SemValScalar); (scalar != nil) && (scalar.MoVal.PrimType() == MoPrimTypeBool) {
-				me.semReplaceExprValWithComputedValIfPermissible(self, !scalar.MoVal.(MoValBool), call.Args[0].Type)
+				me.semReplaceExprValWithComputedValIfPermissible(self, !scalar.MoVal.(MoValBool), nil)
 			}
 		}
 	}
@@ -306,5 +309,38 @@ func (me *SrcPack) semPrimFnReplEnv(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeDict, semTypeNew(call.Callee, MoPrimTypeIdent), call.Callee.newUntyped())
 	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
+	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
 	_ = me.semCheckCount(0, 0, call.Args, self, true)
+}
+
+func (me *SrcPack) semPrimFnReplPrint(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
+	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
+	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
+	_ = me.semCheckCount(1, 1, call.Args, self, true)
+}
+
+func (me *SrcPack) semPrimFnReplReset(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
+	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
+	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
+	_ = me.semCheckCount(0, 0, call.Args, self, true)
+}
+
+func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) func(*SrcPack, *SemExpr, *SemScope) {
+	return func(me *SrcPack, self *SemExpr, scope *SemScope) {
+		call := self.Val.(*SemValCall)
+		self.Type = semTypeNew(call.Callee, t)
+		sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope); me.semCheckType(arg, self.Type) })
+		if me.semCheckCount(2, 2, call.Args, self, true) && self.isPrecomputedPermissible() {
+			if scalar1, _ := call.Args[0].Val.(*SemValScalar); (scalar1 != nil) && (scalar1.MoVal.PrimType() == t) {
+				if scalar2, _ := call.Args[1].Val.(*SemValScalar); (scalar2 != nil) && (scalar2.MoVal.PrimType() == t) {
+					result := f(scalar1.MoVal, scalar2.MoVal)
+					me.semReplaceExprValWithComputedValIfPermissible(self, result, nil)
+				}
+			}
+		}
+	}
 }

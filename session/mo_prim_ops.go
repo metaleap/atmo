@@ -93,20 +93,20 @@ func init() {
 		moPrimFnReplEnv:     (*Interp).primFnReplEnv,
 		moPrimFnReplPrint:   (*Interp).primFnReplPrint,
 		moPrimFnReplReset:   (*Interp).primFnReplReset,
-		moPrimFnNumIntAdd:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) + opr.(MoValNumInt) }),
-		moPrimFnNumIntSub:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) - opr.(MoValNumInt) }),
-		moPrimFnNumIntMul:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) * opr.(MoValNumInt) }),
-		moPrimFnNumIntDiv:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) / opr.(MoValNumInt) }),
-		moPrimFnNumIntMod:   makeArithPrimOp[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) % opr.(MoValNumInt) }),
-		moPrimFnNumUintAdd:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) + opr.(MoValNumUint) }),
-		moPrimFnNumUintSub:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) - opr.(MoValNumUint) }),
-		moPrimFnNumUintMul:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) * opr.(MoValNumUint) }),
-		moPrimFnNumUintDiv:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) / opr.(MoValNumUint) }),
-		moPrimFnNumUintMod:  makeArithPrimOp[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) % opr.(MoValNumUint) }),
-		moPrimFnNumFloatAdd: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) + opr.(MoValNumFloat) }),
-		moPrimFnNumFloatSub: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) - opr.(MoValNumFloat) }),
-		moPrimFnNumFloatMul: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
-		moPrimFnNumFloatDiv: makeArithPrimOp[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
+		moPrimFnNumIntAdd:   moPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) + opr.(MoValNumInt) }),
+		moPrimFnNumIntSub:   moPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) - opr.(MoValNumInt) }),
+		moPrimFnNumIntMul:   moPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) * opr.(MoValNumInt) }),
+		moPrimFnNumIntDiv:   moPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) / opr.(MoValNumInt) }),
+		moPrimFnNumIntMod:   moPrimFnArith[MoValNumInt](MoPrimTypeNumInt, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumInt) % opr.(MoValNumInt) }),
+		moPrimFnNumUintAdd:  moPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) + opr.(MoValNumUint) }),
+		moPrimFnNumUintSub:  moPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) - opr.(MoValNumUint) }),
+		moPrimFnNumUintMul:  moPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) * opr.(MoValNumUint) }),
+		moPrimFnNumUintDiv:  moPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) / opr.(MoValNumUint) }),
+		moPrimFnNumUintMod:  moPrimFnArith[MoValNumUint](MoPrimTypeNumUint, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumUint) % opr.(MoValNumUint) }),
+		moPrimFnNumFloatAdd: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) + opr.(MoValNumFloat) }),
+		moPrimFnNumFloatSub: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) - opr.(MoValNumFloat) }),
+		moPrimFnNumFloatMul: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
+		moPrimFnNumFloatDiv: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
 		moPrimFnNot:         (*Interp).primFnBoolNot,
 		moPrimFnCast:        (*Interp).primFnCast,
 		moPrimFnEq:          (*Interp).primFnEq,
@@ -412,7 +412,7 @@ func (me *Interp) primFnBoolNot(env *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 }
 
-func makeArithPrimOp[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) moFnEager {
+func moPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, f func(opl MoVal, opr MoVal) MoVal) moFnEager {
 	return func(me *Interp, _ *MoEnv, args ...*MoExpr) *MoExpr {
 		if err := me.check(t, 2, 2, args...); err != nil {
 			return me.exprErr(err)
