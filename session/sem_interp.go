@@ -124,5 +124,20 @@ func (me *SrcPack) semPrimOpAndOr(self *SemExpr, scope *SemScope) {
 		me.semEval(arg, scope)
 		_ = me.semCheckType(arg, self.Type)
 	})
-	_ = me.semCheckCount(2, 2, call.Args, self, true)
+	if me.semCheckCount(2, 2, call.Args, self, true) && sl.All(call.Args, func(arg *SemExpr) bool {
+		val, _ := arg.Val.(*SemValScalar)
+		return (val != nil) && (val.MoVal.PrimType() == MoPrimTypeBool)
+	}) {
+		is_and := (call.Callee.MaybeIdent() == moPrimOpAnd)
+		all_true, any_true := true, false
+		sl.Each(call.Args, func(arg *SemExpr) {
+			b := bool(arg.Val.(*SemValScalar).MoVal.(MoValBool))
+			any_true, all_true = any_true || b, all_true && b
+		})
+		if is_and {
+			me.semPopulateScalar(self, MoValBool(all_true))
+		} else {
+			me.semPopulateScalar(self, MoValBool(any_true))
+		}
+	}
 }
