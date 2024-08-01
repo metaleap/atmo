@@ -158,10 +158,6 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 	}
 }
 
-func (me *SemExpr) isPrecomputePermissible() bool {
-	return (!me.HasErrs()) && !me.HasFact(SemFactEffectful, nil, false, true)
-}
-
 func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 	// need no checks on args count or the ident being @set since those were performed by semPrepScopeOnSet
 	call := self.Val.(*SemValCall)
@@ -214,7 +210,7 @@ func (me *SrcPack) semPrimOpAndOr(self *SemExpr, scope *SemScope) {
 		me.semEval(arg, scope)
 		_ = me.semCheckType(arg, self.Type)
 	})
-	if me.semCheckCount(2, 2, call.Args, self, true) && self.isPrecomputePermissible() && sl.All(call.Args, func(arg *SemExpr) bool {
+	if me.semCheckCount(2, 2, call.Args, self, true) && self.isPrecomputedPermissible() && sl.All(call.Args, func(arg *SemExpr) bool {
 		val, _ := arg.Val.(*SemValScalar)
 		return (val != nil) && (val.MoVal.PrimType() == MoPrimTypeBool)
 	}) {
@@ -224,13 +220,10 @@ func (me *SrcPack) semPrimOpAndOr(self *SemExpr, scope *SemScope) {
 			b := bool(arg.Val.(*SemValScalar).MoVal.(MoValBool))
 			any_true, all_true = any_true || b, all_true && b
 		})
-		if self.ValOrig == nil {
-			self.ValOrig = self.Val
-		}
 		if is_and {
-			me.semPopulateScalar(self, MoValBool(all_true))
+			me.semReplaceExprValWithComputedValIfPermissible(self, MoValBool(all_true), semTypeNew(call.Args[1], MoPrimTypeBool))
 		} else {
-			me.semPopulateScalar(self, MoValBool(any_true))
+			me.semReplaceExprValWithComputedValIfPermissible(self, MoValBool(any_true), semTypeNew(call.Args[1], MoPrimTypeBool))
 		}
 	}
 }
@@ -284,11 +277,8 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 					}
 				}
 				self.Type = new_ty
-				if all_case_preds_statically_known && (new_val != nil) && (new_ty != nil) && self.isPrecomputePermissible() {
-					if self.ValOrig == nil {
-						self.ValOrig = self.Val
-					}
-					self.Val, self.Type = new_val.Val, new_val.Type
+				if all_case_preds_statically_known && (new_val != nil) && (new_ty != nil) {
+					me.semReplaceExprValWithComputedValIfPermissible(self, new_val.Val, new_val.Type)
 				}
 			}
 		}
@@ -301,11 +291,8 @@ func (me *SrcPack) semPrimFnNot(self *SemExpr, scope *SemScope) {
 	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		if me.semCheckType(call.Args[0], self.Type) {
-			if scalar, _ := call.Args[0].Val.(*SemValScalar); (scalar != nil) && (scalar.MoVal.PrimType() == MoPrimTypeBool) && self.isPrecomputePermissible() {
-				if self.ValOrig == nil {
-					self.ValOrig = self.Val
-				}
-				me.semPopulateScalar(self, !scalar.MoVal.(MoValBool))
+			if scalar, _ := call.Args[0].Val.(*SemValScalar); (scalar != nil) && (scalar.MoVal.PrimType() == MoPrimTypeBool) {
+				me.semReplaceExprValWithComputedValIfPermissible(self, !scalar.MoVal.(MoValBool), call.Args[0].Type)
 			}
 		}
 	}

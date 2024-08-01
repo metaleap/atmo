@@ -3,6 +3,7 @@ package session
 import (
 	"atmo/util/sl"
 	"atmo/util/str"
+	"strings"
 )
 
 type SemExprs sl.Of[*SemExpr]
@@ -132,6 +133,10 @@ func (me *SemExpr) HasFact(kind SemFactKind, of any, orAncestor bool, orDescenda
 	return
 }
 
+func (me *SemExpr) isPrecomputedPermissible() bool {
+	return (!me.HasErrs()) && !me.HasFact(SemFactEffectful, nil, false, true)
+}
+
 func (me *SemExpr) MaybeIdent(canBeDecl bool) MoValIdent {
 	ident, _ := me.Val.(*SemValIdent)
 	if (ident != nil) && (canBeDecl || !ident.IsDecl) {
@@ -228,6 +233,64 @@ func (me SemExprs) Walk(filterBy *SrcFile, onBefore func(it *SemExpr) bool, onAf
 			expr.Walk(true, onBefore, onAfter)
 		}
 	}
+}
+
+func (me *SemExpr) str(w *str.Buf) {
+	switch val := me.Val.(type) {
+	case *SemValIdent:
+		w.WriteString(string(val.Ident))
+	case *SemValScalar:
+		moValWriteTo(val.MoVal, w)
+	case *SemValList:
+		w.WriteByte('[')
+		for i, item := range val.Items {
+			if i > 0 {
+				w.WriteString(", ")
+			}
+			item.str(w)
+		}
+		w.WriteByte(']')
+	case *SemValDict:
+		w.WriteByte('{')
+		for i, key := range val.Keys {
+			if i > 0 {
+				w.WriteString(", ")
+			}
+			key.str(w)
+			w.WriteString(": ")
+			val.Vals[i].str(w)
+		}
+		w.WriteByte('}')
+	case *SemValCall:
+		w.WriteByte('(')
+		val.Callee.str(w)
+		for _, arg := range val.Args {
+			w.WriteByte(' ')
+			arg.str(w)
+		}
+		w.WriteByte(')')
+	case *SemValFunc:
+		w.WriteString("@fn [")
+		for i, param := range val.Params {
+			if i > 0 {
+				w.WriteString(", ")
+			}
+			param.str(w)
+		}
+		w.WriteString("] [")
+		if val.Body == nil {
+			w.WriteString("…")
+		} else {
+			val.Body.str(w)
+		}
+		w.WriteByte(']')
+	}
+}
+
+func SemExprToString(expr *SemExpr) string {
+	var buf strings.Builder
+	expr.str(&buf)
+	return buf.String()
 }
 
 type SemFactKind int

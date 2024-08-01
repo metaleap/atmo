@@ -114,6 +114,23 @@ func (me *SrcPack) semPopulateRootScope() {
 	})
 }
 
+func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, val any, ty SemType) {
+	if self.isPrecomputedPermissible() {
+		if self.ValOrig == nil {
+			self.ValOrig = self.Val
+		}
+		if moval, is := val.(MoVal); is {
+			me.semPopulateScalar(self, moval)
+		} else {
+			self.Val = val
+		}
+		if ty != nil {
+			self.Type = ty
+		}
+		self.Fact(SemFact{Kind: SemFactPreComputed}, self.Type.From())
+	}
+}
+
 type SemScope struct {
 	Own    map[MoValIdent]*SemScopeEntry
 	Parent *SemScope `json:"-"`
