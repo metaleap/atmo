@@ -134,7 +134,7 @@ func (me *SemExpr) HasFact(kind SemFactKind, of any, orAncestor bool, orDescenda
 }
 
 func (me *SemExpr) isPrecomputedPermissible() bool {
-	return (!me.HasErrs()) && !me.HasFact(SemFactEffectful, nil, false, true)
+	return (!me.HasErrs()) && !me.HasFact(SemFactNotPure, nil, false, true)
 }
 
 func (me *SemExpr) MaybeIdent(canBeDecl bool) MoValIdent {
@@ -298,7 +298,7 @@ type SemFactKind int
 const (
 	_ SemFactKind = iota
 	SemFactUnused
-	SemFactEffectful
+	SemFactNotPure
 	SemFactPreComputed
 	SemFactPrimOp
 	SemFactPrimFn
@@ -313,8 +313,8 @@ func (me *SemFact) String() (ret string) {
 	switch me.Kind {
 	default:
 		ret = "?!"
-	case SemFactEffectful:
-		ret = "effectful"
+	case SemFactNotPure:
+		ret = "notPure"
 	case SemFactUnused:
 		ret = "unused"
 	case SemFactPreComputed:

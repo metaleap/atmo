@@ -23,7 +23,8 @@ func init() {
 		moPrimOpCaseOf: (*SrcPack).semPrimOpCaseOf,
 	}
 	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
-		moPrimFnNot: (*SrcPack).semPrimFnNot,
+		moPrimFnNot:     (*SrcPack).semPrimFnNot,
+		moPrimFnReplEnv: (*SrcPack).semPrimFnReplEnv,
 	}
 	{
 		t, fn := semTypeNew, MoPrimTypeFunc
@@ -176,7 +177,7 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 		}
 		call.Args[0].Type = entry.Type
 	}
-	self.Fact(SemFact{Kind: SemFactEffectful}, self)
+	self.Fact(SemFact{Kind: SemFactNotPure}, self)
 }
 
 func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
@@ -188,7 +189,7 @@ func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
 			if me.semCheckCount(1, -1, list.Items, call.Args[0], false) {
 				self.Type = list.Items[len(list.Items)-1].Type
 				for i, expr := range list.Items {
-					if (i < len(list.Items)-1) && !expr.HasFact(SemFactEffectful, nil, false, true) {
+					if (i < len(list.Items)-1) && !expr.HasFact(SemFactNotPure, nil, false, true) {
 						expr.Fact(SemFact{Kind: SemFactUnused}, expr)
 					}
 				}
@@ -263,7 +264,7 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 				for i, dict_key := range dict.Keys {
 					dict_val := dict.Vals[i]
 					new_ty.tyArgs = append(new_ty.tyArgs, dict_val.Type)
-					if dict_key.HasFact(SemFactEffectful, nil, false, true) {
+					if dict_key.HasFact(SemFactNotPure, nil, false, true) {
 						all_case_preds_statically_known = false
 					}
 					if me.semCheckType(dict_key, semTypeNew(call.Callee, MoPrimTypeBool)) {
@@ -299,4 +300,11 @@ func (me *SrcPack) semPrimFnNot(self *SemExpr, scope *SemScope) {
 			}
 		}
 	}
+}
+
+func (me *SrcPack) semPrimFnReplEnv(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeDict, semTypeNew(call.Callee, MoPrimTypeIdent), call.Callee.newUntyped())
+	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
+	_ = me.semCheckCount(0, 0, call.Args, self, true)
 }

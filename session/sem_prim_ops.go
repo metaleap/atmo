@@ -177,8 +177,6 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 						ident.IsParam, ident.IsDecl = true, true
 						ok_params = append(ok_params, param)
 					}
-				} else {
-					self.ErrsOwn.Add(param.ErrNew(ErrCodeExpectedFoo, str.Fmt("an identifier instead of `%s`", param.From.String())))
 				}
 			}
 			fn := &SemValFunc{
@@ -201,7 +199,7 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 					Args:   SemExprs{{Val: body_list, From: f, Parent: p, Scope: s}}}}
 				fn.Body = expr_do
 			}
-			if fn.Body != nil {
+			if (fn.Body != nil) && (len(ok_params) == len(params_list.Items)) {
 				fn.Body.Walk(true, nil, func(it *SemExpr) {
 					it.Scope = fn.Scope
 				})
