@@ -142,6 +142,9 @@ func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 			}
 		}
 	}
+	if len(self.ErrsOwn) > 0 {
+		self.Type = self.newUntypable()
+	}
 }
 
 func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
@@ -185,6 +188,9 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 				self.Val = fn
 			}
 		}
+	}
+	if len(self.ErrsOwn) > 0 {
+		self.Type = self.newUntypable()
 	}
 }
 

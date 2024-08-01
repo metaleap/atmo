@@ -14,13 +14,13 @@ func init() {
 	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){}
 }
 
-func (me *SrcPack) semEval(expr *SemExpr, scope *SemScope) {
-	if expr.Type != nil {
+func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
+	if (self.Type != nil) || (len(self.ErrsOwn) > 0) {
 		return
 	}
-	switch val := expr.Val.(type) {
+	switch val := self.Val.(type) {
 	case *SemValScalar:
-		expr.Type = semTypeNew(expr, val.MoVal.PrimType())
+		self.Type = semTypeNew(self, val.MoVal.PrimType())
 	case *SemValList:
 		item_types := make(sl.Of[SemType], len(val.Items))
 		for i, item := range val.Items {
@@ -31,22 +31,22 @@ func (me *SrcPack) semEval(expr *SemExpr, scope *SemScope) {
 		var item_type SemType
 		switch item_types.EnsureAllUnique(SemType.Eq); len(item_types) {
 		case 0:
-			item_type = semTypeNew(expr, MoPrimTypeAny)
+			item_type = semTypeNew(self, MoPrimTypeAny)
 		case 1:
 			item_type = item_types[0]
 		default:
-			item_type = semTypeNew(expr, MoPrimTypeOr, item_types...)
+			item_type = semTypeNew(self, MoPrimTypeOr, item_types...)
 		}
-		expr.Type = semTypeNew(expr, MoPrimTypeList, item_type)
+		self.Type = semTypeNew(self, MoPrimTypeList, item_type)
 	case *SemValIdent:
 		_, entry := scope.Lookup(val.Ident)
 		if entry == nil {
-			expr.Type = semTypeNew(expr, MoPrimTypeAny)
-			expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Ident))
+			self.Type = semTypeNew(self, MoPrimTypeAny)
+			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Ident))
 		}
 	case *SemValFunc:
 		me.semEval(val.Body, val.Scope)
-		expr.Type = semTypeNew(expr, MoPrimTypeFunc, append(sl.To(val.Params, func(p *SemExpr) SemType { return p.Type }), val.Body.Type)...)
+		self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(p *SemExpr) SemType { return p.Type }), val.Body.Type)...)
 	case *SemValCall:
 		sl.Each(val.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
 
@@ -54,6 +54,7 @@ func (me *SrcPack) semEval(expr *SemExpr, scope *SemScope) {
 	}
 }
 
-func (me *SrcPack) semPrimOpSet(expr *SemExpr, scope *SemScope) {
-
+func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	_ = call
 }
