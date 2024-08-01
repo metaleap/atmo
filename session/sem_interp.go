@@ -1,6 +1,7 @@
 package session
 
 import (
+	"atmo/util"
 	"atmo/util/sl"
 )
 
@@ -18,6 +19,7 @@ func init() {
 		moPrimOpOr:     (*SrcPack).semPrimOpAndOr,
 		moPrimOpQuote:  (*SrcPack).semPrimOpQuote,
 		moPrimOpQQuote: (*SrcPack).semPrimOpQuote,
+		moPrimOpCaseOf: (*SrcPack).semPrimOpCaseOf,
 	}
 	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){}
 }
@@ -35,24 +37,21 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 			me.semEval(item, scope)
 			item_types[i] = item.Type
 		}
-
-		var item_type SemType
-		switch item_types.EnsureAllUnique(SemType.Eq); len(item_types) {
-		case 0:
-			item_type = self.newUntyped()
-		case 1:
-			item_type = item_types[0]
-		default:
-			item_type = semTypeNew(self, MoPrimTypeOr, item_types...)
-		}
-		self.Type = semTypeNew(self, MoPrimTypeList, item_type)
+		self.Type = semTypeNew(self, MoPrimTypeList, semTypeFromMultiple(self, item_types...))
 	case *SemValDict:
-
+		key_types, val_types := make(sl.Of[SemType], len(val.Keys)), make(sl.Of[SemType], len(val.Vals))
+		for i, key := range val.Keys {
+			val := val.Vals[i]
+			me.semEval(key, scope)
+			me.semEval(val, scope)
+			key_types[i], val_types[i] = key.Type, val.Type
+		}
+		self.Type = semTypeNew(self, MoPrimTypeDict, semTypeFromMultiple(self, key_types...), semTypeFromMultiple(self, val_types...))
 	case *SemValIdent:
 		_, entry := scope.Lookup(val.Ident)
 		if entry == nil {
 			self.Type = self.newUntyped()
-			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Ident))
+			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(util.If(semEvalPrimOps[val.Ident] != nil, ErrCodeNotAValue, ErrCodeUndefined), val.Ident))
 		} else {
 			self.Type = entry.Type
 		}
@@ -77,7 +76,9 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 				_ = callee
 				self.Type = self.newUntyped()
 			default:
-				val.Callee.ErrsOwn.Add(val.Callee.ErrNew(ErrCodeUncallable, val.Callee.From.String()))
+				if !val.Callee.HasErrs() { // dont wanna be too noisy
+					val.Callee.ErrsOwn.Add(val.Callee.ErrNew(ErrCodeUncallable, val.Callee.From.String()))
+				}
 				self.Type = self.newUntyped()
 			}
 		}
@@ -97,6 +98,7 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 		entry.Type.(*semTypeCtor).ensure(ty)
 	}
 	call.Args[0].Type = entry.Type
+	self.Fact(SemFact{Kind: SemFactEffectful}, self)
 }
 
 func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
@@ -107,6 +109,11 @@ func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
 		if list := semCheckIs[SemValList](MoPrimTypeList, call.Args[0]); list != nil {
 			if me.semCheckCount(1, -1, list.Items, call.Args[0], false) {
 				self.Type = list.Items[len(list.Items)-1].Type
+				for i, expr := range list.Items {
+					if (i < len(list.Items)-1) && (len(expr.HasFact(SemFactEffectful, nil, false, true)) == 0) {
+						expr.Fact(SemFact{Kind: SemFactUnused}, expr)
+					}
+				}
 			}
 		}
 	}
@@ -135,6 +142,9 @@ func (me *SrcPack) semPrimOpAndOr(self *SemExpr, scope *SemScope) {
 			b := bool(arg.Val.(*SemValScalar).MoVal.(MoValBool))
 			any_true, all_true = any_true || b, all_true && b
 		})
+		if self.ValOrig == nil {
+			self.ValOrig = self.Val
+		}
 		if is_and {
 			me.semPopulateScalar(self, MoValBool(all_true))
 		} else {
@@ -161,6 +171,39 @@ func (me *SrcPack) semPrimOpQuote(self *SemExpr, scope *SemScope) {
 		case *SemValFunc:
 			self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "shouldn't happen"))
 			self.Type = semTypeNew(call.Callee, MoPrimTypeFunc)
+		}
+	}
+}
+
+func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = self.newUntyped()
+	sl.Each(call.Args, func(arg *SemExpr) { me.semEval(arg, scope) })
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		if dict := semCheckIs[SemValDict](MoPrimTypeDict, call.Args[0]); dict != nil {
+			if me.semCheckCount(1, -1, dict.Keys, call.Args[0], false) {
+				var new_val *SemExpr
+				var new_ty SemType
+				all_case_preds_statically_known := !self.HasErrs()
+				for i, key := range dict.Keys {
+					val := dict.Vals[i]
+					new_ty = semTypeFromMultiple(val, new_ty, val.Type)
+					if me.semCheckType(key, semTypeNew(call.Callee, MoPrimTypeBool)) {
+						if scalar, _ := key.Val.(*SemValScalar); (scalar == nil) || (scalar.MoVal.PrimType() != MoPrimTypeBool) {
+							all_case_preds_statically_known = false
+						} else if b := scalar.MoVal.(MoValBool); b {
+							new_val = val
+						}
+					}
+				}
+				self.Type = new_ty
+				if all_case_preds_statically_known && (new_val != nil) && (new_ty != nil) && (len(self.ErrsOwn) == 0) {
+					if self.ValOrig == nil {
+						self.ValOrig = self.Val
+					}
+					self.Val, self.Type = new_val.Val, new_val.Type
+				}
+			}
 		}
 	}
 }

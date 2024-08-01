@@ -392,3 +392,16 @@ func (me *semTypeCtor) ensure(ty SemType) {
 		me.tyArgs = append(me.tyArgs, ty)
 	}
 }
+
+func semTypeFromMultiple(dueTo *SemExpr, ty ...SemType) SemType {
+	types := (sl.Of[SemType])(ty)
+	types = types.Without(func(t SemType) bool { return t == nil })
+	switch types.EnsureAllUnique(SemType.Eq); len(types) {
+	case 0:
+		return dueTo.newUntyped()
+	case 1:
+		return types[0]
+	default:
+		return semTypeNew(dueTo, MoPrimTypeOr, types...)
+	}
+}

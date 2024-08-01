@@ -86,7 +86,7 @@ func init() {
 func (me *SrcPack) semCheckCount(wantAtLeast int, wantAtMost int, have SemExprs, errDst *SemExpr, forArgs bool) bool {
 	if wantAtLeast >= 0 {
 		plural := util.If((wantAtLeast <= wantAtMost) && (wantAtLeast != 1), "s", "")
-		moniker := util.If(!forArgs, "expression"+plural, "arg"+plural+" for callee")
+		moniker := util.If(!forArgs, "expression"+plural+" in here", "arg"+plural+" for callee")
 		if forArgs && (errDst != nil) {
 			if call, _ := errDst.Val.(*SemValCall); (call != nil) && (call.Callee.From != nil) && (call.Callee.From.SrcNode != nil) && (call.Callee.From.SrcNode.Src != "") {
 				moniker += " `" + call.Callee.From.SrcNode.Src + "`"
@@ -116,12 +116,14 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect SemType) bool {
 	if !expr.Type.Eq(expect) {
-		err := expr.ErrNew(ErrCodeTypeMismatch, SemTypeToString(expect), SemTypeToString(expr.Type))
-		err.Rel = srcFileLocs([]string{
-			str.Fmt("type `%s` decided here", SemTypeToString(expect)),
-			str.Fmt("type `%s` decided here", SemTypeToString(expr.Type)),
-		}, expect.From(), expr.Type.From())
-		expr.ErrsOwn.Add(err)
+		if !expr.HasErrs() { // dont wanna be too noisy
+			err := expr.ErrNew(ErrCodeTypeMismatch, SemTypeToString(expect), SemTypeToString(expr.Type))
+			err.Rel = srcFileLocs([]string{
+				str.Fmt("type `%s` decided here", SemTypeToString(expect)),
+				str.Fmt("type `%s` decided here", SemTypeToString(expr.Type)),
+			}, expect.From(), expr.Type.From())
+			expr.ErrsOwn.Add(err)
+		}
 		return false
 	}
 	return true
@@ -195,7 +197,7 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 				fn.Body = expr_do
 			}
 			if fn.Body != nil {
-				fn.Body.Walk(nil, func(it *SemExpr) {
+				fn.Body.Walk(true, nil, func(it *SemExpr) {
 					it.Scope = fn.Scope
 				})
 				self.Val = fn

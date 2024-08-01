@@ -114,6 +114,7 @@ func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
 	if node != nil {
 		ret = &IntelInfo{SpanFull: node.From.SrcSpan}
 		for it := node; it != nil; it = it.Parent {
+			println(it == node)
 			if (it.From != nil) && (it.From.SrcNode != nil) {
 				var str_facts string
 				for k := range it.Facts {

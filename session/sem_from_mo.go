@@ -1,15 +1,5 @@
 package session
 
-var (
-	semPrimOpsLazy  map[MoValIdent]func(*SrcPack, *SemExpr)
-	semPrimOpsEager map[MoValIdent]func(*SrcPack, *SemExpr)
-)
-
-func init() {
-	semPrimOpsLazy = map[MoValIdent]func(*SrcPack, *SemExpr){}
-	semPrimOpsEager = map[MoValIdent]func(*SrcPack, *SemExpr){}
-}
-
 func (me *SrcPack) semRefresh() {
 	me.Trees.Sem.TopLevel = make(SemExprs, 0, len(me.Trees.MoOrig))
 	me.Trees.Sem.Scope = SemScope{Own: map[MoValIdent]*SemScopeEntry{}}
@@ -48,6 +38,7 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
 	scalar := &SemValScalar{MoVal: it}
 	self.Val = scalar
+	self.Type = semTypeNew(self, it.PrimType())
 	me.Trees.Sem.Index.Lits[it] = append(me.Trees.Sem.Index.Lits[it], self)
 }
 
