@@ -258,27 +258,30 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 		if dict := semCheckIs[SemValDict](MoPrimTypeDict, call.Args[0]); dict != nil {
 			if me.semCheckCount(1, -1, dict.Keys, call.Args[0], false) {
 				var new_val *SemExpr
-				var new_ty SemType
+				new_ty := semTypeNew(self, MoPrimTypeOr).(*semTypeCtor)
 				all_case_preds_statically_known := (!self.HasErrs())
-				for i, key := range dict.Keys {
-					val := dict.Vals[i]
-					new_ty = semTypeFromMultiple(val, new_ty, val.Type)
-					if key.HasFact(SemFactEffectful, nil, false, true) {
+				for i, dict_key := range dict.Keys {
+					dict_val := dict.Vals[i]
+					new_ty.tyArgs = append(new_ty.tyArgs, dict_val.Type)
+					if dict_key.HasFact(SemFactEffectful, nil, false, true) {
 						all_case_preds_statically_known = false
 					}
-					if me.semCheckType(key, semTypeNew(call.Callee, MoPrimTypeBool)) {
-						if scalar, _ := key.Val.(*SemValScalar); (scalar == nil) || (scalar.MoVal.PrimType() != MoPrimTypeBool) {
+					if me.semCheckType(dict_key, semTypeNew(call.Callee, MoPrimTypeBool)) {
+						if scalar, _ := dict_key.Val.(*SemValScalar); (scalar == nil) || (scalar.MoVal.PrimType() != MoPrimTypeBool) {
 							all_case_preds_statically_known = false
 						} else if b := scalar.MoVal.(MoValBool); b && (new_val == nil) { // any prior @true branch _stays_ the winner
-							new_val = val
+							new_val = dict_val
 						} else {
-							val.Fact(SemFact{Kind: SemFactUnused}, key)
+							dict_val.Fact(SemFact{Kind: SemFactUnused}, dict_key)
 						}
 					}
 				}
-				self.Type = new_ty
-				if all_case_preds_statically_known && (new_val != nil) && (new_ty != nil) {
-					me.semReplaceExprValWithComputedValIfPermissible(self, new_val.Val, new_val.Type)
+				if len(new_ty.tyArgs) > 0 {
+					new_ty.normalizeIfOr()
+					self.Type = new_ty
+					if all_case_preds_statically_known && (new_val != nil) {
+						me.semReplaceExprValWithComputedValIfPermissible(self, new_val.Val, new_val.Type)
+					}
 				}
 			}
 		}

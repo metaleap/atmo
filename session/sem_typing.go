@@ -390,12 +390,30 @@ func (me *semTypeConstraintEq) String() string {
 }
 
 func (me *semTypeCtor) ensureOrOr(ty SemType) {
-	if me.Eq(ty) {
+	if due_to := ty.From(); me.Eq(ty) {
 		return
 	} else if me.prim != MoPrimTypeOr {
-		*me = *(semTypeNew(me.dueTo, MoPrimTypeOr, me, ty).(*semTypeCtor))
+		*me = *(semTypeNew(util.If(due_to == nil, me.dueTo, due_to), MoPrimTypeOr, me, ty).(*semTypeCtor))
 	} else if !sl.Any(me.tyArgs, func(targ SemType) bool { return targ.Eq(ty) }) {
 		me.tyArgs = append(me.tyArgs, ty)
+	}
+}
+
+func (me *semTypeCtor) normalizeIfOr() {
+	if me.prim == MoPrimTypeOr {
+		for i := 0; i < me.tyArgs.Len(); i++ {
+			if t := me.tyArgs[i].(*semTypeCtor); t.prim == MoPrimTypeOr {
+				me.tyArgs = append(append(me.tyArgs[:i], me.tyArgs[i+1:]...), t.tyArgs...)
+				me.tyArgs.EnsureAllUnique(SemType.Eq)
+				i = -1
+			}
+		}
+		switch len(me.tyArgs) {
+		case 0:
+			*me = *(me.dueTo.newUntyped().(*semTypeCtor))
+		case 1:
+			*me = *(me.tyArgs[0].(*semTypeCtor))
+		}
 	}
 }
 
