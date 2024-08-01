@@ -85,6 +85,10 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 	}
 }
 
+func (me *SemExpr) isPrecomputePermissible() bool {
+	return (!me.HasErrs()) && !me.HasFact(SemFactEffectful, nil, false, true)
+}
+
 func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 	// need no checks on args count or the ident being @set since those were performed by semPrepScopeOnSet
 	call := self.Val.(*SemValCall)
@@ -110,7 +114,7 @@ func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
 			if me.semCheckCount(1, -1, list.Items, call.Args[0], false) {
 				self.Type = list.Items[len(list.Items)-1].Type
 				for i, expr := range list.Items {
-					if (i < len(list.Items)-1) && (len(expr.HasFact(SemFactEffectful, nil, false, true)) == 0) {
+					if (i < len(list.Items)-1) && !expr.HasFact(SemFactEffectful, nil, false, true) {
 						expr.Fact(SemFact{Kind: SemFactUnused}, expr)
 					}
 				}
@@ -132,7 +136,7 @@ func (me *SrcPack) semPrimOpAndOr(self *SemExpr, scope *SemScope) {
 		me.semEval(arg, scope)
 		_ = me.semCheckType(arg, self.Type)
 	})
-	if me.semCheckCount(2, 2, call.Args, self, true) && sl.All(call.Args, func(arg *SemExpr) bool {
+	if me.semCheckCount(2, 2, call.Args, self, true) && self.isPrecomputePermissible() && sl.All(call.Args, func(arg *SemExpr) bool {
 		val, _ := arg.Val.(*SemValScalar)
 		return (val != nil) && (val.MoVal.PrimType() == MoPrimTypeBool)
 	}) {
@@ -184,11 +188,14 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 			if me.semCheckCount(1, -1, dict.Keys, call.Args[0], false) {
 				var new_val *SemExpr
 				var new_ty SemType
-				all_case_preds_statically_known := !self.HasErrs()
+				all_case_preds_statically_known := (!self.HasErrs())
 				for i, key := range dict.Keys {
 					val := dict.Vals[i]
 					new_ty = semTypeFromMultiple(val, new_ty, val.Type)
-					if me.semCheckType(key, semTypeNew(call.Callee, MoPrimTypeBool)) {
+					if key.HasFact(SemFactEffectful, nil, false, true) {
+						all_case_preds_statically_known = false
+					}
+					if me.semCheckType(key, semTypeNew(call.Callee, MoPrimTypeBool)) && all_case_preds_statically_known /*so far*/ {
 						if scalar, _ := key.Val.(*SemValScalar); (scalar == nil) || (scalar.MoVal.PrimType() != MoPrimTypeBool) {
 							all_case_preds_statically_known = false
 						} else if b := scalar.MoVal.(MoValBool); b {
@@ -197,7 +204,7 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 					}
 				}
 				self.Type = new_ty
-				if all_case_preds_statically_known && (new_val != nil) && (new_ty != nil) && (len(self.ErrsOwn) == 0) {
+				if all_case_preds_statically_known && (new_val != nil) && (new_ty != nil) && self.isPrecomputePermissible() {
 					if self.ValOrig == nil {
 						self.ValOrig = self.Val
 					}

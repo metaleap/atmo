@@ -156,7 +156,7 @@ func (me *SrcFile) allDiags() (ret Diags) {
 
 func (me *SrcPack) semNonErrDiags() (ret Diags) {
 	me.Trees.Sem.TopLevel.Walk(nil, nil, func(it *SemExpr) {
-		if len(it.HasFact(SemFactUnused, nil, false, false)) > 0 {
+		if it.HasFact(SemFactUnused, nil, false, false) {
 			ret.Add(it.From.SrcSpan.newDiag(DiagKindHint, HintCodeUnused))
 		}
 	})

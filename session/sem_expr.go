@@ -83,6 +83,22 @@ func (me *SemExpr) Fact(fact SemFact, from *SemExpr) {
 	}
 }
 
+func (me *SemExpr) FactCauses(kind SemFactKind, of any, orAncestor bool, orDescendant bool) (dueTo SemExprs) {
+	if me.Facts == nil {
+		return
+	}
+	dueTo = me.Facts[SemFact{Kind: kind, Data: of}]
+	if (len(dueTo) == 0) && orAncestor && (me.Parent != nil) {
+		dueTo = me.Parent.FactCauses(kind, of, true, false)
+	}
+	if (len(dueTo) == 0) && orDescendant {
+		me.Each(func(it *SemExpr) {
+			dueTo = append(dueTo, it.FactCauses(kind, of, false, true)...)
+		})
+	}
+	return
+}
+
 func (me *SemExpr) FactsFrom(from *SemExpr) {
 	for fact := range from.Facts {
 		me.Fact(fact, from)
@@ -97,17 +113,17 @@ func (me *SemExpr) HasErrs() (ret bool) {
 	return
 }
 
-func (me *SemExpr) HasFact(kind SemFactKind, of any, orAncestor bool, orDescendant bool) (dueTo SemExprs) {
+func (me *SemExpr) HasFact(kind SemFactKind, of any, orAncestor bool, orDescendant bool) (ret bool) {
 	if me.Facts == nil {
 		return
 	}
-	dueTo = me.Facts[SemFact{Kind: kind, Data: of}]
-	if (len(dueTo) == 0) && orAncestor && (me.Parent != nil) {
-		dueTo = me.Parent.HasFact(kind, of, true, false)
+	ret = (len(me.Facts[SemFact{Kind: kind, Data: of}]) > 0)
+	if (!ret) && orAncestor && (me.Parent != nil) {
+		ret = me.Parent.HasFact(kind, of, true, false)
 	}
-	if (len(dueTo) == 0) && orDescendant {
+	if (!ret) && orDescendant {
 		me.Each(func(it *SemExpr) {
-			dueTo = append(dueTo, it.HasFact(kind, of, false, true)...)
+			ret = it.HasFact(kind, of, false, true)
 		})
 	}
 	return

@@ -71,7 +71,7 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 	case (me.prim == MoPrimTypeDict) && (len(me.tyArgs) == 2):
 		w.WriteByte('{')
 		me.tyArgs[0].Str(w)
-		w.WriteByte(':')
+		w.WriteString(": ")
 		me.tyArgs[1].Str(w)
 		w.WriteByte('}')
 	case (me.prim == MoPrimTypeFunc) && (len(me.tyArgs) > 0):
