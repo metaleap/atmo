@@ -12,6 +12,7 @@ var (
 func init() {
 	semEvalPrimOps = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
 		moPrimOpSet: (*SrcPack).semPrimOpSet,
+		moPrimOpDo:  (*SrcPack).semPrimOpDo,
 	}
 	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){}
 }
@@ -88,4 +89,19 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 		entry.Type.(*semTypeCtor).ensure(ty)
 	}
 	call.Args[0].Type = entry.Type
+}
+
+func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		me.semEval(call.Args[0], scope)
+		if list := semCheckIs[SemValList](MoPrimTypeList, call.Args[0]); list != nil {
+			if me.semCheckCount(1, -1, list.Items, call.Args[0], false) {
+				self.Type = list.Items[len(list.Items)-1].Type
+			}
+		}
+	}
+	if self.Type == nil {
+		self.Type = self.newUntyped()
+	}
 }
