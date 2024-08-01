@@ -103,6 +103,7 @@ type SemScope struct {
 type SemScopeEntry struct {
 	DeclParamOrSetCall *SemExpr
 	SubsequentSetCalls SemExprs
+	Type               SemType
 }
 
 func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {

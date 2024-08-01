@@ -21,7 +21,7 @@ func (me *SrcPack) semInferTypes() {
 	}
 }
 
-func (me *SemExpr) newUntypable() SemType {
+func (me *SemExpr) newUntyped() SemType {
 	return semTypeNew(me, MoPrimTypeAny)
 }
 
@@ -79,6 +79,15 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 		for i, targ := range me.tyArgs {
 			if (i > 0) || (len(me.tyArgs) == 1) {
 				w.WriteString("→")
+			}
+			targ.Str(w)
+		}
+		w.WriteByte(')')
+	case (me.prim == MoPrimTypeFunc) && (len(me.tyArgs) > 0):
+		w.WriteByte('(')
+		for i, targ := range me.tyArgs {
+			if (i > 0) || (len(me.tyArgs) == 1) {
+				w.WriteString(" | ")
 			}
 			targ.Str(w)
 		}
@@ -159,7 +168,7 @@ func (me *semTypeInfer) substExpr(expr *SemExpr) {
 			}
 		}
 		if ty_item == nil {
-			ty_item = expr.newUntypable()
+			ty_item = expr.newUntyped()
 		}
 		expr.Type = semTypeNew(expr, MoPrimTypeList, ty_item)
 	case *SemValDict:
@@ -372,4 +381,14 @@ func (me *semTypeConstraintEq) String() string {
 	buf.WriteString("==")
 	me.T2.Str(&buf)
 	return buf.String()
+}
+
+func (me *semTypeCtor) ensure(ty SemType) {
+	if me.Eq(ty) {
+		return
+	} else if me.prim != MoPrimTypeOr {
+		*me = *(semTypeNew(me.dueTo, MoPrimTypeOr, me, ty).(*semTypeCtor))
+	} else if !sl.Any(me.tyArgs, func(targ SemType) bool { return targ.Eq(ty) }) {
+		me.tyArgs = append(me.tyArgs, ty)
+	}
 }

@@ -39,10 +39,11 @@ type SemValDict struct {
 }
 
 type SemValFunc struct {
-	Scope   *SemScope
-	Params  SemExprs
-	Body    *SemExpr
-	IsMacro bool
+	Scope    *SemScope
+	Params   SemExprs
+	Body     *SemExpr
+	primImpl func(*SrcPack, *SemExpr, *SemScope)
+	IsMacro  bool
 }
 
 func (me *SemExpr) Each(do func(it *SemExpr)) {
@@ -59,6 +60,10 @@ func (me *SemExpr) Each(do func(it *SemExpr)) {
 	case SemValList:
 		sl.Each(val.Items, do)
 	}
+}
+
+func (me *SemExpr) ErrNew(code DiagCode, args ...any) *Diag {
+	return me.From.SrcSpan.newDiagErr(code, args...)
 }
 
 func (me *SemExpr) Errs() (ret Diags) {
@@ -107,48 +112,12 @@ func (me *SemExpr) HasFact(kind SemFactKind, of any, orAncestor bool, orDescenda
 	return
 }
 
-func (me *SemExpr) MaybeArgOfCall() int {
-	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
-		for i, arg := range call.Args {
-			if arg == me {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-func (me *SemExpr) MaybeBodyOfFunc() bool {
-	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
-		return (fn.Body == me)
-	}
-	return false
-}
-
-func (me *SemExpr) MaybeCalleeOfCall() bool {
-	if call, _ := me.Parent.Val.(*SemValCall); call != nil {
-		return (call.Callee == me)
-	}
-	return false
-}
-
 func (me *SemExpr) MaybeIdent() MoValIdent {
 	ident, _ := me.Val.(*SemValIdent)
 	if ident != nil {
 		return ident.Ident
 	}
 	return ""
-}
-
-func (me *SemExpr) MaybeParamOfFunc() int {
-	if fn, _ := me.Parent.Val.(*SemValFunc); fn != nil {
-		for i, param := range fn.Params {
-			if param == me {
-				return i
-			}
-		}
-	}
-	return -1
 }
 
 func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
