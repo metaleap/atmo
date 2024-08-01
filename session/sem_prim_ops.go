@@ -114,6 +114,19 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 	return nil
 }
 
+func (me *SrcPack) semCheckType(expr *SemExpr, expect SemType) bool {
+	if !expr.Type.Eq(expect) {
+		err := expr.ErrNew(ErrCodeTypeMismatch, SemTypeToString(expect), SemTypeToString(expr.Type))
+		err.Rel = srcFileLocs([]string{
+			str.Fmt("type `%s` decided here", SemTypeToString(expect)),
+			str.Fmt("type `%s` decided here", SemTypeToString(expr.Type)),
+		}, expect.From(), expr.Type.From())
+		expr.ErrsOwn.Add(err)
+		return false
+	}
+	return true
+}
+
 func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	if me.semCheckCount(2, 2, call.Args, self, true) {

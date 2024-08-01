@@ -13,6 +13,9 @@ func init() {
 	semEvalPrimOps = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
 		moPrimOpSet: (*SrcPack).semPrimOpSet,
 		moPrimOpDo:  (*SrcPack).semPrimOpDo,
+		moPrimOpFn:  (*SrcPack).semPrimOpFn,
+		moPrimOpAnd: (*SrcPack).semPrimOpAndOr,
+		moPrimOpOr:  (*SrcPack).semPrimOpAndOr,
 	}
 	semEvalPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){}
 }
@@ -41,6 +44,8 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 			item_type = semTypeNew(self, MoPrimTypeOr, item_types...)
 		}
 		self.Type = semTypeNew(self, MoPrimTypeList, item_type)
+	case *SemValDict:
+
 	case *SemValIdent:
 		_, entry := scope.Lookup(val.Ident)
 		if entry == nil {
@@ -104,4 +109,20 @@ func (me *SrcPack) semPrimOpDo(self *SemExpr, scope *SemScope) {
 	if self.Type == nil {
 		self.Type = self.newUntyped()
 	}
+}
+
+func (me *SrcPack) semPrimOpFn(self *SemExpr, _ *SemScope) {
+	// whenever this func is invoked, it's always on a broken `@fn` or `@macro` call, because
+	// otherwise semPrepScopeOnFn would have turned the call into a SemValFunc already
+	self.Type = self.newUntyped()
+}
+
+func (me *SrcPack) semPrimOpAndOr(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
+	sl.Each(call.Args, func(arg *SemExpr) {
+		me.semEval(arg, scope)
+		_ = me.semCheckType(arg, self.Type)
+	})
+	_ = me.semCheckCount(2, 2, call.Args, self, true)
 }
