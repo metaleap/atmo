@@ -38,7 +38,7 @@ func init() {
 		moPrimFnStrCharAt:   ty_fn_prims(MoPrimTypeStr, MoPrimTypeNumUint, MoPrimTypeChar),
 		moPrimFnStrRange:    ty_fn_prims(MoPrimTypeStr, MoPrimTypeNumUint, MoPrimTypeNumUint, MoPrimTypeStr),
 		moPrimFnStrConcat:   ty_fn(semTypeNew(nil, MoPrimTypeList, ty_prim(MoPrimTypeStr)), ty_prim(MoPrimTypeStr)),
-		moPrimFnReplEnv:     ty_fn(semTypeNew(nil, MoPrimTypeDict, ty_prim(MoPrimTypeIdent), ty_prim(MoPrimTypeUntyped))),
+		moPrimFnReplEnv:     ty_fn(semTypeNew(nil, MoPrimTypeDict, ty_prim(MoPrimTypeIdent), ty_prim(MoPrimTypeAny))),
 		moPrimFnReplReset:   ty_fn_prims(MoPrimTypeVoid),
 	}
 	semTypingPrimOpsDo = map[MoValIdent]func(*SrcPack, *semTypeInfer, *SemExpr, map[MoValIdent]SemType){
@@ -147,7 +147,7 @@ func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 				scope, resolved := self.Scope.Lookup(ident.Name)
 				if resolved == nil {
 					ident.IsDecl = true
-					self.Scope.Own[ident.Name] = &SemScopeEntry{DeclParamOrCallOrFunc: self}
+					self.Scope.Own[ident.Name] = &SemScopeEntry{DeclParamOrCallOrFunc: self, Refs: map[*SemExpr]util.Void{}}
 				} else {
 					resolved.SubsequentSetCalls = append(resolved.SubsequentSetCalls, self)
 					if (scope == self.Scope) && (scope == &me.Trees.Sem.Scope) {
@@ -158,9 +158,6 @@ func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 				}
 			}
 		}
-	}
-	if len(self.ErrsOwn) > 0 {
-		self.Type = self.newUntyped()
 	}
 }
 
@@ -185,7 +182,7 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 				IsMacro: (call.Callee.Val.(*SemValIdent).Name == moPrimOpMacro),
 			}
 			for _, param := range fn.Params {
-				fn.Scope.Own[param.Val.(*SemValIdent).Name] = &SemScopeEntry{DeclParamOrCallOrFunc: param}
+				fn.Scope.Own[param.Val.(*SemValIdent).Name] = &SemScopeEntry{DeclParamOrCallOrFunc: param, Refs: map[*SemExpr]util.Void{}}
 			}
 			switch len(body_list.Items) {
 			case 0:
@@ -206,9 +203,6 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 				self.Val = fn
 			}
 		}
-	}
-	if len(self.ErrsOwn) > 0 {
-		self.Type = self.newUntyped()
 	}
 }
 

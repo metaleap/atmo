@@ -17,7 +17,7 @@ type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr)
 type MoValPrimType int
 
 const (
-	MoPrimTypeUntyped MoValPrimType = iota // also used by type-inference for untypables such as undefined idents
+	MoPrimTypeAny MoValPrimType = iota
 	MoPrimTypeVoid
 	MoPrimTypePrimTypeTag
 	MoPrimTypeIdent
@@ -36,12 +36,14 @@ const (
 )
 
 func (me MoValPrimType) isAtomic() bool {
-	return (me != MoPrimTypeUntyped) && (me != MoPrimTypeErr) && (me != MoPrimTypeList) && (me != MoPrimTypeCall) && (me != MoPrimTypeDict) && (me != MoPrimTypeFunc) && (me != MoPrimTypeOr)
+	return (me != MoPrimTypeAny) && (me != MoPrimTypeErr) && (me != MoPrimTypeList) && (me != MoPrimTypeCall) && (me != MoPrimTypeDict) && (me != MoPrimTypeFunc) && (me != MoPrimTypeOr)
 }
 
 func (me MoValPrimType) String() string { return me.Str(false) }
 func (me MoValPrimType) Str(forDiag bool) string {
 	switch me {
+	case MoPrimTypeAny:
+		return util.If(forDiag, "untyped-value", "@Any")
 	case MoPrimTypePrimTypeTag:
 		return util.If(forDiag, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
@@ -73,7 +75,7 @@ func (me MoValPrimType) Str(forDiag bool) string {
 	case MoPrimTypeOr:
 		return util.If(forDiag, "union", "@Or")
 	}
-	return "@Untyped"
+	panic(me)
 }
 
 type MoVal interface {
@@ -438,7 +440,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 		default:
 			if (ident[0] == '@') && (len(ident) > 1) && (ident[1] >= 'A') && (ident[1] <= 'Z') {
 				for _, prim_type_tag := range []MoValPrimType{
-					MoPrimTypeUntyped,
+					MoPrimTypeAny,
 					MoPrimTypeVoid,
 					MoPrimTypePrimTypeTag,
 					MoPrimTypeIdent,

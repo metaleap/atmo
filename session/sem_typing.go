@@ -22,10 +22,6 @@ func (me *SrcPack) semInferTypes() {
 	}
 }
 
-func (me *SemExpr) newUntyped() SemType {
-	return semTypeNew(me, MoPrimTypeUntyped)
-}
-
 type SemType interface {
 	Eq(SemType) bool
 	From() *SemExpr
@@ -81,7 +77,11 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 			if (i > 0) || (len(me.tyArgs) == 1) {
 				w.WriteString("→")
 			}
-			targ.Str(w)
+			if targ == nil {
+				w.WriteString("<NIL?!?!?!>")
+			} else {
+				targ.Str(w)
+			}
 		}
 		w.WriteByte(')')
 	case (me.prim == MoPrimTypeOr) && (len(me.tyArgs) > 0):
@@ -109,7 +109,7 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 
 func SemTypeToString(ty SemType) string {
 	if ty == nil {
-		return MoPrimTypeUntyped.Str(false)
+		return MoPrimTypeAny.Str(false)
 	}
 	var buf strings.Builder
 	ty.Str(&buf)
@@ -169,7 +169,7 @@ func (me *semTypeInfer) substExpr(expr *SemExpr) {
 			}
 		}
 		if ty_item == nil {
-			ty_item = expr.newUntyped()
+			ty_item = semTypeNew(expr, MoPrimTypeAny)
 		}
 		expr.Type = semTypeNew(expr, MoPrimTypeList, ty_item)
 	case *SemValDict:
@@ -343,7 +343,9 @@ func semTypeEq(dueTo *SemExpr, t1 SemType, t2 SemType) SemTypeConstraint {
 func semTypeNew(dueTo *SemExpr, prim MoValPrimType, tyArgs ...SemType) SemType {
 	ret := &semTypeCtor{dueTo: dueTo, prim: prim, tyArgs: sl.To(tyArgs, func(targ SemType) SemType { return semTypeEnsureDueTo(dueTo, targ) })}
 	if len(tyArgs) > 0 {
-		ret.normalizeIfAdt()
+		if !ret.normalizeIfAdt() {
+			ret = nil
+		}
 	}
 	return ret
 }
@@ -392,7 +394,7 @@ func (me *semTypeConstraintEq) String() string {
 	return buf.String()
 }
 
-func (me *semTypeCtor) normalizeIfAdt() {
+func (me *semTypeCtor) normalizeIfAdt() bool {
 	if me.prim == MoPrimTypeOr {
 		for i := 0; i < me.tyArgs.Len(); i++ {
 			if t := me.tyArgs[i].(*semTypeCtor); t.prim == MoPrimTypeOr {
@@ -401,22 +403,24 @@ func (me *semTypeCtor) normalizeIfAdt() {
 			}
 		}
 		me.tyArgs.EnsureAllUnique(SemType.Eq)
-		me.tyArgs = me.tyArgs.Without(func(it SemType) bool { return it.(*semTypeCtor).prim == MoPrimTypeUntyped })
+		me.tyArgs = me.tyArgs.Without(func(it SemType) bool { return it.(*semTypeCtor).prim == MoPrimTypeAny })
 		switch len(me.tyArgs) {
 		case 0:
-			*me = *(me.dueTo.newUntyped().(*semTypeCtor))
+			return false
 		case 1:
 			*me = *(me.tyArgs[0].(*semTypeCtor))
 		}
 	}
+	return true
 }
 
-func semTypeFromMultiple(dueTo *SemExpr, ty ...SemType) SemType {
+func semTypeFromMultiple(dueTo *SemExpr, anyIfEmpty bool, ty ...SemType) SemType {
 	types := (sl.Of[SemType])(ty)
+	use_any := anyIfEmpty && (len(types) == 0)
 	types = types.Without(func(t SemType) bool { return t == nil })
 	switch types.EnsureAllUnique(SemType.Eq); len(types) {
 	case 0:
-		return dueTo.newUntyped()
+		return util.If(use_any, semTypeNew(dueTo, MoPrimTypeAny), nil)
 	case 1:
 		return types[0]
 	default:

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -27,7 +28,7 @@ func (me *SrcPack) semRefresh() {
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
 				ident, _ := it.Val.(*SemValIdent)
-				if ((it.Type == nil) || (it.Type.(*semTypeCtor).prim == MoPrimTypeUntyped)) &&
+				if ((it.Type == nil) || (it.Type.(*semTypeCtor).prim == MoPrimTypeAny)) &&
 					(!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) && ((ident == nil) || !(ident.IsSet || ident.IsParam)) {
 					it.ErrsOwn.Add(it.ErrNew(ErrCodeUntypifiable))
 				}
@@ -112,6 +113,7 @@ func (me *SrcPack) semPopulateRootScope() {
 		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
 			Type:                  fn.Type,
 			DeclParamOrCallOrFunc: fn,
+			Refs:                  map[*SemExpr]util.Void{},
 		}
 	}
 
@@ -142,9 +144,7 @@ func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, 
 		} else {
 			self.Val = val
 		}
-		if ty != nil {
-			self.Type = ty
-		}
+		self.Type = ty
 		self.Fact(SemFact{Kind: SemFactPreComputed}, self.Type.From())
 	}
 }
@@ -158,6 +158,7 @@ type SemScopeEntry struct {
 	DeclParamOrCallOrFunc *SemExpr
 	SubsequentSetCalls    SemExprs
 	Type                  SemType
+	Refs                  map[*SemExpr]util.Void
 }
 
 func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {
@@ -168,4 +169,18 @@ func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {
 		return me.Parent.Lookup(ident)
 	}
 	return nil, nil
+}
+
+func (me *SrcPack) semScopePropagateTypeChangeToRefs(entry *SemScopeEntry) {
+	for ref := range entry.Refs {
+		ref.Type = entry.Type
+		var top *SemExpr
+		for p := ref.Parent; p != nil; p = p.Parent {
+			p.Type = nil
+			top = p
+		}
+		if top != nil {
+			me.semEval(top, top.Scope)
+		}
+	}
 }
