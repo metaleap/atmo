@@ -74,8 +74,11 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 	case (me.prim == MoPrimTypeFunc) && (len(me.tyArgs) > 0):
 		w.WriteByte('(')
 		for i, targ := range me.tyArgs {
-			if (i > 0) || (len(me.tyArgs) == 1) {
-				w.WriteString("→")
+			if i > 0 {
+				w.WriteString(" ")
+			}
+			if i == (len(me.tyArgs) - 1) {
+				w.WriteString("=> ")
 			}
 			if targ == nil {
 				w.WriteString("<NIL?!?!?!>")

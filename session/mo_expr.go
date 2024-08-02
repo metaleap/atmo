@@ -75,7 +75,7 @@ func (me MoValPrimType) Str(forDiag bool) string {
 	case MoPrimTypeOr:
 		return util.If(forDiag, "union", "@Or")
 	}
-	panic(me)
+	return "NewAtmoBugReportPlz(" + str.FromInt(int(me)) + ")"
 }
 
 type MoVal interface {

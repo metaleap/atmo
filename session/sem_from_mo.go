@@ -28,8 +28,7 @@ func (me *SrcPack) semRefresh() {
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
 				ident, _ := it.Val.(*SemValIdent)
-				if ((it.Type == nil) || (it.Type.(*semTypeCtor).prim == MoPrimTypeAny)) &&
-					(!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) && ((ident == nil) || !(ident.IsSet || ident.IsParam)) {
+				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) && ((ident == nil) || !(ident.IsSet || ident.IsParam)) {
 					it.ErrsOwn.Add(it.ErrNew(ErrCodeUntypifiable))
 				}
 				return true

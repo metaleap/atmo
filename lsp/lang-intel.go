@@ -138,12 +138,14 @@ func init() {
 					for i, item := range items {
 						if item.CodeLang != "" {
 							items[i].Value = "```" + item.CodeLang + "\n" + item.Value + "\n```"
+						} else {
+							items[i].Value = html.EscapeString(item.Value)
 						}
 					}
 					strs := sl.Where(sl.To(items, func(it session.IntelItem) string { return it.Value }), func(s string) bool { return s != "" })
 					if text := str.Join(sl.To(strs, str.Trim), "\n\n\n___\n\n\n"); text != "" {
 						ret = &lsp.Hover{
-							Contents: lsp.MarkupContent{Value: html.EscapeString(text), Kind: lsp.MarkupKindMarkdown},
+							Contents: lsp.MarkupContent{Value: text, Kind: lsp.MarkupKindMarkdown},
 						}
 						if info.SpanFull != nil {
 							ret.Range = util.Ptr(lspRangeFromSpan(info.SpanFull))

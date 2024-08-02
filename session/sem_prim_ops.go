@@ -110,7 +110,9 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 	if ret, is := expr.Val.(*T); is {
 		return ret
 	}
-	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%s here instead of `%s`", equivPrimType.Str(true), expr.From.SrcNode.Src)))
+	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%s here instead of `%s`",
+		util.If(equivPrimType < 0, "a comparable value", equivPrimType.Str(true)),
+		expr.From.SrcNode.Src)))
 	return nil
 }
 
