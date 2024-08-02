@@ -38,18 +38,26 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 	return nil
 }
 
+func (me *SrcPack) semCheckTypeOfAny(expr *SemExpr, expect MoValPrimType, dueTo *SemExpr) bool {
+	if (expr.Type != nil) && (expr.Type.Prim == expect) {
+		return true
+	}
+	return me.semCheckType(expr, semTypeNew(dueTo, expect, semTypeNew(dueTo, MoPrimTypeAny)))
+}
+
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 	if !expect.Eq(expr.Type) {
 		if !expr.HasErrs() { // dont wanna be too noisy
 			t1, t2 := expect, expr.Type
+			dt1, dt2 := expect.DueTo, expr
 			s1, s2 := t1.String(), t2.String()
-			if len(s2) < len(s1) {
-				s1, s2, t1, t2 = s2, s1, t2, t1
-			}
+			// if len(s2) < len(s1) {
+			// 	s1, s2, t1, t2, dt1, dt2 = s2, s1, t2, t1, dt2, dt1
+			// }
 			err := expr.ErrNew(ErrCodeTypeMismatch, s1, s2)
 			err.Rel = srcFileLocs([]string{
-				str.Fmt("type `%s` decided here", s1),
-				str.Fmt("type `%s` decided here", s2),
+				str.Fmt("`%s` expected by `%s`", s1, dt1.String()),
+				str.Fmt("`%s` provided by `%s`", s2, dt2.String()),
 			}, t1.DueTo, t2.DueTo)
 			expr.ErrsOwn.Add(err)
 		}

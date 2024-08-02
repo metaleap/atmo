@@ -47,7 +47,7 @@ func (me MoValPrimType) Str(forDiag bool) string {
 	case MoPrimTypePrimTypeTag:
 		return util.If(forDiag, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
-		return util.If(forDiag, "identifier", "@Ident")
+		return util.If(forDiag, "symbol", "@Symbol")
 	case MoPrimTypeVoid:
 		return util.If(forDiag, "void", "@Void")
 	case MoPrimTypeBool:
@@ -61,7 +61,7 @@ func (me MoValPrimType) Str(forDiag bool) string {
 	case MoPrimTypeChar:
 		return util.If(forDiag, "character", "@Char")
 	case MoPrimTypeStr:
-		return util.If(forDiag, "text string", "@Str")
+		return util.If(forDiag, "string", "@Str")
 	case MoPrimTypeErr:
 		return util.If(forDiag, "error", "@Err")
 	case MoPrimTypeDict:

@@ -290,6 +290,8 @@ func (me *SemExpr) stringifyTo(w *str.Buf) {
 func (me *SemExpr) String() string {
 	if me == nil {
 		return "<nil>"
+	} else if (me.From != nil) && (me.From.SrcNode != nil) && (me.From.SrcNode.Src != "") {
+		return me.From.SrcNode.Src
 	}
 	var buf strings.Builder
 	me.stringifyTo(&buf)

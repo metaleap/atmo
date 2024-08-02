@@ -429,13 +429,10 @@ func (me *SrcPack) semTyPrimFnListGet(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && (call.Args[0].Type != nil) {
-			if ty_list := call.Args[0].Type; ty_list.Prim != MoPrimTypeList {
-				_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))) // to provoke provoke type error diag
-			} else {
-				call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, ty_list.TArgs[0])
-				self.Type = ty_list.TArgs[0]
-			}
+		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypeOfAny(call.Args[0], MoPrimTypeList, call.Callee) {
+			ty_list := call.Args[0].Type
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, ty_list, call.Args[1].Type, ty_list.TArgs[0])
+			self.Type = ty_list.TArgs[0]
 		}
 	}
 }
@@ -443,12 +440,8 @@ func (me *SrcPack) semTyPrimFnListGet(self *SemExpr, scope *SemScope) {
 func (me *SrcPack) semTyPrimFnListLen(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeNumUint)
-	if me.semCheckCount(1, 1, call.Args, self, true) && (call.Args[0].Type != nil) {
-		if ty_list := call.Args[0].Type; ty_list.Prim != MoPrimTypeList {
-			_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))) // to provoke provoke type error diag
-		} else {
-			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
-		}
+	if me.semCheckCount(1, 1, call.Args, self, true) && me.semCheckTypeOfAny(call.Args[0], MoPrimTypeList, call.Callee) {
+		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
 	}
 }
 
@@ -457,15 +450,12 @@ func (me *SrcPack) semTyPrimFnListSet(self *SemExpr, scope *SemScope) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
 	if me.semCheckCount(3, 3, call.Args, self, true) {
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && (call.Args[0].Type != nil) {
-			if ty_list := call.Args[0].Type; ty_list.Prim != MoPrimTypeList {
-				_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))) // to provoke provoke type error diag
-			} else {
-				if !ty_list.TArgs[0].IsAny() {
-					_ = me.semCheckType(call.Args[2], ty_list.TArgs[0])
-				}
-				call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, ty_list.TArgs[0], self.Type)
+		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypeOfAny(call.Args[0], MoPrimTypeList, call.Callee) {
+			ty_list := call.Args[0].Type
+			if !ty_list.TArgs[0].IsAny() {
+				_ = me.semCheckType(call.Args[2], ty_list.TArgs[0])
 			}
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, ty_list.TArgs[0], self.Type)
 		}
 	}
 }
@@ -474,13 +464,10 @@ func (me *SrcPack) semTyPrimFnListRange(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeList)
 	if me.semCheckCount(3, 3, call.Args, self, true) {
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckType(call.Args[2], semTypeNew(call.Callee, MoPrimTypeNumUint)) && (call.Args[0].Type != nil) {
-			if ty_list := call.Args[0].Type; ty_list.Prim != MoPrimTypeList {
-				_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))) // to provoke provoke type error diag
-			} else {
-				call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, ty_list)
-				self.Type = ty_list
-			}
+		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckType(call.Args[2], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypeOfAny(call.Args[0], MoPrimTypeList, call.Callee) {
+			ty_list := call.Args[0].Type
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, ty_list)
+			self.Type = ty_list
 		}
 	}
 }
@@ -488,11 +475,9 @@ func (me *SrcPack) semTyPrimFnListRange(self *SemExpr, scope *SemScope) {
 func (me *SrcPack) semTyPrimFnListConcat(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))
-	if me.semCheckCount(1, 1, call.Args, self, true) && (call.Args[0].Type != nil) {
-		if ty_list := call.Args[0].Type; ty_list.Prim != MoPrimTypeList {
-			_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))) // to provoke provoke type error diag
-		} else if (ty_list.TArgs[0] == nil) || (ty_list.TArgs[0].Prim != MoPrimTypeList) {
-			_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny)))) // to provoke provoke type error diag
+	if me.semCheckCount(1, 1, call.Args, self, true) && me.semCheckTypeOfAny(call.Args[0], MoPrimTypeList, call.Callee) {
+		if ty_list := call.Args[0].Type; (ty_list.TArgs[0] == nil) || (ty_list.TArgs[0].Prim != MoPrimTypeList) {
+			_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny)))) // to provoke type error diag
 		} else {
 			self.Type = ty_list.TArgs[0]
 			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
@@ -503,7 +488,9 @@ func (me *SrcPack) semTyPrimFnListConcat(self *SemExpr, scope *SemScope) {
 func (me *SrcPack) semTyPrimFnDictHas(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
+	if me.semCheckCount(2, 2, call.Args, self, true) {
 
+	}
 }
 
 func (me *SrcPack) semTyPrimFnDictGet(self *SemExpr, scope *SemScope) {
