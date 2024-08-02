@@ -44,11 +44,11 @@ type semTypeVar struct {
 
 func (me *semTypeVar) Eq(to SemType) bool {
 	it, _ := to.(*semTypeVar)
-	return (it != nil) && ((me == it) || (me.idx == it.idx))
+	return (me == it) || ((me != nil) && (it != nil) && (me.idx == it.idx))
 }
 func (me *semTypeCtor) Eq(to SemType) bool {
 	it, _ := to.(*semTypeCtor)
-	return (it != nil) && ((me == it) || ((me.prim == it.prim) && sl.Eq(me.tyArgs, it.tyArgs, SemType.Eq)))
+	return (me == it) || ((me != nil) && (it != nil) && (me.prim == it.prim) && sl.Eq(me.tyArgs, it.tyArgs, SemType.Eq))
 }
 func (me *semTypeVar) From() *SemExpr  { return me.dueTo }
 func (me *semTypeCtor) From() *SemExpr { return me.dueTo }
@@ -203,7 +203,7 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 			if p.Type == nil {
 				p.Type = me.newTypeVar(p)
 			}
-			new_env[p.Val.(*SemValIdent).Ident] = p.Type
+			new_env[p.Val.(*SemValIdent).Name] = p.Type
 		})
 		val.Body.Type = new_ty_ret
 		me.infer(ctx, val.Body, new_env)
@@ -227,9 +227,9 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 			sl.Each(val.Args, func(arg *SemExpr) { arg.Type = ty_args[idx]; me.infer(ctx, arg, env); idx++ })
 		}
 	case *SemValIdent:
-		ty_ident := env[val.Ident]
+		ty_ident := env[val.Name]
 		if ty_ident == nil {
-			expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Ident))
+			expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Name))
 		} else {
 			if ty_ident.From() == nil { // for idents referencing the built-in prim-ops
 				ty_ident = semTypeEnsureDueTo(expr, ty_ident)
@@ -238,7 +238,7 @@ func (me *semTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent]Se
 			expr.Type = ty_ident
 		}
 	case *SemValScalar:
-		new_ty_expr := semTypeNew(expr, val.MoVal.PrimType())
+		new_ty_expr := semTypeNew(expr, val.Value.PrimType())
 		me.constraints.Add(semTypeEq(expr, expr.Type, new_ty_expr))
 		expr.Type = new_ty_expr
 	case *SemValList:
@@ -342,6 +342,7 @@ func semTypeEq(dueTo *SemExpr, t1 SemType, t2 SemType) SemTypeConstraint {
 }
 func semTypeNew(dueTo *SemExpr, prim MoValPrimType, tyArgs ...SemType) SemType {
 	ret := &semTypeCtor{dueTo: dueTo, prim: prim, tyArgs: sl.To(tyArgs, func(targ SemType) SemType { return semTypeEnsureDueTo(dueTo, targ) })}
+	ret.normalizeIfOr()
 	return ret
 }
 func (me *semTypeInfer) newTypeVar(dueTo *SemExpr) (ret SemType) {
@@ -387,16 +388,6 @@ func (me *semTypeConstraintEq) String() string {
 	buf.WriteString("==")
 	me.T2.Str(&buf)
 	return buf.String()
-}
-
-func (me *semTypeCtor) ensureOrOr(ty SemType) {
-	if due_to := ty.From(); me.Eq(ty) {
-		return
-	} else if me.prim != MoPrimTypeOr {
-		*me = *(semTypeNew(util.If(due_to == nil, me.dueTo, due_to), MoPrimTypeOr, me, ty).(*semTypeCtor))
-	} else if !sl.Any(me.tyArgs, func(targ SemType) bool { return targ.Eq(ty) }) {
-		me.tyArgs = append(me.tyArgs, ty)
-	}
 }
 
 func (me *semTypeCtor) normalizeIfOr() {

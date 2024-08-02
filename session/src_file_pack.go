@@ -21,6 +21,7 @@ type SrcPack struct {
 			Index    struct {
 				Lits map[any]SemExprs
 			}
+			inFlight map[*SemExpr]int
 		}
 		last struct {
 			files map[string]string
@@ -214,7 +215,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 func newSrcPack(dirPath string) *SrcPack {
 	ret := &SrcPack{DirPath: dirPath}
 	ret.Trees.last.files = map[string]string{}
-	ret.Trees.Sem.Index.Lits = map[any]SemExprs{}
+	ret.Trees.Sem.Index.Lits, ret.Trees.Sem.inFlight = map[any]SemExprs{}, map[*SemExpr]int{}
 	return ret
 }
 

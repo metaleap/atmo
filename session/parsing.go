@@ -182,7 +182,6 @@ func parseLit[T cmp.Ordered](toks Toks, kind AstNodeKind, parseFunc func(string)
 
 func (me *SrcFile) NodeAtPos(pos SrcFilePos, orAncestor bool) (ret *AstNode) {
 	for _, node := range me.Src.Ast {
-		println(util.JsonFrom(pos), util.JsonFrom(node.Toks.Span()))
 		if node.Toks.Span().Contains(&pos) {
 			ret = node.find(func(it *AstNode) bool {
 				return (len(it.Nodes) == 0) && it.Toks.Span().Contains(&pos)

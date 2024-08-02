@@ -135,24 +135,24 @@ func (me *SrcPack) semPrepScopeOnSet(self *SemExpr) {
 		expr_name, expr_value := call.Args[0], call.Args[1]
 		if ident := semCheckIs[SemValIdent](MoPrimTypeIdent, expr_name); ident != nil {
 			ident.IsSet = true
-			is_name_invalid := ident.Ident.IsReserved()
+			is_name_invalid := ident.Name.IsReserved()
 			if is_name_invalid {
-				self.ErrsOwn.Add(expr_name.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.Ident, ident.Ident[0:1]))
+				self.ErrsOwn.Add(expr_name.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.Name, ident.Name[0:1]))
 			}
 
 			if value_ident := expr_value.MaybeIdent(false); (value_ident != "") && (moPrimOpsLazy[value_ident] != nil) {
 				self.ErrsOwn.Add(expr_value.From.SrcSpan.newDiagErr(ErrCodeNotAValue, value_ident))
 			}
 			if !is_name_invalid {
-				scope, resolved := self.Scope.Lookup(ident.Ident)
+				scope, resolved := self.Scope.Lookup(ident.Name)
 				if resolved == nil {
 					ident.IsDecl = true
-					self.Scope.Own[ident.Ident] = &SemScopeEntry{DeclParamOrCallOrFuncOrPrimIdent: self}
+					self.Scope.Own[ident.Name] = &SemScopeEntry{DeclParamOrCallOrFunc: self}
 				} else {
 					resolved.SubsequentSetCalls = append(resolved.SubsequentSetCalls, self)
 					if (scope == self.Scope) && (scope == &me.Trees.Sem.Scope) {
-						err := self.From.SrcSpan.newDiagErr(ErrCodeDuplTopDecl, ident.Ident)
-						err.Rel = srcFileLocs([]string{str.Fmt("the other `%s` definition", ident.Ident)}, resolved.DeclParamOrCallOrFuncOrPrimIdent)
+						err := self.From.SrcSpan.newDiagErr(ErrCodeDuplTopDecl, ident.Name)
+						err.Rel = srcFileLocs([]string{str.Fmt("the other `%s` definition", ident.Name)}, resolved.DeclParamOrCallOrFunc)
 						self.ErrsOwn.Add(err)
 					}
 				}
@@ -171,8 +171,8 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 			var ok_params SemExprs
 			for _, param := range params_list.Items {
 				if ident := semCheckIs[SemValIdent](MoPrimTypeIdent, param); ident != nil {
-					if ident.Ident.IsReserved() {
-						self.ErrsOwn.Add(param.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.Ident, ident.Ident[0:1]))
+					if ident.Name.IsReserved() {
+						self.ErrsOwn.Add(param.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.Name, ident.Name[0:1]))
 					} else {
 						ident.IsParam, ident.IsDecl = true, true
 						ok_params = append(ok_params, param)
@@ -182,10 +182,10 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 			fn := &SemValFunc{
 				Scope:   &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
 				Params:  ok_params,
-				IsMacro: (call.Callee.Val.(*SemValIdent).Ident == moPrimOpMacro),
+				IsMacro: (call.Callee.Val.(*SemValIdent).Name == moPrimOpMacro),
 			}
 			for _, param := range fn.Params {
-				fn.Scope.Own[param.Val.(*SemValIdent).Ident] = &SemScopeEntry{DeclParamOrCallOrFuncOrPrimIdent: param}
+				fn.Scope.Own[param.Val.(*SemValIdent).Name] = &SemScopeEntry{DeclParamOrCallOrFunc: param}
 			}
 			switch len(body_list.Items) {
 			case 0:
@@ -195,7 +195,7 @@ func (me *SrcPack) semPrepScopeOnFn(self *SemExpr) {
 			default:
 				f, p, s := call.Args[1].From, call.Args[1], fn.Scope
 				expr_do := &SemExpr{From: f, Parent: p, Scope: s, Val: &SemValCall{
-					Callee: &SemExpr{Val: &SemValIdent{Ident: moPrimOpDo}, From: f, Parent: p, Scope: s},
+					Callee: &SemExpr{Val: &SemValIdent{Name: moPrimOpDo}, From: f, Parent: p, Scope: s},
 					Args:   SemExprs{{Val: body_list, From: f, Parent: p, Scope: s}}}}
 				fn.Body = expr_do
 			}

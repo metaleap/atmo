@@ -50,6 +50,7 @@ const (
 	ErrCodeTypeMismatch      DiagCode = "TypeMismatch"
 	ErrCodeTypeInfinite      DiagCode = "TypeInfinite"
 	ErrCodeComputationFailed DiagCode = "ComputationFailed"
+	ErrCodeCyclic            DiagCode = "Cyclic"
 
 	// semantic (warnings / infos / hints)
 	HintCodeUnused DiagCode = "Unused"
@@ -86,6 +87,7 @@ var (
 		ErrCodeTypeMismatch:      "type mismatch: `%s` vs. `%s`",
 		ErrCodeTypeInfinite:      "infinite type detected: `%s`",
 		ErrCodeComputationFailed: "%v",
+		ErrCodeCyclic:            "cyclic reference: `%s` refers directly or indirectly to itself",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}

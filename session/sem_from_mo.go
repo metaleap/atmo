@@ -19,9 +19,11 @@ func (me *SrcPack) semRefresh() {
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		// me.semInferTypes()
 		me.semPopulateRootScope()
+		clear(me.Trees.Sem.inFlight)
 		for _, top_expr := range me.Trees.Sem.TopLevel {
 			me.semEval(top_expr, &me.Trees.Sem.Scope)
 		}
+		clear(me.Trees.Sem.inFlight)
 	}
 }
 
@@ -45,14 +47,18 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 }
 
 func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
-	scalar := &SemValScalar{MoVal: it}
+	scalar := &SemValScalar{Value: it}
 	self.Val = scalar
 	self.Type = semTypeNew(self, it.PrimType())
+	self.Fact(SemFact{Kind: SemFactPreComputed}, self)
 	me.Trees.Sem.Index.Lits[it] = append(me.Trees.Sem.Index.Lits[it], self)
+	if (it.PrimType() == MoPrimTypeBool) || (it.PrimType() == MoPrimTypePrimTypeTag) {
+		self.Fact(SemFact{Kind: SemFactPrimIdent}, self)
+	}
 }
 
 func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
-	ident := &SemValIdent{Ident: it}
+	ident := &SemValIdent{Name: it}
 	self.Val = ident
 }
 
@@ -90,32 +96,28 @@ func (me *SrcPack) semPopulateRootScope() {
 		var idx int
 		fn_val.Params = SemExprs(sl.To(fn.Type.(*semTypeCtor).tyArgs, func(t SemType) *SemExpr {
 			idx++
-			return &SemExpr{Parent: fn, Scope: fn.Scope, Type: t, Val: &SemValIdent{Ident: MoValIdent("arg" + str.FromInt(idx))}}
+			return &SemExpr{Parent: fn, Scope: fn.Scope, Type: t, Val: &SemValIdent{Name: MoValIdent("arg" + str.FromInt(idx))}}
 		}))
 		fn.Fact(SemFact{Kind: SemFactPrimFn}, fn)
 		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
-			Type:                             fn.Type,
-			DeclParamOrCallOrFuncOrPrimIdent: fn,
+			Type:                  fn.Type,
+			DeclParamOrCallOrFunc: fn,
 		}
 	}
 
 	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
 		if call, _ := self.Val.(*SemValCall); call != nil {
-			if ident := call.Callee.MaybeIdent(false); (ident == moPrimOpQQuote) || (ident == moPrimOpQuote) {
+			switch ident := call.Callee.MaybeIdent(true); ident {
+			case moPrimOpQQuote, moPrimOpQuote:
 				return false
+			case moPrimOpFn, moPrimOpMacro:
+				me.semPrepScopeOnFn(self)
+			case moPrimOpSet:
+				me.semPrepScopeOnSet(self)
 			}
 		}
 		return true
-	}, func(self *SemExpr) {
-		if call, _ := self.Val.(*SemValCall); call != nil {
-			switch ident := call.Callee.MaybeIdent(true); ident {
-			case moPrimOpSet:
-				me.semPrepScopeOnSet(self)
-			case moPrimOpFn, moPrimOpMacro:
-				me.semPrepScopeOnFn(self)
-			}
-		}
-	})
+	}, nil)
 }
 
 func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, val any, ty SemType) {
@@ -125,6 +127,8 @@ func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, 
 		}
 		if moval, is := val.(MoVal); is {
 			me.semPopulateScalar(self, moval)
+		} else if scalar, _ := val.(*SemValScalar); scalar != nil {
+			me.semPopulateScalar(self, scalar.Value)
 		} else {
 			self.Val = val
 		}
@@ -141,9 +145,9 @@ type SemScope struct {
 }
 
 type SemScopeEntry struct {
-	DeclParamOrCallOrFuncOrPrimIdent *SemExpr
-	SubsequentSetCalls               SemExprs
-	Type                             SemType
+	DeclParamOrCallOrFunc *SemExpr
+	SubsequentSetCalls    SemExprs
+	Type                  SemType
 }
 
 func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {

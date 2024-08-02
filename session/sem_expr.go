@@ -19,11 +19,11 @@ type SemExpr struct {
 }
 
 type SemValScalar struct {
-	MoVal MoVal
+	Value MoVal
 }
 
 type SemValIdent struct {
-	Ident   MoValIdent
+	Name    MoValIdent
 	IsDecl  bool // if true, either IsParam or IsSet also is
 	IsParam bool // if true, so is IsDecl
 	IsSet   bool
@@ -140,22 +140,22 @@ func (me *SemExpr) isPrecomputedPermissible() bool {
 func (me *SemExpr) MaybeIdent(canBeDecl bool) MoValIdent {
 	ident, _ := me.Val.(*SemValIdent)
 	if (ident != nil) && (canBeDecl || !ident.IsDecl) {
-		return ident.Ident
+		return ident.Name
 	}
 	return ""
 }
 
-func (me *SrcPack) MaybeRefs(expr *SemExpr, filterBy *SrcFile) (sets SemExprs, gets SemExprs) {
-	name := expr.MaybeIdent(true)
-	if _, entry := expr.Scope.Lookup(name); entry != nil {
-		sets = append(SemExprs{entry.DeclParamOrCallOrFuncOrPrimIdent}, entry.SubsequentSetCalls...)
-		walk_from := SemExprs{entry.DeclParamOrCallOrFuncOrPrimIdent.Parent}
-		if fn, _ := entry.DeclParamOrCallOrFuncOrPrimIdent.Val.(*SemValFunc); (fn != nil) || (walk_from[0] == nil) {
+func (me *SrcPack) Refs(self *SemExpr, onlyInFile *SrcFile) (sets SemExprs, gets SemExprs) {
+	name := self.MaybeIdent(true)
+	if _, entry := self.Scope.Lookup(name); entry != nil {
+		sets = append(SemExprs{entry.DeclParamOrCallOrFunc}, entry.SubsequentSetCalls...)
+		walk_from := SemExprs{entry.DeclParamOrCallOrFunc.Parent}
+		if fn, _ := entry.DeclParamOrCallOrFunc.Val.(*SemValFunc); (fn != nil) || (walk_from[0] == nil) {
 			walk_from = me.Trees.Sem.TopLevel
 		}
-		walk_from.Walk(filterBy, nil, func(it *SemExpr) {
-			if ident := it.MaybeIdent(false); ident == name {
-				if _, e := it.Scope.Lookup(ident); e == entry {
+		walk_from.Walk(onlyInFile, nil, func(it *SemExpr) {
+			if ident, _ := it.Val.(*SemValIdent); (ident != nil) && !(ident.IsDecl || ident.IsSet || ident.IsParam) {
+				if _, e := it.Scope.Lookup(ident.Name); e == entry {
 					gets = append(gets, it)
 				}
 			}
@@ -227,9 +227,9 @@ func (me SemExprs) Errs() (ret Diags) {
 	return
 }
 
-func (me SemExprs) Walk(filterBy *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
+func (me SemExprs) Walk(onlyInFile *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
 	for _, expr := range me {
-		if (filterBy == nil) || (expr.From.SrcFile == filterBy) {
+		if (onlyInFile == nil) || (expr.From.SrcFile == onlyInFile) {
 			expr.Walk(true, onBefore, onAfter)
 		}
 	}
@@ -238,9 +238,9 @@ func (me SemExprs) Walk(filterBy *SrcFile, onBefore func(it *SemExpr) bool, onAf
 func (me *SemExpr) str(w *str.Buf) {
 	switch val := me.Val.(type) {
 	case *SemValIdent:
-		w.WriteString(string(val.Ident))
+		w.WriteString(string(val.Name))
 	case *SemValScalar:
-		moValWriteTo(val.MoVal, w)
+		moValWriteTo(val.Value, w)
 	case *SemValList:
 		w.WriteByte('[')
 		for i, item := range val.Items {
@@ -287,9 +287,12 @@ func (me *SemExpr) str(w *str.Buf) {
 	}
 }
 
-func SemExprToString(expr *SemExpr) string {
+func (me *SemExpr) String() string {
+	if me == nil {
+		return "<nil>"
+	}
 	var buf strings.Builder
-	expr.str(&buf)
+	me.str(&buf)
 	return buf.String()
 }
 

@@ -173,10 +173,10 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						switch val := from.Val.(type) {
 						case *session.SemValIdent:
 							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "scalar",
-								"MoVal": val.Ident}
+								"MoVal": val.Name}
 						case *session.SemValScalar:
 							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "scalar",
-								"MoVal": val.MoVal}
+								"MoVal": val.Value}
 						case *session.SemValList:
 							ret.Val = map[string]any{"Ty": session.SemTypeToString(from.Type), "Kind": "list",
 								"Items": sl.To(val.Items, convert)}
