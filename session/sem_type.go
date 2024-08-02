@@ -15,7 +15,8 @@ type SemType struct {
 }
 
 func (me *SemType) Eq(to *SemType) bool {
-	return (me == to) || ((me != nil) && (to != nil) && (me.Prim == to.Prim) && sl.Eq(me.TArgs, to.TArgs, (*SemType).Eq))
+	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqOrderless, sl.Eq[sl.Of[*SemType]])
+	return (me == to) || ((me != nil) && (to != nil) && (me.Prim == to.Prim) && sl_eq(me.TArgs, to.TArgs, (*SemType).Eq))
 }
 
 func (me *SemType) String() (ret string) {

@@ -502,7 +502,8 @@ func (me *SrcPack) semTyPrimFnListConcat(self *SemExpr, scope *SemScope) {
 
 func (me *SrcPack) semTyPrimFnDictHas(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
+
 }
 
 func (me *SrcPack) semTyPrimFnDictGet(self *SemExpr, scope *SemScope) {

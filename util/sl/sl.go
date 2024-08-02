@@ -180,6 +180,18 @@ func Eq[TSlice ~[]TItem, TItem any](slice1 TSlice, slice2 TSlice, eq func(TItem,
 	})
 }
 
+func EqOrderless[TSlice ~[]TItem, TItem any](slice1 TSlice, slice2 TSlice, eq func(TItem, TItem) bool) bool {
+	if len(slice1) != len(slice2) {
+		return false
+	}
+	for _, item := range slice1 {
+		if !Any(slice2, func(it TItem) bool { return eq(item, it) }) {
+			return false
+		}
+	}
+	return true
+}
+
 func None[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) bool {
 	for i := range slice {
 		if pred(slice[i]) {
