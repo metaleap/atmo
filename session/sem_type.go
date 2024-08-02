@@ -93,7 +93,10 @@ func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
 func (me *SemType) normalizeIfAdt() bool {
 	if me.Prim == MoPrimTypeOr {
 		for i := 0; i < me.TArgs.Len(); i++ {
-			if t := me.TArgs[i]; t.Prim == MoPrimTypeOr {
+			if t := me.TArgs[i]; t.Prim == MoPrimTypeAny {
+				*me = *t
+				return true
+			} else if t.Prim == MoPrimTypeOr {
 				me.TArgs = append(append(me.TArgs[:i], me.TArgs[i+1:]...), t.TArgs...)
 				i--
 			}

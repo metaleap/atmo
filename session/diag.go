@@ -73,7 +73,7 @@ var (
 		ErrCodeLitSyntax:          "invalid literal: %s", // actual error msg in %s
 		ErrCodeBracketingMismatch: "opening and closing %s don't match up",
 
-		ErrCodeExpectedFoo:         "expected %s",
+		ErrCodeExpectedFoo:         "expecting %s",
 		ErrCodeUndefined:           "`%s` is not defined or not in scope",
 		ErrCodeNotAValue:           "`%s` cannot be used as a value",
 		ErrCodeUncallable:          "`%s` is not callable",
@@ -85,7 +85,7 @@ var (
 		ErrCodeNotComparable:       "operands `%s` and `%s` cannot be compared in %s terms",
 		ErrCodeNotConvertible:      "cannot convert `%s` to %s",
 		ErrCodeDuplTopDecl:         "top-level declaration `%s` already defined",
-		ErrCodeTypeMismatch:        "expected `%s` value instead of `%s` value",
+		ErrCodeTypeMismatch:        "expecting `%s` value instead of `%s` value",
 		ErrCodeTypeInfinite:        "infinite type detected: `%s`",
 		ErrCodeComputationFailed:   "%v",
 		ErrCodeUntypifiable:        "expression untypifiable",

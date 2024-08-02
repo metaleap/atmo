@@ -119,11 +119,9 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 	for _, src_file_path := range srcFilePaths {
 		is_interp_faux_file := IsSrcFilePathOfInterpFauxFile(src_file_path)
 		flag_for_diags_refr := func() { encounteredDiagsRelevantChanges = sl.With(encounteredDiagsRelevantChanges, src_file_path) }
-		if !is_interp_faux_file {
-			util.Assert(IsSrcFilePath(src_file_path), src_file_path)
-		}
 
 		if (!is_interp_faux_file) && !util.FsIsFile(src_file_path) {
+			// TODO for .atrepl Notebook files
 			removeSrcFiles(src_file_path)
 			flag_for_diags_refr()
 			continue

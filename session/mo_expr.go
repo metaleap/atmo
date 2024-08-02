@@ -345,7 +345,7 @@ func moValStringifyTo(it MoVal, w io.StringWriter) {
 	case MoValStr:
 		w.WriteString(str.Q(string(it)))
 	case MoValErr:
-		w.WriteString("(@Err ")
+		w.WriteString("(" + string(moPrimFnErrNew) + " ")
 		if it.ErrVal != nil {
 			it.ErrVal.StringifyTo(w)
 		}

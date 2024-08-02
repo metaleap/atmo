@@ -14,14 +14,18 @@ func (me *SrcPack) semCheckCount(wantAtLeast int, wantAtMost int, have SemExprs,
 				moniker += " `" + call.Callee.From.SrcNode.Src + "`"
 			}
 		}
+		err_loc := errDst
+		if (wantAtMost >= wantAtLeast) && (len(have) > wantAtMost) {
+			err_loc = have[wantAtMost]
+		}
 		if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
-			errDst.ErrsOwn.Add(errDst.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d %s instead of %d", wantAtLeast, moniker, len(have))))
+			errDst.ErrsOwn.Add(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d %s instead of %d", wantAtLeast, moniker, len(have))))
 			return false
 		} else if len(have) < wantAtLeast {
-			errDst.ErrsOwn.Add(errDst.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("at least %d %s instead of %d", wantAtLeast, moniker, len(have))))
+			errDst.ErrsOwn.Add(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("at least %d %s instead of %d", wantAtLeast, moniker, len(have))))
 			return false
 		} else if (wantAtMost > wantAtLeast) && (len(have) > wantAtMost) {
-			errDst.ErrsOwn.Add(errDst.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d to %d %s instead of %d", wantAtLeast, wantAtMost, moniker, len(have))))
+			errDst.ErrsOwn.Add(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d to %d %s instead of %d", wantAtLeast, wantAtMost, moniker, len(have))))
 			return false
 		}
 	}
@@ -38,11 +42,15 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 	return nil
 }
 
-func (me *SrcPack) semCheckTypeOfAny(expr *SemExpr, expect MoValPrimType, dueTo *SemExpr) bool {
+func (me *SrcPack) semCheckTypeOfArgs(expr *SemExpr, dueTo *SemExpr, expect MoValPrimType, arity int) bool {
 	if (expr.Type != nil) && (expr.Type.Prim == expect) {
 		return true
 	}
-	return me.semCheckType(expr, semTypeNew(dueTo, expect, semTypeNew(dueTo, MoPrimTypeAny)))
+	targs, targ := make([]*SemType, arity), semTypeNew(dueTo, MoPrimTypeAny)
+	for i := range targs {
+		targs[i] = targ
+	}
+	return me.semCheckType(expr, semTypeNew(dueTo, expect, targs...))
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
@@ -51,12 +59,15 @@ func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 			t1, t2 := expect, expr.Type
 			dt1, dt2 := expect.DueTo, expr
 			s1, s2 := t1.String(), t2.String()
+			if t1.Prim != t2.Prim {
+				s1, s2 = t1.Prim.String(), t2.Prim.String()
+			}
 			// if len(s2) < len(s1) {
 			// 	s1, s2, t1, t2, dt1, dt2 = s2, s1, t2, t1, dt2, dt1
 			// }
 			err := expr.ErrNew(ErrCodeTypeMismatch, s1, s2)
 			err.Rel = srcFileLocs([]string{
-				str.Fmt("`%s` expected by `%s`", s1, dt1.String()),
+				str.Fmt("`%s` imposed via `%s`", s1, dt1.String()),
 				str.Fmt("`%s` provided by `%s`", s2, dt2.String()),
 			}, t1.DueTo, t2.DueTo)
 			expr.ErrsOwn.Add(err)

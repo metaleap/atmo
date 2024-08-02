@@ -63,7 +63,7 @@ const (
 	moPrimFnDictSet     MoValIdent = "@dictSet"
 	moPrimFnDictDel     MoValIdent = "@dictDel"
 	moPrimFnDictLen     MoValIdent = "@dictLen"
-	moPrimFnErrNew      MoValIdent = "@errNew"
+	moPrimFnErrNew      MoValIdent = "@err"
 	moPrimFnErrVal      MoValIdent = "@errVal"
 	moPrimFnStrConcat   MoValIdent = "@strConcat"
 	moPrimFnStrLen      MoValIdent = "@strLen"
