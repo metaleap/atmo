@@ -56,7 +56,7 @@ func (me *SemType) str(w *strings.Builder) {
 				w.WriteString("=> ")
 			}
 			if targ == nil {
-				w.WriteString("<NIL?!?!?!>")
+				w.WriteString("<NIL?!?!?!TODO>")
 			} else {
 				targ.str(w)
 			}
@@ -83,6 +83,8 @@ func (me *SemType) str(w *strings.Builder) {
 		w.WriteByte('>')
 	}
 }
+
+func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
 
 func (me *SemType) normalizeIfAdt() bool {
 	if me.Prim == MoPrimTypeOr {

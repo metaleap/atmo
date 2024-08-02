@@ -56,6 +56,13 @@ func FromFloat(f float64, prec int) string {
 	return ret
 }
 
+func Shorter(s1 string, s2 string) (string, string) {
+	if len(s2) < len(s1) {
+		return s2, s1
+	}
+	return s1, s2
+}
+
 func Replace(s string, repl Dict) string {
 	replacer := Replacer(s, repl)
 	if replacer == nil {

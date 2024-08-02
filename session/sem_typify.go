@@ -458,7 +458,9 @@ func (me *SrcPack) semTyPrimFnListSet(self *SemExpr, scope *SemScope) {
 			if ty_list := call.Args[0].Type; ty_list.Prim != MoPrimTypeList {
 				_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))) // to provoke provoke type error diag
 			} else {
-				_ = me.semCheckType(call.Args[2], ty_list.TArgs[0])
+				if !ty_list.TArgs[0].IsAny() {
+					_ = me.semCheckType(call.Args[2], ty_list.TArgs[0])
+				}
 				call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, ty_list.TArgs[0], self.Type)
 			}
 		}
