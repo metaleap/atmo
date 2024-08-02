@@ -18,10 +18,13 @@ func (me *SemType) Eq(to *SemType) bool {
 	return (me == to) || ((me != nil) && (to != nil) && (me.Prim == to.Prim) && sl.Eq(me.TArgs, to.TArgs, (*SemType).Eq))
 }
 
-func (me *SemType) String() string {
+func (me *SemType) String() (ret string) {
 	var buf str.Buf
 	me.stringifyTo(&buf)
-	return buf.String()
+	if ret = buf.String(); str.Begins(ret, "(") && str.Ends(ret, ")") {
+		ret = ret[1 : len(ret)-1]
+	}
+	return
 }
 func (me *SemType) stringifyTo(w *strings.Builder) {
 	if me == nil {

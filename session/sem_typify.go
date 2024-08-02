@@ -105,7 +105,7 @@ func init() {
 			moPrimFnListSet:     t(nil, fn, t_list, t_uint, t_any, t_void),
 			moPrimFnListRange:   t(nil, fn, t_list, t_uint, t_uint, t_list),
 			moPrimFnListLen:     t(nil, fn, t_list, t_uint),
-			moPrimFnListConcat:  t(nil, fn, semTypeNew(nil, MoPrimTypeList, t_list)),
+			moPrimFnListConcat:  t(nil, fn, semTypeNew(nil, MoPrimTypeList, t_list), t_list),
 			moPrimFnDictHas:     t(nil, fn, t_dict, t_any, t_bool),
 			moPrimFnDictGet:     t(nil, fn, t_dict, t_any, t_any),
 			moPrimFnDictSet:     t(nil, fn, t_dict, t_any, t_any, t_void),
@@ -141,7 +141,6 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 			me.semTypify(item, scope)
 			item_types[i] = item.Type
 		}
-
 		item_type := semTypeFromMultiple(self, true, item_types...)
 		if item_type != nil {
 			self.Type = semTypeNew(self, MoPrimTypeList, item_type)
@@ -473,12 +472,32 @@ func (me *SrcPack) semTyPrimFnListSet(self *SemExpr, scope *SemScope) {
 
 func (me *SrcPack) semTyPrimFnListRange(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeList)
+	if me.semCheckCount(3, 3, call.Args, self, true) {
+		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckType(call.Args[2], semTypeNew(call.Callee, MoPrimTypeNumUint)) && (call.Args[0].Type != nil) {
+			if ty_list := call.Args[0].Type; ty_list.Prim != MoPrimTypeList {
+				_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))) // to provoke provoke type error diag
+			} else {
+				call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, ty_list)
+				self.Type = ty_list
+			}
+		}
+	}
 }
 
 func (me *SrcPack) semTyPrimFnListConcat(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))
+	if me.semCheckCount(1, 1, call.Args, self, true) && (call.Args[0].Type != nil) {
+		if ty_list := call.Args[0].Type; ty_list.Prim != MoPrimTypeList {
+			_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))) // to provoke provoke type error diag
+		} else if (ty_list.TArgs[0] == nil) || (ty_list.TArgs[0].Prim != MoPrimTypeList) {
+			_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny)))) // to provoke provoke type error diag
+		} else {
+			self.Type = ty_list.TArgs[0]
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
+		}
+	}
 }
 
 func (me *SrcPack) semTyPrimFnDictHas(self *SemExpr, scope *SemScope) {
