@@ -20,10 +20,10 @@ func (me *SemType) Eq(to *SemType) bool {
 
 func (me *SemType) String() string {
 	var buf str.Buf
-	me.str(&buf)
+	me.stringifyTo(&buf)
 	return buf.String()
 }
-func (me *SemType) str(w *strings.Builder) {
+func (me *SemType) stringifyTo(w *strings.Builder) {
 	if me == nil {
 		w.WriteString("<untypifyable>")
 		return
@@ -38,13 +38,13 @@ func (me *SemType) str(w *strings.Builder) {
 		w.WriteString(me.Prim.Str(false))
 	case (me.Prim == MoPrimTypeList) && (len(me.TArgs) == 1):
 		w.WriteByte('[')
-		me.TArgs[0].str(w)
+		me.TArgs[0].stringifyTo(w)
 		w.WriteByte(']')
 	case (me.Prim == MoPrimTypeDict) && (len(me.TArgs) == 2):
 		w.WriteByte('{')
-		me.TArgs[0].str(w)
+		me.TArgs[0].stringifyTo(w)
 		w.WriteString(": ")
-		me.TArgs[1].str(w)
+		me.TArgs[1].stringifyTo(w)
 		w.WriteByte('}')
 	case (me.Prim == MoPrimTypeFunc) && (len(me.TArgs) > 0):
 		w.WriteByte('(')
@@ -58,7 +58,7 @@ func (me *SemType) str(w *strings.Builder) {
 			if targ == nil {
 				w.WriteString("<NIL?!?!?!TODO>")
 			} else {
-				targ.str(w)
+				targ.stringifyTo(w)
 			}
 		}
 		w.WriteByte(')')
@@ -68,7 +68,7 @@ func (me *SemType) str(w *strings.Builder) {
 			if (i > 0) || (len(me.TArgs) == 1) {
 				w.WriteString(" | ")
 			}
-			targ.str(w)
+			targ.stringifyTo(w)
 		}
 		w.WriteByte(')')
 	default:
@@ -78,7 +78,7 @@ func (me *SemType) str(w *strings.Builder) {
 			if i > 0 {
 				w.WriteByte(',')
 			}
-			ty.str(w)
+			ty.stringifyTo(w)
 		}
 		w.WriteByte('>')
 	}

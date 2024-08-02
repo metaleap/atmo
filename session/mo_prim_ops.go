@@ -464,7 +464,7 @@ func (me *Interp) primFnReplPrint(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	case MoValStr:
 		InterpStdout.WriteString(string(arg0))
 	default:
-		args[0].WriteTo(InterpStdout)
+		args[0].StringifyTo(InterpStdout)
 	}
 	return me.exprVoid(args...)
 }

@@ -106,7 +106,7 @@ func Main() {
 			}
 			os.Stderr.WriteString(diagMsg("", diag) + "\n")
 		} else if expr != nil {
-			expr.WriteTo(os.Stdout)
+			expr.StringifyTo(os.Stdout)
 		}
 		os.Stdout.WriteString("\n")
 

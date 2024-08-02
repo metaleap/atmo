@@ -319,12 +319,12 @@ func (me *MoExpr) setSrcSpanIfNone(from *MoExpr) {
 
 func (me *MoExpr) String() string {
 	var buf strings.Builder
-	me.WriteTo(&buf)
+	me.StringifyTo(&buf)
 	return buf.String()
 }
 
-func (me *MoExpr) WriteTo(w io.StringWriter) { moValWriteTo(me.Val, w) }
-func moValWriteTo(it MoVal, w io.StringWriter) {
+func (me *MoExpr) StringifyTo(w io.StringWriter) { moValStringifyTo(me.Val, w) }
+func moValStringifyTo(it MoVal, w io.StringWriter) {
 	switch it := it.(type) {
 	case MoValPrimTypeTag:
 		w.WriteString(MoValPrimType(it).Str(false))
@@ -347,7 +347,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 	case MoValErr:
 		w.WriteString("(@Err ")
 		if it.ErrVal != nil {
-			it.ErrVal.WriteTo(w)
+			it.ErrVal.StringifyTo(w)
 		}
 		w.WriteString(")")
 	case *MoValDict:
@@ -356,9 +356,9 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			if i > 0 {
 				w.WriteString(", ")
 			}
-			item.Key.WriteTo(w)
+			item.Key.StringifyTo(w)
 			w.WriteString(": ")
-			item.Val.WriteTo(w)
+			item.Val.StringifyTo(w)
 		}
 		w.WriteString("}")
 	case *MoValList:
@@ -367,7 +367,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			if i > 0 {
 				w.WriteString(", ")
 			}
-			item.WriteTo(w)
+			item.StringifyTo(w)
 		}
 		w.WriteString("]")
 	case MoValCall:
@@ -376,7 +376,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 			if i > 0 {
 				w.WriteString(" ")
 			}
-			item.WriteTo(w)
+			item.StringifyTo(w)
 		}
 		w.WriteString(")")
 	case MoValFnPrim:
@@ -389,7 +389,7 @@ func moValWriteTo(it MoVal, w io.StringWriter) {
 }
 func MoValToString(it MoVal) string {
 	var buf strings.Builder
-	moValWriteTo(it, &buf)
+	moValStringifyTo(it, &buf)
 	return buf.String()
 }
 

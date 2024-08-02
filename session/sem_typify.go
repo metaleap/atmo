@@ -143,7 +143,9 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 		}
 
 		item_type := semTypeFromMultiple(self, true, item_types...)
-		self.Type = util.If(item_type == nil, nil, semTypeNew(self, MoPrimTypeList, item_type))
+		if item_type != nil {
+			self.Type = semTypeNew(self, MoPrimTypeList, item_type)
+		}
 	case *SemValDict:
 		key_types, val_types := make(sl.Of[*SemType], len(val.Keys)), make(sl.Of[*SemType], len(val.Vals))
 		for i, key := range val.Keys {
@@ -153,7 +155,9 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 			key_types[i], val_types[i] = key.Type, val.Type
 		}
 		key_type, val_type := semTypeFromMultiple(self, true, key_types...), semTypeFromMultiple(self, true, val_types...)
-		self.Type = util.If((key_type == nil) || (val_type == nil), nil, semTypeNew(self, MoPrimTypeDict, key_type, val_type))
+		if (key_type != nil) && (val_type != nil) {
+			self.Type = semTypeNew(self, MoPrimTypeDict, key_type, val_type)
+		}
 	case *SemValIdent:
 		_, entry := scope.Lookup(val.Name)
 		if entry != nil {

@@ -235,19 +235,19 @@ func (me SemExprs) Walk(onlyInFile *SrcFile, onBefore func(it *SemExpr) bool, on
 	}
 }
 
-func (me *SemExpr) str(w *str.Buf) {
+func (me *SemExpr) stringifyTo(w *str.Buf) {
 	switch val := me.Val.(type) {
 	case *SemValIdent:
 		w.WriteString(string(val.Name))
 	case *SemValScalar:
-		moValWriteTo(val.Value, w)
+		moValStringifyTo(val.Value, w)
 	case *SemValList:
 		w.WriteByte('[')
 		for i, item := range val.Items {
 			if i > 0 {
 				w.WriteString(", ")
 			}
-			item.str(w)
+			item.stringifyTo(w)
 		}
 		w.WriteByte(']')
 	case *SemValDict:
@@ -256,17 +256,17 @@ func (me *SemExpr) str(w *str.Buf) {
 			if i > 0 {
 				w.WriteString(", ")
 			}
-			key.str(w)
+			key.stringifyTo(w)
 			w.WriteString(": ")
-			val.Vals[i].str(w)
+			val.Vals[i].stringifyTo(w)
 		}
 		w.WriteByte('}')
 	case *SemValCall:
 		w.WriteByte('(')
-		val.Callee.str(w)
+		val.Callee.stringifyTo(w)
 		for _, arg := range val.Args {
 			w.WriteByte(' ')
-			arg.str(w)
+			arg.stringifyTo(w)
 		}
 		w.WriteByte(')')
 	case *SemValFunc:
@@ -275,13 +275,13 @@ func (me *SemExpr) str(w *str.Buf) {
 			if i > 0 {
 				w.WriteString(", ")
 			}
-			param.str(w)
+			param.stringifyTo(w)
 		}
 		w.WriteString("] [")
 		if val.Body == nil {
 			w.WriteString("…")
 		} else {
-			val.Body.str(w)
+			val.Body.stringifyTo(w)
 		}
 		w.WriteByte(']')
 	}
@@ -292,7 +292,7 @@ func (me *SemExpr) String() string {
 		return "<nil>"
 	}
 	var buf strings.Builder
-	me.str(&buf)
+	me.stringifyTo(&buf)
 	return buf.String()
 }
 
