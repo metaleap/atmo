@@ -125,7 +125,7 @@ func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
 				str_facts += k.String() + ", "
 			}
 			if str_facts = str.TrimSuff(str_facts, ", "); str_facts != "" {
-				str_facts = "Facts: "
+				str_facts = "Facts: " + str_facts
 			}
 			var str_src string
 			if (it.From != nil) && (it.From.SrcNode != nil) {
@@ -134,7 +134,7 @@ func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
 			ret.Items = append(ret.Items, IntelItem{
 				Kind: IntelItemKindDescription, Value: str_src, CodeLang: "atmo",
 			}, IntelItem{
-				Kind: IntelItemKindDescription, Value: SemTypeToString(it.Type) + util.If(str_val == "", "", " — (`"+str_val+"`)"),
+				Kind: IntelItemKindDescription, Value: OldSemTypeToString(it.Type) + util.If(str_val == "", "", " — (`"+str_val+"`)"),
 			}, IntelItem{
 				Kind: IntelItemKindDescription, Value: str_facts,
 			})
