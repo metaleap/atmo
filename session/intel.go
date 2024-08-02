@@ -134,7 +134,7 @@ func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
 			ret.Items = append(ret.Items, IntelItem{
 				Kind: IntelItemKindDescription, Value: str_src, CodeLang: "atmo",
 			}, IntelItem{
-				Kind: IntelItemKindDescription, Value: OldSemTypeToString(it.Type) + util.If(str_val == "", "", " — (`"+str_val+"`)"),
+				Kind: IntelItemKindDescription, Value: it.Type.String() + util.If(str_val == "", "", " — (`"+str_val+"`)"),
 			}, IntelItem{
 				Kind: IntelItemKindDescription, Value: str_facts,
 			})

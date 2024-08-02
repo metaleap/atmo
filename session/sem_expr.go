@@ -15,7 +15,7 @@ type SemExpr struct {
 	Val     any
 	ValOrig any                  `json:"-"` // nil unless Val was statically pre-computed from its orig expr, which then is preserved in here
 	Facts   map[SemFact]SemExprs `json:"-"`
-	Type    OldSemType           `json:"-"`
+	Type    *SemType             `json:"-"`
 }
 
 type SemValScalar struct {
@@ -334,8 +334,8 @@ func (me *SemFact) String() (ret string) {
 		of := me.Data
 		if val, _ := of.(MoVal); val != nil {
 			of = MoValToString(val)
-		} else if ty, _ := of.(OldSemType); ty != nil {
-			of = OldSemTypeToString(ty)
+		} else if ty, _ := of.(*SemType); ty != nil {
+			of = ty.String()
 		}
 		ret += str.Fmt("(%v)", of)
 	}

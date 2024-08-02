@@ -38,14 +38,14 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 	return nil
 }
 
-func (me *SrcPack) semCheckType(expr *SemExpr, expect OldSemType) bool {
+func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 	if !expect.Eq(expr.Type) {
 		if !expr.HasErrs() { // dont wanna be too noisy
-			err := expr.ErrNew(ErrCodeTypeMismatch, OldSemTypeToString(expect), OldSemTypeToString(expr.Type))
+			err := expr.ErrNew(ErrCodeTypeMismatch, expect.String(), expr.Type.String())
 			err.Rel = srcFileLocs([]string{
-				str.Fmt("type `%s` decided here", OldSemTypeToString(expect)),
-				str.Fmt("type `%s` decided here", OldSemTypeToString(expr.Type)),
-			}, expect.From(), expr.Type.From())
+				str.Fmt("type `%s` decided here", expect.String()),
+				str.Fmt("type `%s` decided here", expr.Type.String()),
+			}, expect.DueTo, expr.Type.DueTo)
 			expr.ErrsOwn.Add(err)
 		}
 		return false

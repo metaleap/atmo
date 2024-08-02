@@ -59,7 +59,7 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
 	scalar := &SemValScalar{Value: it}
 	self.Val = scalar
-	self.Type = oldSemTypeNew(self, it.PrimType())
+	self.Type = semTypeNew(self, it.PrimType())
 	self.Fact(SemFact{Kind: SemFactPreComputed}, self)
 	me.Trees.Sem.Index.Lits[it] = append(me.Trees.Sem.Index.Lits[it], self)
 	if (it.PrimType() == MoPrimTypeBool) || (it.PrimType() == MoPrimTypePrimTypeTag) {
@@ -102,9 +102,9 @@ func (me *SrcPack) semPopulateRootScope() {
 	for name, prim_fn := range semTyPrimFns {
 		fn_val := &SemValFunc{primImpl: prim_fn}
 		fn := &SemExpr{Scope: &me.Trees.Sem.Scope, Type: semPrimFnTypes[name], Val: fn_val}
-		fn.Type = oldSemTypeEnsureDueTo(fn, fn.Type)
+		fn.Type = semTypeEnsureDueTo(fn, fn.Type)
 		var idx int
-		fn_val.Params = SemExprs(sl.To(fn.Type.(*oldSemTypeCtor).tyArgs, func(t OldSemType) *SemExpr {
+		fn_val.Params = SemExprs(sl.To(fn.Type.TArgs, func(t *SemType) *SemExpr {
 			idx++
 			return &SemExpr{Parent: fn, Scope: fn.Scope, Type: t, Val: &SemValIdent{Name: MoValIdent("arg" + str.FromInt(idx))}}
 		}))
@@ -132,7 +132,7 @@ func (me *SrcPack) semPopulateRootScope() {
 	}, nil)
 }
 
-func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, val any, ty OldSemType) {
+func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, val any, ty *SemType) {
 	if self.isPrecomputedPermissible() && (ty != nil) {
 		if self.ValOrig == nil {
 			self.ValOrig = self.Val
@@ -145,7 +145,7 @@ func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, 
 			self.Val = val
 		}
 		self.Type = ty
-		self.Fact(SemFact{Kind: SemFactPreComputed}, self.Type.From())
+		self.Fact(SemFact{Kind: SemFactPreComputed}, self.Type.DueTo)
 	}
 }
 
@@ -157,7 +157,7 @@ type SemScope struct {
 type SemScopeEntry struct {
 	DeclParamOrCallOrFunc *SemExpr
 	SubsequentSetCalls    SemExprs
-	Type                  OldSemType
+	Type                  *SemType
 	Refs                  map[*SemExpr]util.Void
 }
 

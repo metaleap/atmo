@@ -1,5 +1,6 @@
 package session
 
+/*
 import (
 	"maps"
 	"strings"
@@ -113,7 +114,6 @@ func (me *oldSemTypeCtor) Str(w *strings.Builder) {
 		}
 		w.WriteByte('>')
 	}
-
 }
 
 func OldSemTypeToString(ty OldSemType) string {
@@ -436,3 +436,4 @@ func oldSemTypeFromMultiple(dueTo *SemExpr, anyIfEmpty bool, ty ...OldSemType) O
 		return oldSemTypeNew(dueTo, MoPrimTypeOr, types...)
 	}
 }
+*/
