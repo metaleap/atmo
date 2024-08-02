@@ -343,7 +343,7 @@ func semTypeEq(dueTo *SemExpr, t1 SemType, t2 SemType) SemTypeConstraint {
 func semTypeNew(dueTo *SemExpr, prim MoValPrimType, tyArgs ...SemType) SemType {
 	ret := &semTypeCtor{dueTo: dueTo, prim: prim, tyArgs: sl.To(tyArgs, func(targ SemType) SemType { return semTypeEnsureDueTo(dueTo, targ) })}
 	if len(tyArgs) > 0 {
-		ret.normalizeIfOr()
+		ret.normalizeIfAdt()
 	}
 	return ret
 }
@@ -392,15 +392,16 @@ func (me *semTypeConstraintEq) String() string {
 	return buf.String()
 }
 
-func (me *semTypeCtor) normalizeIfOr() {
+func (me *semTypeCtor) normalizeIfAdt() {
 	if me.prim == MoPrimTypeOr {
 		for i := 0; i < me.tyArgs.Len(); i++ {
 			if t := me.tyArgs[i].(*semTypeCtor); t.prim == MoPrimTypeOr {
 				me.tyArgs = append(append(me.tyArgs[:i], me.tyArgs[i+1:]...), t.tyArgs...)
-				me.tyArgs.EnsureAllUnique(SemType.Eq)
-				i = -1
+				i--
 			}
 		}
+		me.tyArgs.EnsureAllUnique(SemType.Eq)
+		me.tyArgs = me.tyArgs.Without(func(it SemType) bool { return it.(*semTypeCtor).prim == MoPrimTypeUntyped })
 		switch len(me.tyArgs) {
 		case 0:
 			*me = *(me.dueTo.newUntyped().(*semTypeCtor))

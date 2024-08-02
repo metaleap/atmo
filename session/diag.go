@@ -88,7 +88,7 @@ var (
 		ErrCodeTypeMismatch:        "type mismatch: `%s` vs. `%s`",
 		ErrCodeTypeInfinite:        "infinite type detected: `%s`",
 		ErrCodeComputationFailed:   "%v",
-		ErrCodeUntypifiable:        "expression untypifiable, likely due to cyclic reference (please report if not)",
+		ErrCodeUntypifiable:        "expression untypifiable",
 		ErrCodeInterpLimitExceeded: "the interpreter's user-set loop limit (%d) or call limit (%d) has been breached",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",

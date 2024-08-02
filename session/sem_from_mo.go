@@ -24,14 +24,16 @@ func (me *SrcPack) semRefresh() {
 			me.semEval(top_expr, &me.Trees.Sem.Scope)
 		}
 		clear(me.Trees.Sem.inFlight)
-		me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
-			ident, _ := it.Val.(*SemValIdent)
-			if ((it.Type == nil) || (it.Type.(*semTypeCtor).prim == MoPrimTypeUntyped)) &&
-				(!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) && ((ident == nil) || !(ident.IsSet || ident.IsParam)) {
-				it.ErrsOwn.Add(it.ErrNew(ErrCodeUntypifiable))
-			}
-			return true
-		}, nil)
+		if !me.Trees.Sem.TopLevel.AnyErrs() {
+			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
+				ident, _ := it.Val.(*SemValIdent)
+				if ((it.Type == nil) || (it.Type.(*semTypeCtor).prim == MoPrimTypeUntyped)) &&
+					(!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) && ((ident == nil) || !(ident.IsSet || ident.IsParam)) {
+					it.ErrsOwn.Add(it.ErrNew(ErrCodeUntypifiable))
+				}
+				return true
+			}, nil)
+		}
 	}
 }
 

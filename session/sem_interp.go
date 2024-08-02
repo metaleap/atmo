@@ -126,7 +126,7 @@ func (me *SrcPack) semEval(self *SemExpr, scope *SemScope) {
 		self.Type = semTypeNew(self, MoPrimTypeDict, semTypeFromMultiple(self, key_types...), semTypeFromMultiple(self, val_types...))
 	case *SemValIdent:
 		_, entry := scope.Lookup(val.Name)
-		if entry == nil {
+		if (entry == nil) || (entry.Type == nil) {
 			self.Type = self.newUntyped()
 			is_prim_op := semEvalPrimOps[val.Name] != nil
 			if is_prim_op {
@@ -206,36 +206,16 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 		ty := call.Args[1].Type
 		if name := call.Args[0].MaybeIdent(true); name != "" {
 			_, entry := scope.Lookup(name)
-			ty_old := entry.Type
-			if entry.Type == nil {
-				entry.Type = ty
-			} else {
-				entry.Type = semTypeFromMultiple(call.Args[1], entry.Type, ty)
-			}
-			if entry.Type == nil {
-				entry.Type = semTypeNew(self, MoPrimTypeUntyped)
-			} else {
-				call.Args[0].Type = entry.Type
-				if !entry.Type.Eq(ty_old) {
-					refs_set, refs_get := me.Refs(call.Args[0], nil)
-					for _, set := range refs_set {
-						switch val := set.Val.(type) {
-						case *SemValCall:
-							if len(val.Args) > 0 {
-								val.Args[0].Type = entry.Type
-							}
-						case *SemValIdent:
-							set.Type = entry.Type
-						}
-					}
-					for _, ref := range refs_get {
-						ref.Type = entry.Type
-						for p := ref.Parent; p != nil; {
-							p.Type = nil
-							me.semEval(p, p.Scope)
-							p = p.Parent
-						}
-					}
+			if entry != nil { // no need to report, other errors in the same block are the cause
+				if entry.Type == nil {
+					entry.Type = ty
+				} else {
+					entry.Type = semTypeFromMultiple(call.Args[1], entry.Type, ty)
+				}
+				if entry.Type == nil {
+					entry.Type = semTypeNew(self, MoPrimTypeUntyped)
+				} else {
+					call.Args[0].Type = entry.Type
 				}
 			}
 		}
@@ -340,7 +320,7 @@ func (me *SrcPack) semPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 					}
 				}
 				if len(new_ty.tyArgs) > 0 {
-					new_ty.normalizeIfOr()
+					new_ty.normalizeIfAdt()
 					self.Type = new_ty
 					if all_case_preds_statically_known && (new_val != nil) {
 						me.semReplaceExprValWithComputedValIfPermissible(self, new_val.Val, new_val.Type)
