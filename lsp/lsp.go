@@ -22,6 +22,7 @@ var (
 )
 
 func Main() {
+	session.InterpCallLimit, session.InterpLoopLimit = 1234, 1234
 	session.DoSrcPackEvals, session.DoSrcPackSems = false, true
 	session.InterpStderr = (any(io.Discard)).(session.Writer)
 	session.InterpStdout = (any(io.Discard)).(session.Writer)

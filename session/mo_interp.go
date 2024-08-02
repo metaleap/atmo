@@ -11,10 +11,12 @@ import (
 )
 
 var (
-	InterpStderr  Writer    = os.Stderr
-	InterpStdout  Writer    = os.Stdout
-	InterpStdin   io.Reader = os.Stdin
-	interpRootEnv           = MoEnv{Own: map[MoValIdent]*MoExpr{}}
+	InterpStderr    Writer    = os.Stderr
+	InterpStdout    Writer    = os.Stdout
+	InterpStdin     io.Reader = os.Stdin
+	interpRootEnv             = MoEnv{Own: map[MoValIdent]*MoExpr{}}
+	InterpCallLimit int
+	InterpLoopLimit int
 )
 
 type Writer interface {
@@ -30,6 +32,8 @@ type Interp struct {
 		Use  bool
 		Last MoExprs
 	}
+	callCounter int
+	loopCounter int
 	diagCtxCall *MoExpr // set to a full call-expr just before it is entered into, for use in producing that call's error (if any) unwinding the whole eval
 }
 
@@ -82,14 +86,23 @@ func (me *Interp) ExprEval(expr *MoExpr) *MoExpr {
 	if expr == nil {
 		return nil
 	}
+	me.callCounter = 0
 	return me.evalAndApply(me.Env, expr)
 }
 
 func (me *Interp) evalAndApply(env *MoEnv, expr *MoExpr) *MoExpr {
+	if me.callCounter++; (InterpCallLimit > 0) && (me.callCounter > InterpCallLimit) {
+		return me.exprErr(expr.SrcNode.newDiagErr(false, ErrCodeInterpLimitExceeded, InterpLoopLimit, InterpCallLimit), expr)
+	}
+
 	diag_ctx_orig, expr_orig, did_call := me.diagCtxCall, expr, false
 	// id := strconv.FormatInt(time.Now().UnixNano(), 36) // uncomment and print `id` to check for TCO loop
+	me.loopCounter = 0
 tco_loop:
 	for env != nil {
+		if me.loopCounter++; (InterpLoopLimit > 0) && (me.loopCounter > InterpLoopLimit) {
+			return me.exprErr(expr.SrcNode.newDiagErr(false, ErrCodeInterpLimitExceeded, InterpLoopLimit, InterpCallLimit), expr)
+		}
 		if _, is_call := expr.Val.(MoValCall); !is_call {
 			env, expr = nil, me.evalExpr(env, expr)
 			break tco_loop
@@ -161,6 +174,7 @@ tco_loop:
 		expr = &MoExpr{Val: expr.Val, SrcSpan: sl.FirstNonNil(expr.SrcSpan, expr_orig.SrcSpan), SrcFile: sl.FirstNonNil(expr.SrcFile, expr_orig.SrcFile)}
 		expr.Diag = diag
 	}
+	me.callCounter--
 	return expr
 }
 

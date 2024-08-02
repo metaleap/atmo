@@ -35,22 +35,23 @@ const (
 	ErrCodeLitSyntax          DiagCode = "LitSyntax"
 
 	// semantic (errors)
-	ErrCodeExpectedFoo       DiagCode = "Unexpected"
-	ErrCodeUndefined         DiagCode = "Unresolved"
-	ErrCodeNotAValue         DiagCode = "NotAValue"
-	ErrCodeUncallable        DiagCode = "NotCallable"
-	ErrCodeReserved          DiagCode = "Reserved"
-	ErrCodeNoElseCase        DiagCode = "ElseCaseMissing"
-	ErrCodeIndexOutOfBounds  DiagCode = "IndexOutOfBounds"
-	ErrCodeRangeNegative     DiagCode = "RangeNegative"
-	ErrCodeDictDuplKey       DiagCode = "DictDuplKey"
-	ErrCodeNotComparable     DiagCode = "NotComparable"
-	ErrCodeNotConvertible    DiagCode = "NotConvertible"
-	ErrCodeDuplTopDecl       DiagCode = "DuplTopDecl"
-	ErrCodeTypeMismatch      DiagCode = "TypeMismatch"
-	ErrCodeTypeInfinite      DiagCode = "TypeInfinite"
-	ErrCodeComputationFailed DiagCode = "ComputationFailed"
-	ErrCodeCyclic            DiagCode = "Cyclic"
+	ErrCodeExpectedFoo         DiagCode = "Unexpected"
+	ErrCodeUndefined           DiagCode = "Unresolved"
+	ErrCodeNotAValue           DiagCode = "NotAValue"
+	ErrCodeUncallable          DiagCode = "NotCallable"
+	ErrCodeReserved            DiagCode = "Reserved"
+	ErrCodeNoElseCase          DiagCode = "ElseCaseMissing"
+	ErrCodeIndexOutOfBounds    DiagCode = "IndexOutOfBounds"
+	ErrCodeRangeNegative       DiagCode = "RangeNegative"
+	ErrCodeDictDuplKey         DiagCode = "DictDuplKey"
+	ErrCodeNotComparable       DiagCode = "NotComparable"
+	ErrCodeNotConvertible      DiagCode = "NotConvertible"
+	ErrCodeDuplTopDecl         DiagCode = "DuplTopDecl"
+	ErrCodeTypeMismatch        DiagCode = "TypeMismatch"
+	ErrCodeTypeInfinite        DiagCode = "TypeInfinite"
+	ErrCodeComputationFailed   DiagCode = "ComputationFailed"
+	ErrCodeUntypifiable        DiagCode = "Untypifiable"
+	ErrCodeInterpLimitExceeded DiagCode = "InterpLimitExceeded"
 
 	// semantic (warnings / infos / hints)
 	HintCodeUnused DiagCode = "Unused"
@@ -62,7 +63,7 @@ var (
 	OnDbgMsg       = func(showIf bool, fmt string, args ...any) {}
 	OnLogMsg       = func(showIf bool, fmt string, args ...any) {}
 	errMsgs        = map[DiagCode]string{
-		ErrCodeAtmoTodo:      "TODO by Atmo team, please report this detail message: \"%s\"",
+		ErrCodeAtmoTodo:      "TODO, please report: \"%s\"",
 		ErrCodeFileReadError: "%s", // actual error msg in %s
 
 		ErrCodeWhitespace:  "unsupported white-space; ensure both: no line-leading tabs, and LF-only line endings (no CR or CRLF)",
@@ -72,22 +73,23 @@ var (
 		ErrCodeLitSyntax:          "invalid literal: %s", // actual error msg in %s
 		ErrCodeBracketingMismatch: "opening and closing %s don't match up",
 
-		ErrCodeExpectedFoo:       "expected %s",
-		ErrCodeUndefined:         "`%s` is not defined or not in scope",
-		ErrCodeNotAValue:         "`%s` cannot be used as a value",
-		ErrCodeUncallable:        "`%s` is not callable",
-		ErrCodeReserved:          "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
-		ErrCodeNoElseCase:        "missing a fallback case",
-		ErrCodeIndexOutOfBounds:  "index %d out of bounds, given length %d",
-		ErrCodeRangeNegative:     "range end %d is smaller than range start %d",
-		ErrCodeDictDuplKey:       "duplicate key `%s` in dict constructor",
-		ErrCodeNotComparable:     "operands `%s` and `%s` cannot be compared in %s terms",
-		ErrCodeNotConvertible:    "cannot convert `%s` to %s",
-		ErrCodeDuplTopDecl:       "top-level declaration `%s` already defined",
-		ErrCodeTypeMismatch:      "type mismatch: `%s` vs. `%s`",
-		ErrCodeTypeInfinite:      "infinite type detected: `%s`",
-		ErrCodeComputationFailed: "%v",
-		ErrCodeCyclic:            "cyclic reference: `%s` refers directly or indirectly to itself",
+		ErrCodeExpectedFoo:         "expected %s",
+		ErrCodeUndefined:           "`%s` is not defined or not in scope",
+		ErrCodeNotAValue:           "`%s` cannot be used as a value",
+		ErrCodeUncallable:          "`%s` is not callable",
+		ErrCodeReserved:            "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
+		ErrCodeNoElseCase:          "missing a fallback case",
+		ErrCodeIndexOutOfBounds:    "index %d out of bounds, given length %d",
+		ErrCodeRangeNegative:       "range end %d is smaller than range start %d",
+		ErrCodeDictDuplKey:         "duplicate key `%s` in dict constructor",
+		ErrCodeNotComparable:       "operands `%s` and `%s` cannot be compared in %s terms",
+		ErrCodeNotConvertible:      "cannot convert `%s` to %s",
+		ErrCodeDuplTopDecl:         "top-level declaration `%s` already defined",
+		ErrCodeTypeMismatch:        "type mismatch: `%s` vs. `%s`",
+		ErrCodeTypeInfinite:        "infinite type detected: `%s`",
+		ErrCodeComputationFailed:   "%v",
+		ErrCodeUntypifiable:        "expression untypifiable, likely due to cyclic reference (please report if not)",
+		ErrCodeInterpLimitExceeded: "the interpreter's user-set loop limit (%d) or call limit (%d) has been breached",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}

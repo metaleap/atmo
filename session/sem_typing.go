@@ -342,7 +342,9 @@ func semTypeEq(dueTo *SemExpr, t1 SemType, t2 SemType) SemTypeConstraint {
 }
 func semTypeNew(dueTo *SemExpr, prim MoValPrimType, tyArgs ...SemType) SemType {
 	ret := &semTypeCtor{dueTo: dueTo, prim: prim, tyArgs: sl.To(tyArgs, func(targ SemType) SemType { return semTypeEnsureDueTo(dueTo, targ) })}
-	ret.normalizeIfOr()
+	if len(tyArgs) > 0 {
+		ret.normalizeIfOr()
+	}
 	return ret
 }
 func (me *semTypeInfer) newTypeVar(dueTo *SemExpr) (ret SemType) {

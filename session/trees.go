@@ -55,7 +55,6 @@ func (me *SrcPack) treesRefresh() (encounteredDiagsRelevantChanges bool) {
 	if DoSrcPackEvals {
 		if me.Interp == nil {
 			_ = newInterp(me, nil)
-			util.Assert(me.Interp != nil, nil)
 		}
 
 		me.Trees.MoEvaled = nil

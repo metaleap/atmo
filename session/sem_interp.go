@@ -213,7 +213,6 @@ func (me *SrcPack) semPrimOpSet(self *SemExpr, scope *SemScope) {
 				entry.Type = semTypeFromMultiple(call.Args[1], entry.Type, ty)
 			}
 			if entry.Type == nil {
-				self.ErrsOwn.Add(self.ErrNew(ErrCodeCyclic, name))
 				entry.Type = semTypeNew(self, MoPrimTypeUntyped)
 			} else {
 				call.Args[0].Type = entry.Type
