@@ -22,7 +22,7 @@ func (me *SrcPack) semRefresh() {
 		me.semPopulateRootScope()
 		clear(me.Trees.Sem.inFlight)
 		for _, top_expr := range me.Trees.Sem.TopLevel {
-			me.semEval(top_expr, &me.Trees.Sem.Scope)
+			me.semTypify(top_expr, &me.Trees.Sem.Scope)
 		}
 		clear(me.Trees.Sem.inFlight)
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
@@ -100,15 +100,16 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 }
 
 func (me *SrcPack) semPopulateRootScope() {
-	for name, prim_fn := range semEvalPrimFns {
+	for name, prim_fn := range semTyPrimFns {
 		fn_val := &SemValFunc{primImpl: prim_fn}
-		fn := &SemExpr{Scope: &me.Trees.Sem.Scope, Type: semEvalPrimFnTypes[name], Val: fn_val}
+		fn := &SemExpr{Scope: &me.Trees.Sem.Scope, Type: semPrimFnTypes[name], Val: fn_val}
 		fn.Type = semTypeEnsureDueTo(fn, fn.Type)
 		var idx int
 		fn_val.Params = SemExprs(sl.To(fn.Type.(*semTypeCtor).tyArgs, func(t SemType) *SemExpr {
 			idx++
 			return &SemExpr{Parent: fn, Scope: fn.Scope, Type: t, Val: &SemValIdent{Name: MoValIdent("arg" + str.FromInt(idx))}}
 		}))
+		fn_val.Params = fn_val.Params[:len(fn_val.Params)-1] // remove the return tyArg from params
 		fn.Fact(SemFact{Kind: SemFactPrimFn}, fn)
 		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
 			Type:                  fn.Type,
@@ -133,7 +134,7 @@ func (me *SrcPack) semPopulateRootScope() {
 }
 
 func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, val any, ty SemType) {
-	if self.isPrecomputedPermissible() {
+	if self.isPrecomputedPermissible() && (ty != nil) {
 		if self.ValOrig == nil {
 			self.ValOrig = self.Val
 		}
@@ -180,7 +181,7 @@ func (me *SrcPack) semScopePropagateTypeChangeToRefs(entry *SemScopeEntry) {
 			top = p
 		}
 		if top != nil {
-			me.semEval(top, top.Scope)
+			me.semTypify(top, top.Scope)
 		}
 	}
 }

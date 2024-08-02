@@ -115,7 +115,7 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect SemType) bool {
-	if !expr.Type.Eq(expect) {
+	if !expect.Eq(expr.Type) {
 		if !expr.HasErrs() { // dont wanna be too noisy
 			err := expr.ErrNew(ErrCodeTypeMismatch, SemTypeToString(expect), SemTypeToString(expr.Type))
 			err.Rel = srcFileLocs([]string{

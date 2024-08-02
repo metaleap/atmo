@@ -36,7 +36,7 @@ const (
 
 	// semantic (errors)
 	ErrCodeExpectedFoo         DiagCode = "Unexpected"
-	ErrCodeUndefined           DiagCode = "Unresolved"
+	ErrCodeUndefined           DiagCode = "NotInScope"
 	ErrCodeNotAValue           DiagCode = "NotAValue"
 	ErrCodeUncallable          DiagCode = "NotCallable"
 	ErrCodeReserved            DiagCode = "Reserved"
@@ -63,7 +63,7 @@ var (
 	OnDbgMsg       = func(showIf bool, fmt string, args ...any) {}
 	OnLogMsg       = func(showIf bool, fmt string, args ...any) {}
 	errMsgs        = map[DiagCode]string{
-		ErrCodeAtmoTodo:      "TODO, please report: \"%s\"",
+		ErrCodeAtmoTodo:      "TODO, please report as an Atmo bug: \"%s\"",
 		ErrCodeFileReadError: "%s", // actual error msg in %s
 
 		ErrCodeWhitespace:  "unsupported white-space; ensure both: no line-leading tabs, and LF-only line endings (no CR or CRLF)",

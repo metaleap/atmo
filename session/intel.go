@@ -3,6 +3,7 @@ package session
 import (
 	"atmo/util"
 	"atmo/util/sl"
+	"atmo/util/str"
 )
 
 type IntelLookupKind int
@@ -52,8 +53,9 @@ type Intel interface {
 type intel struct{}
 
 type IntelItem struct {
-	Kind  IntelItemKind
-	Value string
+	Kind     IntelItemKind
+	Value    string
+	CodeLang string
 }
 type IntelItems sl.Of[IntelItem]
 
@@ -122,14 +124,19 @@ func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
 			for k := range it.Facts {
 				str_facts += k.String() + ", "
 			}
-			str_facts = util.If(str_facts == "", "(none), ", str_facts)
-			str_facts = SemTypeToString(it.Type) + "\n\nFacts: " + str_facts[:len(str_facts)-len(", ")] + "\n\n"
+			if str_facts = str.TrimSuff(str_facts, ", "); str_facts != "" {
+				str_facts = "Facts: "
+			}
 			var str_src string
 			if (it.From != nil) && (it.From.SrcNode != nil) {
 				str_src = it.From.SrcNode.Src
 			}
 			ret.Items = append(ret.Items, IntelItem{
-				Kind: IntelItemKindDescription, Value: "\n\n" + util.If(str_val == "", "", str_val+"\n\n") + (util.If(str_src == "", "", "```atmo\n\n"+str_src+"\n```\n\n")) + str_facts + "\n\n",
+				Kind: IntelItemKindDescription, Value: str_src, CodeLang: "atmo",
+			}, IntelItem{
+				Kind: IntelItemKindDescription, Value: SemTypeToString(it.Type) + util.If(str_val == "", "", " — (`"+str_val+"`)"),
+			}, IntelItem{
+				Kind: IntelItemKindDescription, Value: str_facts,
 			})
 		}
 	}

@@ -135,8 +135,13 @@ func init() {
 			if src_file := sess.SrcFile(src_file_path); src_file != nil {
 				if info := intel.Info(src_file, lspPosToPos(&params.Position)); info != nil {
 					items := info.Items.Where(session.IntelItemKindDescription)
+					for i, item := range items {
+						if item.CodeLang != "" {
+							items[i].Value = "```" + item.CodeLang + "\n" + item.Value + "\n```"
+						}
+					}
 					strs := sl.Where(sl.To(items, func(it session.IntelItem) string { return it.Value }), func(s string) bool { return s != "" })
-					if text := str.Join(strs, "\n\n___\n\n"); text != "" {
+					if text := str.Join(sl.To(strs, str.Trim), "\n\n\n___\n\n\n"); text != "" {
 						ret = &lsp.Hover{
 							Contents: lsp.MarkupContent{Value: html.EscapeString(text), Kind: lsp.MarkupKindMarkdown},
 						}

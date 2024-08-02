@@ -109,7 +109,7 @@ func (me *semTypeCtor) Str(w *strings.Builder) {
 
 func SemTypeToString(ty SemType) string {
 	if ty == nil {
-		return MoPrimTypeAny.Str(false)
+		return "<untypifyable>"
 	}
 	var buf strings.Builder
 	ty.Str(&buf)
