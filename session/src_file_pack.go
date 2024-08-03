@@ -21,7 +21,6 @@ type SrcPack struct {
 			Index    struct {
 				Lits map[any]SemExprs
 			}
-			typifyAttempted map[*SemExpr]bool
 		}
 		last struct {
 			files map[string]string
@@ -213,7 +212,7 @@ func ensureSrcFiles(curFullContent *string, canSkipFileRead bool, srcFilePaths .
 func newSrcPack(dirPath string) *SrcPack {
 	ret := &SrcPack{DirPath: dirPath}
 	ret.Trees.last.files = map[string]string{}
-	ret.Trees.Sem.Index.Lits, ret.Trees.Sem.typifyAttempted = map[any]SemExprs{}, map[*SemExpr]bool{}
+	ret.Trees.Sem.Index.Lits = map[any]SemExprs{}
 	return ret
 }
 
