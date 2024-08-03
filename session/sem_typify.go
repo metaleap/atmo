@@ -128,15 +128,18 @@ func init() {
 	}
 }
 
+var nbla int
+
 func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
-	if (self.Type != nil) || (len(self.ErrsOwn) > 0) {
+	if nbla > 7 {
+		panic("OUT")
+	}
+	nbla++
+	println(self.String(), "—", (self.Type != nil) || (len(self.ErrsOwn) > 0) || (me.Trees.Sem.typifyAttempted[self]))
+	if (self.Type != nil) || (len(self.ErrsOwn) > 0) || (me.Trees.Sem.typifyAttempted[self]) {
 		return
 	}
-	// if n := me.Trees.Sem.inFlight[self]; n > 123 {
-	// 	self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "approaching infinity, please share the code leading to this"))
-	// }
-	// me.Trees.Sem.inFlight[self] = me.Trees.Sem.inFlight[self] + 1
-	// defer func() { me.Trees.Sem.inFlight[self] = me.Trees.Sem.inFlight[self] - 1 }()
+	me.Trees.Sem.typifyAttempted[self] = true
 	switch val := self.Val.(type) {
 	case *SemValList:
 		item_types := make(sl.Of[*SemType], len(val.Items))
@@ -161,14 +164,17 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 			self.Type = semTypeNew(self, MoPrimTypeDict, key_type, val_type)
 		}
 	case *SemValIdent:
-		_, entry := scope.Lookup(val.Name)
+		decl_scope, entry := scope.Lookup(val.Name)
 		if entry != nil {
 			entry.Refs[self] = util.Void{}
-		}
-		if (entry != nil) && (entry.Type != nil) {
-			self.Type = semTypeEnsureDueTo(self, entry.Type)
-			if decl, _ := entry.DeclParamOrCallOrFunc.Val.(*SemValFunc); decl != nil {
-				self.Fact(SemFact{Kind: SemFactPrimFn}, self)
+			if (entry.Type == nil) && (decl_scope == &me.Trees.Sem.Scope) {
+				me.semTypify(entry.DeclParamOrCallOrFunc, decl_scope)
+			}
+			if entry.Type != nil {
+				self.Type = semTypeEnsureDueTo(self, entry.Type)
+				if decl, _ := entry.DeclParamOrCallOrFunc.Val.(*SemValFunc); decl != nil {
+					self.Fact(SemFact{Kind: SemFactPrimFn}, self)
+				}
 			}
 		} else {
 			is_prim_op := semTyPrimOps[val.Name] != nil

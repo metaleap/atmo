@@ -20,11 +20,11 @@ func (me *SrcPack) semRefresh() {
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		// me.semInferTypes()
 		me.semPopulateRootScope()
-		clear(me.Trees.Sem.inFlight)
+		clear(me.Trees.Sem.typifyAttempted)
 		for _, top_expr := range me.Trees.Sem.TopLevel {
 			me.semTypify(top_expr, &me.Trees.Sem.Scope)
 		}
-		clear(me.Trees.Sem.inFlight)
+		clear(me.Trees.Sem.typifyAttempted)
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
 				ident, _ := it.Val.(*SemValIdent)
