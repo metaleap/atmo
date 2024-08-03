@@ -170,19 +170,17 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 			if is_prim_op {
 				self.Fact(SemFact{Kind: SemFactPrimOp}, self)
 			}
-			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Name))
+			self.ErrAdd(self.From.SrcSpan.newDiagErr(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Name))
 		}
 	case *SemValFunc:
-		for _, p := range val.Params {
-			entry := val.Scope.Own[p.MaybeIdent(true)]
-			entry.Type = semTypeNew(self, MoPrimTypeAny)
-			p.Type = entry.Type
-		}
 		me.semTypify(val.Body, val.Scope)
+		for _, param := range val.Params {
+			if param.Type == nil { // param not used in any typified ways
+				param.Type = semTypeNew(self, MoPrimTypeAny)
+			}
+		}
 		if val.Body.Type != nil {
-			self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(p *SemExpr) *SemType {
-				return p.Type
-			}), val.Body.Type)...)
+			self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(p *SemExpr) *SemType { return p.Type }), val.Body.Type)...)
 		}
 	case *SemValCall:
 		var prim_op func(*SrcPack, *SemExpr, *SemScope)
@@ -201,13 +199,13 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 					case *SemValFunc:
 						fn = decl
 					case *SemValIdent:
-						self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "FOO"))
+						self.ErrAdd(self.ErrNew(ErrCodeAtmoTodo, "FOO"))
 					}
 				}
 			}
 			if fn == nil {
 				if !val.Callee.HasErrs() { // dont wanna be too noisy
-					val.Callee.ErrsOwn.Add(val.Callee.ErrNew(ErrCodeUncallable, val.Callee.From.String()))
+					val.Callee.ErrAdd(val.Callee.ErrNew(ErrCodeUncallable, val.Callee.From.String()))
 				}
 			} else {
 				args := val.Args
@@ -219,7 +217,7 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 					self.Type = semPrimFnTypes[val.Callee.MaybeIdent(false)]
 					fn.primImpl(me, self, scope)
 				} else {
-					self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "call lambda"))
+					self.ErrAdd(self.ErrNew(ErrCodeAtmoTodo, "call lambda"))
 				}
 			}
 		}
@@ -230,7 +228,7 @@ func (me *SrcPack) semInterpMaybe(self *SemExpr, scope *SemScope) {
 	if self.isPrecomputedPermissible() && (self.From != nil) {
 		result := me.Interp.ExprEval(self.From)
 		if err := result.Err(); err != nil {
-			self.ErrsOwn.Add(result.Err())
+			self.ErrAdd(result.Err())
 		} else if to_sem := me.semExprFromMoExpr(scope, result, self.Parent); (to_sem != nil) && !to_sem.HasErrs() {
 			if me.semTypify(to_sem, scope); !to_sem.HasErrs() {
 				me.semReplaceExprValWithComputedValIfPermissible(self, to_sem.Val, to_sem.Type)
@@ -241,7 +239,6 @@ func (me *SrcPack) semInterpMaybe(self *SemExpr, scope *SemScope) {
 
 func (me *SrcPack) semTyPrimOpSet(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	self.Fact(SemFact{Kind: SemFactNotPure}, self)
 	if len(call.Args) > 1 {
 		sl.Each(call.Args[1:], func(arg *SemExpr) { me.semTypify(arg, scope) })
@@ -249,19 +246,11 @@ func (me *SrcPack) semTyPrimOpSet(self *SemExpr, scope *SemScope) {
 			_, entry := scope.Lookup(name)
 			if entry != nil { // no need to report, other errors in the same block are the cause
 				entry.Refs[call.Args[0]] = util.Void{}
-				ty_old := entry.Type
-				if ty := call.Args[1].Type; entry.Type == nil {
-					entry.Type = ty
-				} else {
-					entry.Type = semTypeFromMultiple(call.Args[1], false, entry.Type, ty)
-				}
-				is_same := (ty_old == entry.Type /*incl nilness*/) || ((entry.Type != nil) && entry.Type.Eq(ty_old))
-				if !is_same {
-					me.semScopePropagateTypeChangeToRefs(entry)
-				}
+				me.semScopeEntrySetType(entry, call.Args[1])
 			}
 		}
 	}
+	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 }
 
 func (me *SrcPack) semTyPrimOpDo(self *SemExpr, scope *SemScope) {
@@ -285,7 +274,7 @@ func (me *SrcPack) semTyPrimOpFn(self *SemExpr, _ *SemScope) {
 	// no-op: whenever this call happens, it's always on a broken `@fn` or `@macro` call, because
 	// otherwise `semPrepScopeOnFn` would have replaced the call with a `SemValFunc` expr already
 	if !self.HasErrs() {
-		self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "encountered an `@fn` call despite no errors in it"))
+		self.ErrAdd(self.ErrNew(ErrCodeAtmoTodo, "encountered an `@fn` call despite no errors in it"))
 	}
 }
 
@@ -314,7 +303,7 @@ func (me *SrcPack) semTyPrimOpQuote(self *SemExpr, scope *SemScope) {
 				it.Type = semTypeNew(call.Callee, MoPrimTypeCall)
 			case *SemValFunc:
 				it.Type = semTypeNew(call.Callee, MoPrimTypeFunc)
-				it.ErrsOwn.Add(it.ErrNew(ErrCodeAtmoTodo, "encountered a Func expr inside a quote call"))
+				it.ErrAdd(it.ErrNew(ErrCodeAtmoTodo, "encountered a Func expr inside a quote call"))
 			}
 		})
 		self.Type = call.Args[0].Type
@@ -433,9 +422,9 @@ func (me *SrcPack) semTyPrimFnCmpOrd(self *SemExpr, scope *SemScope) {
 			if lhs, rhs := semCheckIs[SemValScalar](-1, call.Args[0]), semCheckIs[SemValScalar](-1, call.Args[1]); (lhs != nil) && (rhs != nil) {
 				ok_types := []MoValPrimType{MoPrimTypeChar, MoPrimTypeStr, MoPrimTypeNumFloat, MoPrimTypeNumInt, MoPrimTypeNumUint}
 				if !sl.Has(ok_types, lhs.Value.PrimType()) {
-					call.Args[0].ErrsOwn.Add(call.Args[0].ErrNew(ErrCodeExpectedFoo, "a comparable value here"))
+					call.Args[0].ErrAdd(call.Args[0].ErrNew(ErrCodeExpectedFoo, "a comparable value here"))
 				} else if !sl.Has(ok_types, rhs.Value.PrimType()) {
-					call.Args[1].ErrsOwn.Add(call.Args[1].ErrNew(ErrCodeExpectedFoo, "a comparable value here"))
+					call.Args[1].ErrAdd(call.Args[1].ErrNew(ErrCodeExpectedFoo, "a comparable value here"))
 				} else {
 					call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
 				}
@@ -631,7 +620,7 @@ func (me *SrcPack) semTyPrimFnStrLen(self *SemExpr, scope *SemScope) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeNumUint)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		ty_str := semTypeNew(call.Callee, MoPrimTypeStr)
-		_ = me.semTypeAssert(call.Args[0], ty_str, scope)
+		_ = me.semCheckType(call.Args[0], ty_str)
 		call.Callee.Type = semTypeNew(call.Callee, MoPrimTypeFunc, ty_str, self.Type)
 	}
 }

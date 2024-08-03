@@ -108,7 +108,7 @@ func (me *Diag) equals(to *Diag, includingSpans bool) bool {
 	return (me == to) || ((me != nil) && (to != nil) &&
 		(me.Code == to.Code) && (me.Kind == to.Kind) && (me.Message == to.Message) &&
 		((!includingSpans) || (me.Span.Eq(&to.Span) && sl.Eq(me.Rel, to.Rel, func(l1 *SrcFileLocs, l2 *SrcFileLocs) bool {
-			return (l1.File == l2.File) && (sl.Eq(l1.Spans, l2.Spans, (*SrcFileSpan).Eq))
+			return (l1.File == l2.File) && (sl.EqAnyOrder(l1.Spans, l2.Spans, (*SrcFileSpan).Eq))
 		}))))
 }
 

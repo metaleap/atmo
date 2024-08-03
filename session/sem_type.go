@@ -183,13 +183,13 @@ func (me *SrcPack) semCheckCount(wantAtLeast int, wantAtMost int, have SemExprs,
 			err_loc = have[wantAtMost]
 		}
 		if (wantAtLeast == wantAtMost) && (wantAtLeast != len(have)) {
-			errDst.ErrsOwn.Add(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d %s instead of %d", wantAtLeast, moniker, len(have))))
+			errDst.ErrAdd(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d %s instead of %d", wantAtLeast, moniker, len(have))))
 			return false
 		} else if len(have) < wantAtLeast {
-			errDst.ErrsOwn.Add(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("at least %d %s instead of %d", wantAtLeast, moniker, len(have))))
+			errDst.ErrAdd(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("at least %d %s instead of %d", wantAtLeast, moniker, len(have))))
 			return false
 		} else if (wantAtMost > wantAtLeast) && (len(have) > wantAtMost) {
-			errDst.ErrsOwn.Add(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d to %d %s instead of %d", wantAtLeast, wantAtMost, moniker, len(have))))
+			errDst.ErrAdd(err_loc.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%d to %d %s instead of %d", wantAtLeast, wantAtMost, moniker, len(have))))
 			return false
 		}
 	}
@@ -200,7 +200,7 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 	if ret, is := expr.Val.(*T); is {
 		return ret
 	}
-	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%s here instead of `%s`",
+	expr.ErrAdd(expr.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%s here instead of `%s`",
 		util.If((equivPrimType < 0), "a comparable value", equivPrimType.Str(true)),
 		expr.From.SrcNode.Src)))
 	return nil
@@ -219,44 +219,36 @@ func (me *SrcPack) semCheckTypePrim(expr *SemExpr, dueTo *SemExpr, expect MoValP
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
-	if !expr.Type.Sats(expect) {
-		if !expr.HasErrs() { // dont wanna be too noisy
-			t1, t2 := expect, expr.Type
-			dt1, dt2 := expect.DueTo, expr
-			s1, s2 := "`"+t1.String()+"` value", "`"+t2.String()+"` value"
-			if t1.Prim != t2.Prim {
-				s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
+	if expr.Type == nil {
+		expr.Type = expect
+		if ident, _ := expr.Val.(*SemValIdent); ident != nil {
+			if _, entry := expr.Scope.Lookup(ident.Name); entry == nil {
+				expr.Type = nil
+				return true
+			} else {
+				me.semScopeEntrySetType(entry, expr)
 			}
-			err := expr.ErrNew(ErrCodeTypeMismatch, s1, s2)
-			err.Rel = srcFileLocs([]string{
-				str.Fmt("%s imposed via `%s`", s1, dt1.String()),
-				str.Fmt("%s provided by `%s`", s2, dt2.String()),
-			}, t1.DueTo, t2.DueTo)
-			expr.ErrsOwn.Add(err)
+		}
+	} else if !expr.Type.Sats(expect) {
+		if !expr.HasErrs() { // dont wanna be too noisy
+			expr.ErrAdd(semNewTypeErr(expr, expect))
 		}
 		return false
 	}
 	return true
 }
 
-func (me *SrcPack) semTypeAssert(dst *SemExpr, ty *SemType, curScope *SemScope) bool {
-	switch {
-	case (dst.Type == nil) && !dst.HasErrs():
-		dst.Type = ty
-		return true
-	case (dst.Type != nil) && ty.Sats(dst.Type):
-		if ident, _ := dst.Val.(*SemValIdent); ident != nil {
-			if _, entry := curScope.Lookup(ident.Name); entry != nil {
-				if param, _ := entry.DeclParamOrCallOrFunc.Val.(*SemValIdent); param != nil {
-					entry.Type = ty
-					entry.DeclParamOrCallOrFunc.Type = ty
-					for ref := range entry.Refs {
-						ref.Type = ty // TODO: undo :D
-					}
-				}
-			}
-		}
-		return true
+func semNewTypeErr(expr *SemExpr, expect *SemType) *Diag {
+	t1, t2 := expect, expr.Type
+	dt1, dt2 := expect.DueTo, expr
+	s1, s2 := "`"+t1.String()+"` value", "`"+t2.String()+"` value"
+	if t1.Prim != t2.Prim {
+		s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
 	}
-	return false
+	err := expr.ErrNew(ErrCodeTypeMismatch, s1, s2)
+	err.Rel = srcFileLocs([]string{
+		str.Fmt("%s imposed via `%s`", s1, dt1.String()),
+		str.Fmt("%s provided by `%s`", s2, dt2.String()),
+	}, t1.DueTo, t2.DueTo)
+	return err
 }

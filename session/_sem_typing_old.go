@@ -23,7 +23,7 @@ func (me *SrcPack) oldSemInferTypes() {
 		top_expr.Type = it.newTypeVar(top_expr)
 		it.infer(me, top_expr, env)
 		errs := it.solveConstraints()
-		top_expr.ErrsOwn.Add(errs...)
+		top_expr.ErrAdd(errs...)
 		it.substExpr(top_expr)
 		me.Trees.Sem.TopLevel[i] = top_expr
 	}
@@ -182,7 +182,7 @@ func (me *oldSemTypeInfer) substExpr(expr *SemExpr) {
 		}
 		expr.Type = oldSemTypeNew(expr, MoPrimTypeList, ty_item)
 	case *SemValDict:
-		expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypeInfer.substExpr(someDict)"))
+		expr.ErrAdd(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypeInfer.substExpr(someDict)"))
 	}
 }
 
@@ -238,7 +238,7 @@ func (me *oldSemTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent
 	case *SemValIdent:
 		ty_ident := env[val.Name]
 		if ty_ident == nil {
-			expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Name))
+			expr.ErrAdd(expr.From.SrcSpan.newDiagErr(ErrCodeUndefined, val.Name))
 		} else {
 			if ty_ident.From() == nil { // for idents referencing the built-in prim-ops
 				ty_ident = oldSemTypeEnsureDueTo(expr, ty_ident)
@@ -276,7 +276,7 @@ func (me *oldSemTypeInfer) infer(ctx *SrcPack, expr *SemExpr, env map[MoValIdent
 		me.constraints.Add(oldSemTypeEq(expr, expr.Type, new_ty_expr))
 		expr.Type = new_ty_expr
 	case *SemValDict:
-		expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypeInfer.infer(someDict)"))
+		expr.ErrAdd(expr.From.SrcSpan.newDiagErr(ErrCodeAtmoTodo, "semTypeInfer.infer(someDict)"))
 	}
 }
 

@@ -576,7 +576,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 			val = call_form
 		}
 	}
-	return &MoExpr{SrcNode: node, SrcFile: me, SrcSpan: util.Ptr(node.Toks.Span()), Val: val}, nil
+	return &MoExpr{SrcNode: node, SrcFile: me, SrcSpan: util.Ptr(node.Toks.withoutLeadingAndTrailingComments().Span()), Val: val}, nil
 }
 
 func (me *MoExpr) IsErr() (ret bool) {

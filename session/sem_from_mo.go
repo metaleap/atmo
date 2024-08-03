@@ -26,8 +26,8 @@ func (me *SrcPack) semRefresh() {
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
 				ident, _ := it.Val.(*SemValIdent)
-				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) && ((ident == nil) || !(ident.IsSet || ident.IsParam)) {
-					it.ErrsOwn.Add(it.ErrNew(ErrCodeUntypifiable))
+				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) && ((ident == nil) || !ident.IsParam) {
+					it.ErrAdd(it.ErrNew(ErrCodeUntypifiable))
 				}
 				return true
 			}, nil)
@@ -169,16 +169,24 @@ func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {
 	return nil, nil
 }
 
-func (me *SrcPack) semScopePropagateTypeChangeToRefs(entry *SemScopeEntry) {
-	for ref := range entry.Refs {
-		ref.Type = entry.Type
-		var top *SemExpr
-		for p := ref.Parent; p != nil; p = p.Parent {
-			p.Type = nil
-			top = p
-		}
-		if top != nil {
-			me.semTypify(top, top.Scope)
+func (me *SrcPack) semScopeEntrySetType(entry *SemScopeEntry, from *SemExpr) {
+	ty_old := entry.Type
+	if ty := from.Type; entry.Type == nil {
+		entry.Type = ty
+	} else {
+		entry.Type = semTypeFromMultiple(from, false, entry.Type, ty)
+	}
+	is_same := (ty_old == entry.Type /*incl nilness*/) || ((entry.Type != nil) && entry.Type.Eq(ty_old))
+	if !is_same {
+		for ref := range entry.Refs {
+			ref.Type = entry.Type
+			var top *SemExpr
+			for p := ref.Parent; p != nil; p = p.Parent {
+				top, p.Type = p, nil
+			}
+			if top != nil {
+				me.semTypify(top, top.Scope)
+			}
 		}
 	}
 }
@@ -191,11 +199,11 @@ func (me *SrcPack) semScopePrepOnSet(self *SemExpr) {
 			ident.IsSet = true
 			is_name_invalid := ident.Name.IsReserved()
 			if is_name_invalid {
-				self.ErrsOwn.Add(expr_name.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.Name, ident.Name[0:1]))
+				self.ErrAdd(expr_name.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.Name, ident.Name[0:1]))
 			}
 
 			if value_ident := expr_value.MaybeIdent(false); (value_ident != "") && (moPrimOpsLazy[value_ident] != nil) {
-				self.ErrsOwn.Add(expr_value.From.SrcSpan.newDiagErr(ErrCodeNotAValue, value_ident))
+				self.ErrAdd(expr_value.From.SrcSpan.newDiagErr(ErrCodeNotAValue, value_ident))
 			}
 			if !is_name_invalid {
 				scope, resolved := self.Scope.Lookup(ident.Name)
@@ -207,7 +215,7 @@ func (me *SrcPack) semScopePrepOnSet(self *SemExpr) {
 					if (scope == self.Scope) && (scope == &me.Trees.Sem.Scope) {
 						err := self.From.SrcSpan.newDiagErr(ErrCodeDuplTopDecl, ident.Name)
 						err.Rel = srcFileLocs([]string{str.Fmt("the other `%s` definition", ident.Name)}, resolved.DeclParamOrCallOrFunc)
-						self.ErrsOwn.Add(err)
+						self.ErrAdd(err)
 					}
 				}
 			}
@@ -223,7 +231,7 @@ func (me *SrcPack) semScopePrepOnFn(self *SemExpr) {
 			for _, param := range params_list.Items {
 				if ident := semCheckIs[SemValIdent](MoPrimTypeIdent, param); ident != nil {
 					if ident.Name.IsReserved() {
-						self.ErrsOwn.Add(param.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.Name, ident.Name[0:1]))
+						self.ErrAdd(param.From.SrcSpan.newDiagErr(ErrCodeReserved, ident.Name, ident.Name[0:1]))
 					} else {
 						ident.IsParam, ident.IsDecl = true, true
 						ok_params = append(ok_params, param)
@@ -236,11 +244,11 @@ func (me *SrcPack) semScopePrepOnFn(self *SemExpr) {
 				IsMacro: (call.Callee.Val.(*SemValIdent).Name == moPrimOpMacro),
 			}
 			for _, param := range fn.Params {
-				fn.Scope.Own[param.Val.(*SemValIdent).Name] = &SemScopeEntry{DeclParamOrCallOrFunc: param, Refs: map[*SemExpr]util.Void{}}
+				fn.Scope.Own[param.Val.(*SemValIdent).Name] = &SemScopeEntry{DeclParamOrCallOrFunc: param, Refs: map[*SemExpr]util.Void{param: {}}}
 			}
 			switch len(body_list.Items) {
 			case 0:
-				self.ErrsOwn.Add(call.Args[1].From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, "one or more expressions"))
+				self.ErrAdd(call.Args[1].From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, "one or more expressions"))
 			case 1:
 				fn.Body = body_list.Items[0]
 			default:

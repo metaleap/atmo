@@ -330,3 +330,13 @@ func (me Toks) src(curFullSrcFileContent string) string {
 func (me Toks) str() string { // only for occasional debug prints
 	return strings.Join(sl.To(me, func(it *Tok) string { return it.Src }), " ")
 }
+
+func (me Toks) withoutLeadingAndTrailingComments() Toks {
+	for (len(me) > 0) && (me[0].Kind == TokKindComment) {
+		me = me[1:]
+	}
+	for (len(me) > 0) && (me[len(me)-1].Kind == TokKindComment) {
+		me = me[:len(me)-1]
+	}
+	return me
+}

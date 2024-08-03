@@ -67,6 +67,12 @@ func (me *SemExpr) Each(do func(it *SemExpr)) {
 	}
 }
 
+func (me *SemExpr) ErrAdd(err *Diag) {
+	if !sl.Any(me.ErrsOwn, func(it *Diag) bool { return it.equals(err, true) }) {
+		me.ErrsOwn.Add(err)
+	}
+}
+
 func (me *SemExpr) ErrNew(code DiagCode, args ...any) *Diag {
 	return me.From.SrcSpan.newDiagErr(code, args...)
 }
