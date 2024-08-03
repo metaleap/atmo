@@ -173,8 +173,17 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 			self.ErrsOwn.Add(self.From.SrcSpan.newDiagErr(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Name))
 		}
 	case *SemValFunc:
+		for _, p := range val.Params {
+			entry := val.Scope.Own[p.MaybeIdent(true)]
+			entry.Type = semTypeNew(self, MoPrimTypeAny)
+			p.Type = entry.Type
+		}
 		me.semTypify(val.Body, val.Scope)
-		self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(p *SemExpr) *SemType { return p.Type }), val.Body.Type)...)
+		if val.Body.Type != nil {
+			self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(p *SemExpr) *SemType {
+				return p.Type
+			}), val.Body.Type)...)
+		}
 	case *SemValCall:
 		var prim_op func(*SrcPack, *SemExpr, *SemScope)
 		if ident := val.Callee.MaybeIdent(false); ident != "" {
@@ -622,7 +631,7 @@ func (me *SrcPack) semTyPrimFnStrLen(self *SemExpr, scope *SemScope) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeNumUint)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		ty_str := semTypeNew(call.Callee, MoPrimTypeStr)
-		_ = me.semCheckType(call.Args[0], ty_str)
+		_ = me.semTypeAssert(call.Args[0], ty_str, scope)
 		call.Callee.Type = semTypeNew(call.Callee, MoPrimTypeFunc, ty_str, self.Type)
 	}
 }

@@ -239,12 +239,23 @@ func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 	return true
 }
 
-func (me *SrcPack) semTypeAssert(dst *SemExpr, ty *SemType) bool {
+func (me *SrcPack) semTypeAssert(dst *SemExpr, ty *SemType, curScope *SemScope) bool {
 	switch {
 	case (dst.Type == nil) && !dst.HasErrs():
 		dst.Type = ty
 		return true
 	case (dst.Type != nil) && ty.Sats(dst.Type):
+		if ident, _ := dst.Val.(*SemValIdent); ident != nil {
+			if _, entry := curScope.Lookup(ident.Name); entry != nil {
+				if param, _ := entry.DeclParamOrCallOrFunc.Val.(*SemValIdent); param != nil {
+					entry.Type = ty
+					entry.DeclParamOrCallOrFunc.Type = ty
+					for ref := range entry.Refs {
+						ref.Type = ty // TODO: undo :D
+					}
+				}
+			}
+		}
 		return true
 	}
 	return false
