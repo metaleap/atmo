@@ -85,7 +85,7 @@ var (
 		ErrCodeNotComparable:       "operands `%s` and `%s` cannot be compared in %s terms",
 		ErrCodeNotConvertible:      "cannot convert `%s` to %s",
 		ErrCodeDuplTopDecl:         "top-level declaration `%s` already defined",
-		ErrCodeTypeMismatch:        "expecting %s instead of %s",
+		ErrCodeTypeMismatch:        "expected %s instead of %s",
 		ErrCodeTypeInfinite:        "infinite type detected: `%s`",
 		ErrCodeComputationFailed:   "%v",
 		ErrCodeUntypifiable:        "expression untypifiable",
@@ -154,8 +154,10 @@ func (me *SrcFile) allDiags() (ret Diags) {
 		}
 		me.pack.Trees.MoOrig.Walk(me, nil, add)
 		me.pack.Trees.MoEvaled.Walk(me, nil, add)
-		ret.Add(me.pack.Trees.Sem.TopLevel.Errs()...)
-		ret.Add(me.pack.semNonErrDiags()...)
+		if is_repl := DoSrcPackEvals; (!is_repl) || (len(ret) == 0) {
+			ret.Add(me.pack.Trees.Sem.TopLevel.Errs()...)
+			ret.Add(me.pack.semNonErrDiags()...)
+		}
 	}
 	return
 }

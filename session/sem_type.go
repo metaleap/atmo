@@ -20,7 +20,6 @@ func (me *SemType) Eq(to *SemType) bool {
 }
 
 func (me *SemType) Sats(expect *SemType) bool {
-	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqAnyOrder, sl.Eq[sl.Of[*SemType]])
 	switch {
 	case me == expect:
 		return true
@@ -32,7 +31,10 @@ func (me *SemType) Sats(expect *SemType) bool {
 		return sl.All(me.TArgs, func(targ *SemType) bool { return targ.Sats(expect) })
 	case expect.Prim == MoPrimTypeOr:
 		return sl.Any(expect.TArgs, func(targ *SemType) bool { return me.Sats(targ) })
+	case (expect.Prim == MoPrimTypeFunc) && (len(expect.TArgs) == 0): // means "any function" — note a func type with zero args would still have the return t-arg, so 0-arity is an OK sentinel for any-function
+		return me.Prim == MoPrimTypeFunc
 	}
+	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqAnyOrder, sl.Eq[sl.Of[*SemType]])
 	return (me.Prim == expect.Prim) && sl_eq(me.TArgs, expect.TArgs, (*SemType).Sats)
 }
 

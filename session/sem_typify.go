@@ -117,7 +117,7 @@ func init() {
 			moPrimFnErrNew:      t(nil, fn, t_any, t_err),
 			moPrimFnErrVal:      t(nil, fn, t_err, t_any),
 			moPrimFnStrLen:      t(nil, fn, t_str, t_uint),
-			moPrimFnStrConcat:   t(nil, fn, t_str, semTypeNew(nil, MoPrimTypeList, t_str), t_str),
+			moPrimFnStrConcat:   t(nil, fn, semTypeNew(nil, MoPrimTypeList, t_str), t_str),
 			moPrimFnStrCharAt:   t(nil, fn, t_str, t_uint, t_chr),
 			moPrimFnStrRange:    t(nil, fn, t_str, t_uint, t_uint, t_str),
 			moPrimFnStr:         t(nil, fn, t_any, t_str),
@@ -159,9 +159,6 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 		_, entry := scope.Lookup(val.Name)
 		if entry != nil {
 			entry.Refs[self] = util.Void{}
-			// if (entry.Type == nil) && (decl_scope == &me.Trees.Sem.Scope) {
-			// 	me.semTypify(entry.DeclParamOrCallOrFunc, decl_scope)
-			// }
 			if entry.Type != nil {
 				self.Type = semTypeEnsureDueTo(self, entry.Type)
 				if decl, _ := entry.DeclParamOrCallOrFunc.Val.(*SemValFunc); decl != nil {
@@ -190,7 +187,7 @@ func (me *SrcPack) semTypify(self *SemExpr, scope *SemScope) {
 			me.semTypify(val.Callee, scope)
 			fn, _ := val.Callee.Val.(*SemValFunc)
 			if fn == nil {
-				if _, entry := scope.Lookup(val.Callee.MaybeIdent(false)); (entry != nil) && (entry.Type.Prim == MoPrimTypeFunc) {
+				if _, entry := scope.Lookup(val.Callee.MaybeIdent(false)); (entry != nil) && (entry.Type != nil) && (entry.Type.Prim == MoPrimTypeFunc) {
 					switch decl := entry.DeclParamOrCallOrFunc.Val.(type) {
 					case *SemValFunc:
 						fn = decl
@@ -317,8 +314,8 @@ func (me *SrcPack) semTyPrimOpQuote(self *SemExpr, scope *SemScope) {
 
 func (me *SrcPack) semTyPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
-	sl.Each(call.Args, func(arg *SemExpr) { me.semTypify(arg, scope) })
 	if me.semCheckCount(1, 1, call.Args, self, true) {
+		sl.Each(call.Args, func(arg *SemExpr) { me.semTypify(arg, scope) })
 		if dict := semCheckIs[SemValDict](MoPrimTypeDict, call.Args[0]); dict != nil {
 			if me.semCheckCount(1, -1, dict.Keys, call.Args[0], false) {
 				new_ty := semTypeNew(self, MoPrimTypeOr)
