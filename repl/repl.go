@@ -16,11 +16,17 @@ import (
 const prompt = "\n💭 "
 
 var (
-	interp *session.Interp
+	interp     *session.Interp
+	curDirPath string
 )
 
 func Main() {
 	session.DoSrcPackEvals, session.DoSrcPackSems = true, true
+
+	var err error
+	if curDirPath, err = os.Getwd(); err != nil {
+		panic(err)
+	}
 
 	if !checkHaveLineEditing() {
 		os.Stdout.WriteString("(For line-editing, remember to run `atmo repl` with `rlwrap` or similar.)\n\n")
@@ -52,11 +58,7 @@ func Main() {
 	}
 
 	session.Access(func(sess session.StateAccess, _ session.Intel) {
-		dir_path, err := filepath.Abs(".")
-		if err != nil {
-			panic(err)
-		}
-		interp = sess.Interpreter(dir_path)
+		interp = sess.Interpreter(curDirPath)
 		interp.SubCallListing.Use = true
 	})
 
@@ -121,7 +123,20 @@ func diagMsg(srcFilePath string, diag *session.Diag) string {
 	case session.DiagKindWarn:
 		icon = '🤯'
 	}
-	return fmt.Sprintf("%s %s: %s: %s", string(icon), diag.LocStr(srcFilePath), diag.Code, diag.Message)
+	rel_path := func(absFilePath string) string {
+		ret, err := filepath.Rel(curDirPath, absFilePath)
+		return util.If(err == nil, ret, absFilePath)
+	}
+	ret := fmt.Sprintf("%s %s: %s: %s", string(icon), diag.LocStr(rel_path(srcFilePath)), diag.Code, diag.Message)
+	for _, rel := range diag.Rel {
+		for i, span := range rel.Spans {
+			ret += "\n\t" + span.LocStr(rel_path(rel.File.FilePath))
+			if len(rel.Hints) == len(rel.Spans) {
+				ret += (": " + rel.Hints[i])
+			}
+		}
+	}
+	return ret
 }
 
 func checkHaveLineEditing() bool {

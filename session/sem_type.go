@@ -226,7 +226,6 @@ func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 				s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
 			}
 			err := expr.ErrNew(ErrCodeTypeMismatch, s1, s2)
-			println(t1.DueTo == nil, t2.DueTo == nil)
 			err.Rel = srcFileLocs([]string{
 				str.Fmt("%s imposed via `%s`", s1, dt1.String()),
 				str.Fmt("%s provided by `%s`", s2, dt2.String()),
@@ -236,4 +235,15 @@ func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 		return false
 	}
 	return true
+}
+
+func (me *SrcPack) semTypeAssert(dst *SemExpr, ty *SemType) bool {
+	switch {
+	case (dst.Type == nil) && !dst.HasErrs():
+		dst.Type = ty
+		return true
+	case (dst.Type != nil) && ty.Sats(dst.Type):
+		return true
+	}
+	return false
 }

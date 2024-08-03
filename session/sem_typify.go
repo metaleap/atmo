@@ -499,7 +499,8 @@ func (me *SrcPack) semTyPrimFnListConcat(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))
 	if me.semCheckCount(1, 1, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeList, 1) {
-		if ty_list := call.Args[0].Type; (ty_list.TArgs[0] == nil) || (ty_list.TArgs[0].Prim != MoPrimTypeList) {
+		list, _ := call.Args[0].Val.(*SemValList)
+		if ty_list := call.Args[0].Type; (ty_list.TArgs[0].Prim != MoPrimTypeList) && ((list == nil) || (len(list.Items) > 0)) {
 			_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny)))) // to provoke type error diag
 		} else {
 			self.Type = ty_list.TArgs[0]
