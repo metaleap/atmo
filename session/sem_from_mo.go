@@ -58,7 +58,6 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 func (me *SrcPack) semPopulateScalar(self *SemExpr, it MoVal) {
 	scalar := &SemValScalar{Value: it}
 	self.Val = scalar
-	self.Type = semTypeNew(self, it.PrimType())
 	self.Fact(SemFact{Kind: SemFactPreComputed}, self)
 	me.Trees.Sem.Index.Lits[it] = append(me.Trees.Sem.Index.Lits[it], self)
 	if (it.PrimType() == MoPrimTypeBool) || (it.PrimType() == MoPrimTypePrimTypeTag) {
