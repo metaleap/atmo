@@ -23,7 +23,7 @@ const (
 	moPrimOpAnd           MoValIdent = "@and"
 	moPrimOpOr            MoValIdent = "@or"
 	moPrimOpMacro         MoValIdent = "@macro"
-	moPrimOpExpand        MoValIdent = "@expand"
+	moPrimOpExpand        MoValIdent = "@macroExpand"
 	moPrimOpFn            MoValIdent = "@fn"
 	moPrimOpFnCall        MoValIdent = "@fnCall"
 

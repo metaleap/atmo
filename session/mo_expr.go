@@ -40,40 +40,40 @@ func (me MoValPrimType) isAtomic() bool {
 }
 
 func (me MoValPrimType) String() string { return me.Str(false) }
-func (me MoValPrimType) Str(forDiag bool) string {
+func (me MoValPrimType) Str(natLang bool) string {
 	switch me {
 	case MoPrimTypeAny:
-		return util.If(forDiag, "untyped-value", "@Any")
+		return util.If(natLang, "untyped-value", "@Any")
 	case MoPrimTypePrimTypeTag:
-		return util.If(forDiag, "primitive-type tag", "@PrimTypeTag")
+		return util.If(natLang, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
-		return util.If(forDiag, "symbol", "@Symbol")
+		return util.If(natLang, "symbol", "@Symbol")
 	case MoPrimTypeVoid:
-		return util.If(forDiag, "void", "@Void")
+		return util.If(natLang, "void", "@Void")
 	case MoPrimTypeBool:
-		return util.If(forDiag, "boolean", "@Bool")
+		return util.If(natLang, "boolean", "@Bool")
 	case MoPrimTypeNumInt:
-		return util.If(forDiag, "signed-integer number", "@Int")
+		return util.If(natLang, "signed-integer number", "@Int")
 	case MoPrimTypeNumUint:
-		return util.If(forDiag, "unsigned-integer number", "@Uint")
+		return util.If(natLang, "unsigned-integer number", "@Uint")
 	case MoPrimTypeNumFloat:
-		return util.If(forDiag, "floating-point number", "@Float")
+		return util.If(natLang, "floating-point number", "@Float")
 	case MoPrimTypeChar:
-		return util.If(forDiag, "character", "@Char")
+		return util.If(natLang, "character", "@Char")
 	case MoPrimTypeStr:
-		return util.If(forDiag, "string", "@Str")
+		return util.If(natLang, "text string", "@Str")
 	case MoPrimTypeErr:
-		return util.If(forDiag, "error", "@Err")
+		return util.If(natLang, "error", "@Err")
 	case MoPrimTypeDict:
-		return util.If(forDiag, "dictionary", "@Dict")
+		return util.If(natLang, "dictionary", "@Dict")
 	case MoPrimTypeList:
-		return util.If(forDiag, "list", "@List")
+		return util.If(natLang, "list", "@List")
 	case MoPrimTypeCall:
-		return util.If(forDiag, "call expression", "@Call")
+		return util.If(natLang, "call expression", "@Call")
 	case MoPrimTypeFunc:
-		return util.If(forDiag, "function", "@Func")
+		return util.If(natLang, "function", "@Func")
 	case MoPrimTypeOr:
-		return util.If(forDiag, "union", "@Or")
+		return util.If(natLang, "union", "@Or")
 	}
 	return "NewAtmoBugReportPlz(" + str.FromInt(int(me)) + ")"
 }

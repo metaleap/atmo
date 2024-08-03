@@ -85,7 +85,7 @@ var (
 		ErrCodeNotComparable:       "operands `%s` and `%s` cannot be compared in %s terms",
 		ErrCodeNotConvertible:      "cannot convert `%s` to %s",
 		ErrCodeDuplTopDecl:         "top-level declaration `%s` already defined",
-		ErrCodeTypeMismatch:        "expecting `%s` value instead of `%s` value",
+		ErrCodeTypeMismatch:        "expecting %s instead of %s",
 		ErrCodeTypeInfinite:        "infinite type detected: `%s`",
 		ErrCodeComputationFailed:   "%v",
 		ErrCodeUntypifiable:        "expression untypifiable",

@@ -21,6 +21,9 @@ func init() {
 		moPrimOpQuote:  (*SrcPack).semTyPrimOpQuote,
 		moPrimOpQQuote: (*SrcPack).semTyPrimOpQuote,
 		moPrimOpCaseOf: (*SrcPack).semTyPrimOpCaseOf,
+		moPrimOpMacro:  (*SrcPack).semTyPrimOpFn,
+		moPrimOpExpand: (*SrcPack).semTyPrimOpExpand,
+		moPrimOpFnCall: (*SrcPack).semTyPrimOpFnCall,
 	}
 	semTyPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
 		moPrimFnNot:         (*SrcPack).semTyPrimFnNot,
@@ -293,22 +296,24 @@ func (me *SrcPack) semTyPrimOpQuote(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
-		switch val := call.Args[0].Val.(type) {
-		case *SemValScalar:
-			self.Type = semTypeNew(call.Callee, val.Value.PrimType())
-		case *SemValList:
-			self.Type = semTypeNew(call.Callee, MoPrimTypeList)
-		case *SemValDict:
-			self.Type = semTypeNew(call.Callee, MoPrimTypeDict)
-		case *SemValIdent:
-			self.Type = semTypeNew(call.Callee, MoPrimTypeIdent)
-		case *SemValCall:
-			self.Type = semTypeNew(call.Callee, MoPrimTypeCall)
-		case *SemValFunc:
-			self.ErrsOwn.Add(self.ErrNew(ErrCodeAtmoTodo, "encountered a Func expr inside a quote call"))
-			self.Type = semTypeNew(call.Callee, MoPrimTypeFunc)
-		}
-		call.Args[0].Type = self.Type
+		call.Args[0].Walk(false, nil, func(it *SemExpr) {
+			switch val := it.Val.(type) {
+			case *SemValScalar:
+				it.Type = semTypeNew(call.Callee, val.Value.PrimType())
+			case *SemValList:
+				it.Type = semTypeNew(call.Callee, MoPrimTypeList)
+			case *SemValDict:
+				it.Type = semTypeNew(call.Callee, MoPrimTypeDict)
+			case *SemValIdent:
+				it.Type = semTypeNew(call.Callee, MoPrimTypeIdent)
+			case *SemValCall:
+				it.Type = semTypeNew(call.Callee, MoPrimTypeCall)
+			case *SemValFunc:
+				it.Type = semTypeNew(call.Callee, MoPrimTypeFunc)
+				it.ErrsOwn.Add(it.ErrNew(ErrCodeAtmoTodo, "encountered a Func expr inside a quote call"))
+			}
+		})
+		self.Type = call.Args[0].Type
 	}
 }
 
@@ -332,6 +337,20 @@ func (me *SrcPack) semTyPrimOpCaseOf(self *SemExpr, scope *SemScope) {
 			}
 		}
 	}
+}
+
+func (me *SrcPack) semTyPrimOpExpand(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
+	sl.Each(call.Args, func(arg *SemExpr) { me.semTypify(arg, scope) })
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		_ = me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeCall, 0)
+	}
+}
+
+func (me *SrcPack) semTyPrimOpFnCall(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	sl.Each(call.Args, func(arg *SemExpr) { me.semTypify(arg, scope) })
 }
 
 func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType) func(*SrcPack, *SemExpr, *SemScope) {
@@ -660,6 +679,6 @@ func (me *SrcPack) semTyPrimFnExprEval(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
-		call.Callee.Type = semTypeNew(call.Callee, MoPrimTypeFunc, self.Type, self.Type)
+		call.Callee.Type = semTypeNew(call.Callee, MoPrimTypeFunc, call.Args[0].Type, self.Type)
 	}
 }

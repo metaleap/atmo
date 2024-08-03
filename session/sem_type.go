@@ -93,7 +93,9 @@ func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
 func (me *SemType) normalizeIfAdt() bool {
 	if me.Prim == MoPrimTypeOr {
 		for i := 0; i < me.TArgs.Len(); i++ {
-			if t := me.TArgs[i]; t.Prim == MoPrimTypeAny {
+			if t := me.TArgs[i]; t == nil {
+				panic(me.String())
+			} else if t.Prim == MoPrimTypeAny {
 				*me = *t
 				return true
 			} else if t.Prim == MoPrimTypeOr {
@@ -181,7 +183,7 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 		return ret
 	}
 	expr.ErrsOwn.Add(expr.From.SrcSpan.newDiagErr(ErrCodeExpectedFoo, str.Fmt("%s here instead of `%s`",
-		util.If(equivPrimType < 0, "a comparable value", equivPrimType.Str(true)),
+		util.If((equivPrimType < 0), "a comparable value", equivPrimType.Str(true)),
 		expr.From.SrcNode.Src)))
 	return nil
 }
@@ -202,17 +204,18 @@ func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 		if !expr.HasErrs() { // dont wanna be too noisy
 			t1, t2 := expect, expr.Type
 			dt1, dt2 := expect.DueTo, expr
-			s1, s2 := t1.String(), t2.String()
+			s1, s2 := "`"+t1.String()+"` value", "`"+t2.String()+"` value"
 			if t1.Prim != t2.Prim {
-				s1, s2 = t1.Prim.String(), t2.Prim.String()
+				s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
 			}
 			// if len(s2) < len(s1) {
 			// 	s1, s2, t1, t2, dt1, dt2 = s2, s1, t2, t1, dt2, dt1
 			// }
 			err := expr.ErrNew(ErrCodeTypeMismatch, s1, s2)
+			println(t1.DueTo == nil, t2.DueTo == nil)
 			err.Rel = srcFileLocs([]string{
-				str.Fmt("`%s` imposed via `%s`", s1, dt1.String()),
-				str.Fmt("`%s` provided by `%s`", s2, dt2.String()),
+				str.Fmt("%s imposed via `%s`", s1, dt1.String()),
+				str.Fmt("%s provided by `%s`", s2, dt2.String()),
 			}, t1.DueTo, t2.DueTo)
 			expr.ErrsOwn.Add(err)
 		}
