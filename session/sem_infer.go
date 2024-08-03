@@ -48,7 +48,9 @@ func (me *SrcPack) semInferExpr(ctx *semInferCtx, self *SemExpr, env map[MoValId
 
 func (me *semInferCtx) applySubst(subst map[int]*SemType, tyOrTVar *SemType) *SemType {
 	if tyOrTVar.Prim < 0 { // type-var
-
+		if ty := subst[int(tyOrTVar.Prim)]; ty != nil {
+			return ty
+		}
 	} else if tyOrTVar.Prim == MoPrimTypeFunc {
 		ty_fn_targs := make([]*SemType, len(tyOrTVar.TArgs))
 		for i := range ty_fn_targs {
