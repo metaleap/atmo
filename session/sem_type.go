@@ -231,24 +231,28 @@ func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 		}
 	} else if !expr.Type.Sats(expect) {
 		if !expr.HasErrs() { // dont wanna be too noisy
-			expr.ErrAdd(semNewTypeErr(expr, expect))
+			expr.ErrAdd(semTypeErr(expr, expect))
 		}
 		return false
 	}
 	return true
 }
 
-func semNewTypeErr(expr *SemExpr, expect *SemType) *Diag {
-	t1, t2 := expect, expr.Type
-	dt1, dt2 := expect.DueTo, expr
+func semTypeErr(expr *SemExpr, expect *SemType) *Diag {
+	return semTypeErrOn(expr, expect, expr.Type)
+}
+
+func semTypeErrOn(self *SemExpr, expect *SemType, have *SemType) *Diag {
+	t1, t2 := expect, have
+	dt1, dt2 := expect.DueTo, have.DueTo
 	s1, s2 := "`"+t1.String()+"` value", "`"+t2.String()+"` value"
 	if t1.Prim != t2.Prim {
 		s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
 	}
-	err := expr.ErrNew(ErrCodeTypeMismatch, s1, s2)
+	err := self.ErrNew(ErrCodeTypeMismatch, s1, s2)
 	err.Rel = srcFileLocs([]string{
-		str.Fmt("%s imposed via `%s`", s1, dt1.String()),
-		str.Fmt("%s provided by `%s`", s2, dt2.String()),
+		str.Fmt("%s decided by `%s`", s1, dt1.String()),
+		str.Fmt("%s decided by `%s`", s2, dt2.String()),
 	}, t1.DueTo, t2.DueTo)
 	return err
 }

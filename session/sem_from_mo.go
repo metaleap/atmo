@@ -24,10 +24,9 @@ func (me *SrcPack) semRefresh() {
 		// for _, top_expr := range me.Trees.Sem.TopLevel {
 		// 	me.semTypify(top_expr, &me.Trees.Sem.Scope)
 		// }
-		if false && !me.Trees.Sem.TopLevel.AnyErrs() {
+		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
-				ident, _ := it.Val.(*SemValIdent)
-				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) && ((ident == nil) || !ident.IsParam) {
+				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) {
 					it.ErrAdd(it.ErrNew(ErrCodeUntypifiable))
 				}
 				return true
