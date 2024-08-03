@@ -56,14 +56,29 @@ func (me *SrcPack) inferExpr(ctx *semInferCtx, self *SemExpr, env semInferEnv) (
 		}
 		new_var := ctx.newTVar(self)
 		s3 := ctx.composeSubst(s1, s2...)
-		s4 := ctx.unify(semTypeNew(self, MoPrimTypeFunc, append(ty_arg, new_var)...), ty_fn_0)
+		if (ty_fn_0 == nil) || sl.Has(ty_arg, nil) {
+			return nil, nil
+		}
+		s4, err := ctx.unify(self, semTypeNew(self, MoPrimTypeFunc, append(ty_arg, new_var)...), ty_fn_0)
+		if err != nil {
+			self.ErrAdd(err)
+			return nil, nil
+		}
 		ty_fn_1 := ctx.applySubstToType(s4, ty_fn_0)
 		s5 := ctx.composeSubst(s3, s4)
-		idx := -1
+		idx, erred := -1, false
 		s6 := sl.To(ty_arg, func(tyArg *SemType) semInferSubst {
 			idx++
-			return ctx.unify(ctx.applySubstToType(s5, ty_fn_1.TArgs[idx]), tyArg)
+			ret, err := ctx.unify(val.Args[idx], ctx.applySubstToType(s5, ty_fn_1.TArgs[idx]), tyArg)
+			if err != nil {
+				self.ErrAdd(err)
+				erred = true
+			}
+			return ret
 		})
+		if erred {
+			return nil, nil
+		}
 		result_subst := ctx.composeSubst(s5, s6...)
 		return ctx.applySubstToType(result_subst, ty_fn_1.TArgs[len(ty_fn_1.TArgs)-1]), result_subst
 	}
@@ -94,13 +109,10 @@ func (me *semInferCtx) applySubstToType(subst semInferSubst, tyOrTVar *SemType) 
 }
 
 func (me *semInferCtx) composeSubst(s1 semInferSubst, s2 ...semInferSubst) semInferSubst {
-	result := make(semInferSubst, len(s1)+len(s2))
-	for k, t1 := range s1 {
-		result[k] = t1
-	}
+	result := maps.Clone(s1)
 	for _, s2 := range s2 {
 		for k, t2 := range s2 {
-			result[k] = me.applySubstToType(s1, t2)
+			result[k] = me.applySubstToType(result, t2)
 		}
 	}
 	return result
@@ -111,13 +123,43 @@ func (me *semInferCtx) newTVar(dueTo *SemExpr) *SemType {
 	return semTypeNew(dueTo, MoValPrimType(me.next))
 }
 
-func (me *semInferCtx) unify(t1 *SemType, t2 *SemType) semInferSubst {
-
-	return nil
+func (me *semInferCtx) unify(self *SemExpr, t1 *SemType, t2 *SemType) (semInferSubst, *Diag) {
+	if t1.Prim < 0 {
+		return me.tVarBind(int(t1.Prim), t2)
+	} else if t2.Prim < 0 {
+		return me.tVarBind(int(t2.Prim), t1)
+	} else if (t1.Prim == MoPrimTypeFunc) && (t2.Prim == MoPrimTypeFunc) {
+		var err *Diag
+		s1s := make([]semInferSubst, len(t1.TArgs)-1)
+		for i := range t1.TArgs[:len(t1.TArgs)-1] {
+			if s1s[i], err = me.unify(self, t1.TArgs[i], t2.TArgs[i]); err != nil {
+				return nil, err
+			}
+		}
+		var s1 semInferSubst
+		if len(s1s) == 0 {
+			s1 = semInferSubst{}
+		} else {
+			s1 = me.composeSubst(s1s[0], s1s[1:]...)
+		}
+		s2, err := me.unify(self, me.applySubstToType(s1, t1.TArgs[len(t1.TArgs)-1]), me.applySubstToType(s1, t2.TArgs[len(t2.TArgs)-1]))
+		if err != nil {
+			return nil, err
+		}
+		return me.composeSubst(s1, s2), nil
+	} else if t1.Eq(t2) {
+		return semInferSubst{}, nil
+	}
+	return nil, self.ErrNew(ErrCodeAtmoTodo, "typeMismatch")
 }
 
-func (me *semInferCtx) tVarBind(n int, ty *SemType) semInferSubst {
-	return nil
+func (me *semInferCtx) tVarBind(n int, ty *SemType) (semInferSubst, *Diag) {
+	if n == int(ty.Prim) {
+		return semInferSubst{}, nil
+	} else if me.tVarOccurs(ty, n) {
+		return nil, ty.DueTo.ErrNew(ErrCodeAtmoTodo, "cyclic")
+	}
+	return semInferSubst{n: ty}, nil
 }
 
 func (me *semInferCtx) tVarOccurs(ty *SemType, n int) bool {
