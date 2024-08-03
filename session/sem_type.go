@@ -15,8 +15,25 @@ type SemType struct {
 }
 
 func (me *SemType) Eq(to *SemType) bool {
-	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqOrderless, sl.Eq[sl.Of[*SemType]])
+	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqAnyOrder, sl.Eq[sl.Of[*SemType]])
 	return (me == to) || ((me != nil) && (to != nil) && (me.Prim == to.Prim) && sl_eq(me.TArgs, to.TArgs, (*SemType).Eq))
+}
+
+func (me *SemType) Sats(expect *SemType) bool {
+	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqAnyOrder, sl.Eq[sl.Of[*SemType]])
+	switch {
+	case me == expect:
+		return true
+	case (me == nil) || (expect == nil):
+		return false
+	case expect.Prim == MoPrimTypeAny:
+		return true
+	case me.Prim == MoPrimTypeOr:
+		return sl.All(me.TArgs, func(targ *SemType) bool { return targ.Sats(expect) })
+	case expect.Prim == MoPrimTypeOr:
+		return sl.Any(expect.TArgs, func(targ *SemType) bool { return me.Sats(targ) })
+	}
+	return (me.Prim == expect.Prim) && sl_eq(me.TArgs, expect.TArgs, (*SemType).Sats)
 }
 
 func (me *SemType) String() (ret string) {
@@ -94,7 +111,7 @@ func (me *SemType) normalizeIfAdt() bool {
 	if me.Prim == MoPrimTypeOr {
 		for i := 0; i < me.TArgs.Len(); i++ {
 			if t := me.TArgs[i]; t == nil {
-				panic(me.String())
+				return false
 			} else if t.Prim == MoPrimTypeAny {
 				*me = *t
 				return true
@@ -104,7 +121,6 @@ func (me *SemType) normalizeIfAdt() bool {
 			}
 		}
 		me.TArgs.EnsureAllUnique((*SemType).Eq)
-		me.TArgs = me.TArgs.Without(func(it *SemType) bool { return it.Prim == MoPrimTypeAny })
 		switch len(me.TArgs) {
 		case 0:
 			return false
@@ -189,9 +205,10 @@ func semCheckIs[T any](equivPrimType MoValPrimType, expr *SemExpr) *T {
 }
 
 func (me *SrcPack) semCheckTypePrim(expr *SemExpr, dueTo *SemExpr, expect MoValPrimType, arity int) bool {
-	if (expr.Type != nil) && (expr.Type.Prim == expect) && (len(expr.Type.TArgs) == arity) {
+	if (expr.Type != nil) && (expr.Type.Prim == expect) && ((arity < 0) || (len(expr.Type.TArgs) == arity)) {
 		return true
 	}
+	arity = util.If((arity < 0), 0, arity)
 	targs, targ := make([]*SemType, arity), semTypeNew(dueTo, MoPrimTypeAny)
 	for i := range targs {
 		targs[i] = targ
@@ -200,7 +217,7 @@ func (me *SrcPack) semCheckTypePrim(expr *SemExpr, dueTo *SemExpr, expect MoValP
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
-	if !expect.Eq(expr.Type) {
+	if !expr.Type.Sats(expect) {
 		if !expr.HasErrs() { // dont wanna be too noisy
 			t1, t2 := expect, expr.Type
 			dt1, dt2 := expect.DueTo, expr
@@ -208,9 +225,6 @@ func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
 			if t1.Prim != t2.Prim {
 				s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
 			}
-			// if len(s2) < len(s1) {
-			// 	s1, s2, t1, t2, dt1, dt2 = s2, s1, t2, t1, dt2, dt1
-			// }
 			err := expr.ErrNew(ErrCodeTypeMismatch, s1, s2)
 			println(t1.DueTo == nil, t2.DueTo == nil)
 			err.Rel = srcFileLocs([]string{

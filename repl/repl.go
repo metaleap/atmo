@@ -121,7 +121,7 @@ func diagMsg(srcFilePath string, diag *session.Diag) string {
 	case session.DiagKindWarn:
 		icon = '🤯'
 	}
-	return fmt.Sprintf("%s %s: [%s] %s", string(icon), diag.LocStr(srcFilePath), diag.Code, diag.Message)
+	return fmt.Sprintf("%s %s: %s: %s", string(icon), diag.LocStr(srcFilePath), diag.Code, diag.Message)
 }
 
 func checkHaveLineEditing() bool {

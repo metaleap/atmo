@@ -145,10 +145,11 @@ func (me *Interp) primOpFnCall(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return nil, me.exprErr(err)
 	}
-	if err := me.checkIs(MoPrimTypeList, args[1]); err != nil {
+	list := me.evalAndApply(env, args[1])
+	if err := me.checkIs(MoPrimTypeList, list); err != nil {
 		return nil, me.exprErr(err)
 	}
-	callee, args_list := args[0], args[1].Val.(*MoValList)
+	callee, args_list := args[0], list.Val.(*MoValList)
 	return env, me.expr(append(MoValCall{callee}, (*args_list)...), nil, nil, args...)
 }
 

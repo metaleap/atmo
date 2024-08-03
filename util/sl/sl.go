@@ -180,7 +180,7 @@ func Eq[TSlice ~[]TItem, TItem any](slice1 TSlice, slice2 TSlice, eq func(TItem,
 	})
 }
 
-func EqOrderless[TSlice ~[]TItem, TItem any](slice1 TSlice, slice2 TSlice, eq func(TItem, TItem) bool) bool {
+func EqAnyOrder[TSlice ~[]TItem, TItem any](slice1 TSlice, slice2 TSlice, eq func(TItem, TItem) bool) bool {
 	if len(slice1) != len(slice2) {
 		return false
 	}

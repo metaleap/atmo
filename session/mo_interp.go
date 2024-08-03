@@ -348,8 +348,7 @@ func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have Mo
 
 func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *Diag {
 	if have_type := have.Val.PrimType(); have_type != want {
-		have_str := util.If(have_type == MoPrimTypeFunc, have.SrcFile.srcAt(have.SrcSpan, '`'), "`"+have.String()+"`")
-		return me.diagSpan(false, true, have).newDiagErr(ErrCodeExpectedFoo, str.Fmt("%s instead of %s %s", want.Str(true), have_type.Str(true), have_str))
+		return me.diagSpan(false, true, have).newDiagErr(ErrCodeTypeMismatch, want.Str(true), have_type.Str(true))
 	}
 	return nil
 }
@@ -395,7 +394,7 @@ func (me *Interp) check(want MoValPrimType, wantAtLeast int, wantAtMost int, hav
 }
 
 func (me *Interp) newErrExpectedBool(noBool *MoExpr) *Diag {
-	return me.diagSpan(false, true, noBool).newDiagErr(ErrCodeExpectedFoo, "a boolean expression instead of `"+noBool.String()+"`")
+	return me.diagSpan(false, true, noBool).newDiagErr(ErrCodeTypeMismatch, MoPrimTypeBool.Str(true), noBool.Val.PrimType().Str(true))
 }
 
 type MoEnv struct {
