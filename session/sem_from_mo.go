@@ -141,7 +141,7 @@ func (me *SrcPack) semPopulateRootScope() {
 					case *SemValIdent: // func param
 						decl.IsDeclUsed = true
 					case *SemValCall: // the initial (declaring) @set call
-						decl.Args[1].Val.(*SemValIdent).IsDeclUsed = true
+						decl.Args[0].Val.(*SemValIdent).IsDeclUsed = true
 					}
 				}
 			}
