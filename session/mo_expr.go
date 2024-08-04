@@ -75,7 +75,13 @@ func (me MoValPrimType) Str(natLang bool) string {
 	case MoPrimTypeOr:
 		return util.If(natLang, "union", "@Or")
 	}
-	return "NewAtmoBugReportPlz(" + str.FromInt(int(me)) + ")"
+	if me < 0 {
+		if letter := rune((-me) + 64); (letter >= 'A') && (letter <= 'Z') {
+			return "@Some" + string(letter)
+		}
+		return "@Some" + str.FromInt(int(-me))
+	}
+	return "@SomeBugPlzReport" + str.FromInt(int(me))
 }
 
 type MoVal interface {
