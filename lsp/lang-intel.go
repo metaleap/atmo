@@ -137,7 +137,7 @@ func init() {
 					items := info.Items.Where(session.IntelItemKindDescription)
 					for i, item := range items {
 						if item.CodeLang != "" {
-							items[i].Value = "```" + item.CodeLang + "\n" + item.Value + "\n```"
+							items[i].Value = "\n \n```" + item.CodeLang + "\n" + item.Value + "\n```"
 						} else {
 							items[i].Value = html.EscapeString(item.Value)
 						}

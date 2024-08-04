@@ -3,7 +3,6 @@ package session
 import (
 	"maps"
 
-	"atmo/util"
 	"atmo/util/sl"
 )
 
@@ -24,20 +23,13 @@ func (me *SrcPack) semInferTypes() {
 		// expr `.Type`s to `nil` which then means "expr untypifyable" (due to errors already reported along the way)
 		var fully_typified func(*SemType) bool
 		fully_typified = func(t *SemType) bool {
-			return (t != nil) && (t.Prim >= 0) && sl.All(t.TArgs, fully_typified)
+			return (t.Prim >= 0) && sl.All(t.TArgs, fully_typified)
 		}
 		top_expr.Walk(false, nil, func(it *SemExpr) {
 			if it.Type != nil {
 				it.Type = ctx.applySubstToType(subst, it.Type)
 				if !fully_typified(it.Type) {
 					it.Type = nil
-				} else if fn, _ := it.Val.(*SemValFunc); fn != nil { // check all funcs for untypified (ie. unreferenced) Params
-					for _, param := range fn.Params {
-						if param.Type == nil {
-							param.Type = semTypeNew(fn.Body, MoPrimTypeAny)
-							param.Fact(SemFact{Kind: SemFactUnused}, fn.Body)
-						}
-					}
 				}
 			}
 		})
@@ -54,21 +46,27 @@ func (me *semInferCtx) semTypeInferExpr(self *SemExpr, env semInferEnv) (*SemTyp
 	case *SemValIdent:
 		ty := env[val.Name]
 		if ty == nil {
-			ty = semPrimFnTypes[val.Name]
+			if ty = semPrimFnTypes[val.Name]; ty != nil {
+				ty = semTypeEnsureDueTo(self, ty)
+			}
+			if ty == nil && val.Unresolved { // can still typify the unresolved symbol
+				ty = me.newTVar(self)
+				env[val.Name] = ty
+			}
 		}
-		if ty == nil {
-			is_prim_op := semTyPrimOps[val.Name] != nil
-			self.ErrAdd(self.ErrNew(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Name))
-		} else {
-			self.Type = semTypeEnsureDueTo(self, ty)
-		}
+		self.Type = ty
 		return ty, semInferSubst{}
 
 	case *SemValFunc:
 		new_env := maps.Clone(env)
 		ty_vars := make([]*SemType, len(val.Params))
 		for i, param := range val.Params {
-			ty_vars[i] = me.newTVar(param)
+			if !param.Val.(*SemValIdent).IsDeclUsed {
+				ty_vars[i] = semTypeNew(val.Body, MoPrimTypeAny)
+				param.Fact(SemFact{Kind: SemFactUnused}, val.Body)
+			} else {
+				ty_vars[i] = me.newTVar(param)
+			}
 			new_env[param.Val.(*SemValIdent).Name] = ty_vars[i]
 		}
 		ty_body, subst := me.semTypeInferExpr(val.Body, new_env)
@@ -118,7 +116,6 @@ func (me *semInferCtx) semTypeInferExpr(self *SemExpr, env semInferEnv) (*SemTyp
 		result_subst := me.composeSubst(s5, s6...)
 		self.Type = me.applySubstToType(result_subst, ty_fn_1.TArgs[len(ty_fn_1.TArgs)-1])
 		return self.Type, result_subst
-
 	}
 	return nil, nil
 }
@@ -187,6 +184,12 @@ func (me *semInferCtx) unify(errDst *SemExpr, t1 *SemType, t2 *SemType) (semInfe
 		return me.composeSubst(s1, s2), nil
 	} else if t1.Eq(t2) {
 		return semInferSubst{}, nil
+	}
+
+	if t1.DueTo.isCallArg() {
+		errDst = t1.DueTo
+	} else if t2.DueTo.isCallArg() {
+		errDst = t2.DueTo
 	}
 	return nil, semTypeErrOn(errDst, t1, t2)
 }

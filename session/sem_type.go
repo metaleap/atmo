@@ -134,11 +134,11 @@ func (me *SemType) normalizeIfAdt() bool {
 
 func semTypeEnsureDueTo(dueTo *SemExpr, ty *SemType) *SemType {
 	if dueTo != nil {
-		nay := func(t *SemType) bool {
+		should := func(t *SemType) bool {
 			return (t.DueTo == nil) || (t.DueTo.From == nil) || (t.DueTo.From.SrcFile == nil) || (t.DueTo.From.SrcSpan == nil)
 		}
-		if nah := nay(ty); nah || sl.Any(ty.TArgs, nay) {
-			return semTypeNew(util.If(nah, dueTo, ty.DueTo), ty.Prim, sl.To(ty.TArgs, func(targ *SemType) *SemType { return semTypeEnsureDueTo(dueTo, targ) })...)
+		if use := should(ty); use || sl.Any(ty.TArgs, should) {
+			return semTypeNew(util.If(use, dueTo, ty.DueTo), ty.Prim, sl.To(ty.TArgs, func(targ *SemType) *SemType { return semTypeEnsureDueTo(dueTo, targ) })...)
 		}
 	}
 	return ty

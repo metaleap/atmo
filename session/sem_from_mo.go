@@ -18,12 +18,8 @@ func (me *SrcPack) semRefresh() {
 	}
 	me.moPrePackEval()
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
-		// me.semInferTypes()
 		me.semPopulateRootScope()
 		me.semInferTypes()
-		// for _, top_expr := range me.Trees.Sem.TopLevel {
-		// 	me.semTypify(top_expr, &me.Trees.Sem.Scope)
-		// }
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
 				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) {
@@ -96,16 +92,16 @@ func (me *SrcPack) semPopulateCall(self *SemExpr, it MoValCall) {
 }
 
 func (me *SrcPack) semPopulateRootScope() {
+	// bring the prim-fns into the root scope as `SemValFunc`s without a `.Body`
 	for name, prim_fn := range semTyPrimFns {
 		fn_val := &SemValFunc{primImpl: prim_fn}
 		fn := &SemExpr{Scope: &me.Trees.Sem.Scope, Type: semPrimFnTypes[name], Val: fn_val}
 		fn.Type = semTypeEnsureDueTo(fn, fn.Type)
 		var idx int
-		fn_val.Params = SemExprs(sl.To(fn.Type.TArgs, func(t *SemType) *SemExpr {
+		fn_val.Params = SemExprs(sl.To(fn.Type.TArgs[:len(fn.Type.TArgs)-1], func(t *SemType) *SemExpr {
 			idx++
-			return &SemExpr{Parent: fn, Scope: fn.Scope, Type: t, Val: &SemValIdent{Name: MoValIdent("arg" + str.FromInt(idx))}}
+			return &SemExpr{Parent: fn, Scope: fn.Scope, Type: t, Val: &SemValIdent{Name: MoValIdent("param" + str.FromInt(idx))}}
 		}))
-		fn_val.Params = fn_val.Params[:len(fn_val.Params)-1] // remove the return tyArg from params
 		fn.Fact(SemFact{Kind: SemFactPrimFn}, fn)
 		me.Trees.Sem.Scope.Own[name] = &SemScopeEntry{
 			Type:                  fn.Type,
@@ -114,19 +110,43 @@ func (me *SrcPack) semPopulateRootScope() {
 		}
 	}
 
+	// prior to type-inference and static-eval, pre-process `@set` and `@fn` calls:
 	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
 		if call, _ := self.Val.(*SemValCall); call != nil {
 			switch ident := call.Callee.MaybeIdent(true); ident {
-			case moPrimOpQQuote, moPrimOpQuote:
-				return false
+			case moPrimOpQuote:
+				return false // do not traverse into quote call
+			case moPrimOpQQuote:
+				return false // do not traverse into quasiquote for now (TODO: do traverse & handle unquote so that the below cases will trigger in unquoted parts)
 			case moPrimOpFn, moPrimOpMacro:
-				me.semScopePrepOnFn(self)
+				me.semScopePrepOnFn(self) // transform @fn and @macro calls into SemValFunc expr with own SemScope having its Params
 			case moPrimOpSet:
-				me.semScopePrepOnSet(self)
+				me.semScopePrepOnSet(self) // ensure all @set calls collected in the relevant scope entry
 			}
 		}
 		return true
 	}, nil)
+	// finally, gather all `SemScopeEntry.Refs` and also mark unused func params
+	me.Trees.Sem.TopLevel.Walk(nil, nil, func(self *SemExpr) {
+		switch val := self.Val.(type) {
+		case *SemValIdent:
+			if (!val.IsDecl) && (!val.IsSet) {
+				if _, entry := self.Scope.Lookup(val.Name); entry == nil {
+					val.Unresolved = true
+					is_prim_op := (semTyPrimOps[val.Name] != nil)
+					self.ErrAdd(self.ErrNew(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Name))
+				} else {
+					entry.Refs[self] = util.Void{}
+					switch decl := entry.DeclParamOrCallOrFunc.Val.(type) {
+					case *SemValIdent: // func param
+						decl.IsDeclUsed = true
+					case *SemValCall: // the initial (declaring) @set call
+						decl.Args[1].Val.(*SemValIdent).IsDeclUsed = true
+					}
+				}
+			}
+		}
+	})
 }
 
 func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, val any, ty *SemType) {

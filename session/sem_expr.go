@@ -23,10 +23,12 @@ type SemValScalar struct {
 }
 
 type SemValIdent struct {
-	Name    MoValIdent
-	IsDecl  bool // if true, either IsParam or IsSet also is
-	IsParam bool // if true, so is IsDecl
-	IsSet   bool
+	Name       MoValIdent
+	IsDecl     bool // if true, either IsParam or IsSet also is
+	IsParam    bool // if true, so is IsDecl
+	IsSet      bool
+	Unresolved bool
+	IsDeclUsed bool
 }
 
 type SemValCall struct {
@@ -137,6 +139,15 @@ func (me *SemExpr) HasFact(kind SemFactKind, of any, orAncestor bool, orDescenda
 		})
 	}
 	return
+}
+
+func (me *SemExpr) isCallArg() bool {
+	if me.Parent != nil {
+		if call, _ := me.Parent.Val.(*SemValCall); call != nil {
+			return sl.Has(call.Args, me)
+		}
+	}
+	return false
 }
 
 func (me *SemExpr) isPrecomputedPermissible() bool {

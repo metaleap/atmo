@@ -36,7 +36,7 @@ const (
 
 	// semantic (errors)
 	ErrCodeExpectedFoo         DiagCode = "Unexpected"
-	ErrCodeUndefined           DiagCode = "NotInScope"
+	ErrCodeUndefined           DiagCode = "NotDefined"
 	ErrCodeNotAValue           DiagCode = "NotAValue"
 	ErrCodeUncallable          DiagCode = "NotCallable"
 	ErrCodeReserved            DiagCode = "Reserved"
