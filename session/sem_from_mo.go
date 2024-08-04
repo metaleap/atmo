@@ -20,7 +20,7 @@ func (me *SrcPack) semRefresh() {
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		// me.semInferTypes()
 		me.semPopulateRootScope()
-		me.semInfer()
+		me.semInferTypes()
 		// for _, top_expr := range me.Trees.Sem.TopLevel {
 		// 	me.semTypify(top_expr, &me.Trees.Sem.Scope)
 		// }

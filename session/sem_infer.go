@@ -3,27 +3,37 @@ package session
 import (
 	"maps"
 
+	"atmo/util"
 	"atmo/util/sl"
 )
 
-func (me *SrcPack) semInfer() {
-	ctx := &semInferCtx{}
-	env := semInferEnv{}
+type semInferCtx struct {
+	next int
+}
+type semInferEnv map[MoValIdent]*SemType
+type semInferSubst map[int]*SemType
+
+func (me *SrcPack) semInferTypes() {
+	ctx, env := semInferCtx{}, semInferEnv{}
 	for _, top_expr := range me.Trees.Sem.TopLevel {
 		var subst semInferSubst
-		top_expr.Type, subst = me.inferExpr(ctx, top_expr, env)
+		top_expr.Type, subst = ctx.semTypeInferExpr(top_expr, env)
+
+		// at this point, fully-typified top-level exprs have their `.Type` set alright. but many/most of their
+		// inner Exprs have type-vars still that we now resolve by walk, thus also normalizing any remaining type-var
+		// expr `.Type`s to `nil` which then means "expr untypifyable" (due to errors already reported along the way)
+		var fully_typified func(*SemType) bool
+		fully_typified = func(t *SemType) bool {
+			return (t != nil) && (t.Prim >= 0) && sl.All(t.TArgs, fully_typified)
+		}
 		top_expr.Walk(false, nil, func(it *SemExpr) {
-			var fully_typified func(*SemType) bool
-			fully_typified = func(t *SemType) bool {
-				return (t.Prim >= 0) && sl.All(t.TArgs, fully_typified)
-			}
 			if it.Type != nil {
 				it.Type = ctx.applySubstToType(subst, it.Type)
 				if !fully_typified(it.Type) {
 					it.Type = nil
-				} else if fn, _ := it.Val.(*SemValFunc); fn != nil {
+				} else if fn, _ := it.Val.(*SemValFunc); fn != nil { // check all funcs for untypified (ie. unreferenced) Params
 					for _, param := range fn.Params {
-						if param.Type == nil { // unused
+						if param.Type == nil {
 							param.Type = semTypeNew(fn.Body, MoPrimTypeAny)
 							param.Fact(SemFact{Kind: SemFactUnused}, fn.Body)
 						}
@@ -34,14 +44,7 @@ func (me *SrcPack) semInfer() {
 	}
 }
 
-type semInferCtx struct {
-	next int
-}
-
-type semInferEnv map[MoValIdent]*SemType
-type semInferSubst map[int]*SemType
-
-func (me *SrcPack) inferExpr(ctx *semInferCtx, self *SemExpr, env semInferEnv) (*SemType, semInferSubst) {
+func (me *semInferCtx) semTypeInferExpr(self *SemExpr, env semInferEnv) (*SemType, semInferSubst) {
 	switch val := self.Val.(type) {
 	case *SemValScalar:
 		self.Type = semTypeNew(self, val.Value.PrimType())
@@ -54,7 +57,8 @@ func (me *SrcPack) inferExpr(ctx *semInferCtx, self *SemExpr, env semInferEnv) (
 			}
 		}
 		if ty == nil {
-			self.ErrAdd(self.ErrNew(ErrCodeAtmoTodo, "undefined:"+string(val.Name)))
+			is_prim_op := semTyPrimOps[val.Name] != nil
+			self.ErrAdd(self.ErrNew(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Name))
 		}
 		self.Type = ty
 		return ty, semInferSubst{}
@@ -62,16 +66,16 @@ func (me *SrcPack) inferExpr(ctx *semInferCtx, self *SemExpr, env semInferEnv) (
 		new_env := maps.Clone(env)
 		ty_vars := make([]*SemType, len(val.Params))
 		for i, param := range val.Params {
-			ty_vars[i] = ctx.newTVar(param)
+			ty_vars[i] = me.newTVar(param)
 			new_env[param.MaybeIdent(true)] = ty_vars[i]
 		}
-		ty_body, subst := me.inferExpr(ctx, val.Body, new_env)
+		ty_body, subst := me.semTypeInferExpr(val.Body, new_env)
 		if ty_body == nil {
 			return nil, nil
 		}
 		ty_fn_targs := make([]*SemType, len(val.Params)+1)
 		for i := range val.Params {
-			ty_fn_targs[i] = ctx.applySubstToType(subst, ty_vars[i])
+			ty_fn_targs[i] = me.applySubstToType(subst, ty_vars[i])
 			val.Params[i].Type = ty_fn_targs[i]
 		}
 		ty_fn_targs[len(ty_fn_targs)-1] = ty_body
@@ -79,27 +83,27 @@ func (me *SrcPack) inferExpr(ctx *semInferCtx, self *SemExpr, env semInferEnv) (
 		self.Type = ty_fn
 		return ty_fn, subst
 	case *SemValCall:
-		ty_fn_0, s1 := me.inferExpr(ctx, val.Callee, env)
+		ty_fn_0, s1 := me.semTypeInferExpr(val.Callee, env)
 		ty_arg, s2 := make([]*SemType, len(val.Args)), make([]semInferSubst, len(val.Args))
 		for i, arg := range val.Args {
-			ty_arg[i], s2[i] = me.inferExpr(ctx, arg, ctx.applySubstToEnv(s1, env))
+			ty_arg[i], s2[i] = me.semTypeInferExpr(arg, me.applySubstToEnv(s1, env))
 		}
 		if (ty_fn_0 == nil) || sl.Has(ty_arg, nil) {
 			return nil, nil
 		}
-		new_var := ctx.newTVar(self)
-		s3 := ctx.composeSubst(s1, s2...)
-		s4, err := ctx.unify(self, semTypeNew(self, MoPrimTypeFunc, append(ty_arg, new_var)...), ty_fn_0)
+		new_var := me.newTVar(self)
+		s3 := me.composeSubst(s1, s2...)
+		s4, err := me.unify(self, semTypeNew(self, MoPrimTypeFunc, append(ty_arg, new_var)...), ty_fn_0)
 		if err != nil {
 			self.ErrAdd(err)
 			return nil, nil
 		}
-		ty_fn_1 := ctx.applySubstToType(s4, ty_fn_0)
-		s5 := ctx.composeSubst(s3, s4)
+		ty_fn_1 := me.applySubstToType(s4, ty_fn_0)
+		s5 := me.composeSubst(s3, s4)
 		idx, erred := -1, false
 		s6 := sl.To(ty_arg, func(tyArg *SemType) semInferSubst {
 			idx++
-			ret, err := ctx.unify(val.Args[idx], ctx.applySubstToType(s5, ty_fn_1.TArgs[idx]), tyArg)
+			ret, err := me.unify(val.Args[idx], me.applySubstToType(s5, ty_fn_1.TArgs[idx]), tyArg)
 			if err != nil {
 				self.ErrAdd(err)
 				erred = true
@@ -109,8 +113,8 @@ func (me *SrcPack) inferExpr(ctx *semInferCtx, self *SemExpr, env semInferEnv) (
 		if erred {
 			return nil, nil
 		}
-		result_subst := ctx.composeSubst(s5, s6...)
-		self.Type = ctx.applySubstToType(result_subst, ty_fn_1.TArgs[len(ty_fn_1.TArgs)-1])
+		result_subst := me.composeSubst(s5, s6...)
+		self.Type = me.applySubstToType(result_subst, ty_fn_1.TArgs[len(ty_fn_1.TArgs)-1])
 		return self.Type, result_subst
 	}
 	return nil, nil
@@ -188,7 +192,7 @@ func (me *semInferCtx) tVarBind(n int, ty *SemType) (semInferSubst, *Diag) {
 	if n == int(ty.Prim) {
 		return semInferSubst{}, nil
 	} else if me.tVarOccurs(ty, n) {
-		return nil, ty.DueTo.ErrNew(ErrCodeAtmoTodo, "cyclic")
+		return nil, ty.DueTo.ErrNew(ErrCodeTypeInfinite, ty.String())
 	}
 	return semInferSubst{n: ty}, nil
 }
