@@ -46,42 +46,44 @@ func (me *SrcPack) semInferTypes() {
 
 func (me *semInferCtx) semTypeInferExpr(self *SemExpr, env semInferEnv) (*SemType, semInferSubst) {
 	switch val := self.Val.(type) {
+
 	case *SemValScalar:
 		self.Type = semTypeNew(self, val.Value.PrimType())
 		return self.Type, semInferSubst{}
+
 	case *SemValIdent:
 		ty := env[val.Name]
 		if ty == nil {
-			if ty = semPrimFnTypes[val.Name]; ty != nil {
-				ty = semTypeEnsureDueTo(self, ty)
-			}
+			ty = semPrimFnTypes[val.Name]
 		}
 		if ty == nil {
 			is_prim_op := semTyPrimOps[val.Name] != nil
 			self.ErrAdd(self.ErrNew(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Name))
+		} else {
+			self.Type = semTypeEnsureDueTo(self, ty)
 		}
-		self.Type = ty
 		return ty, semInferSubst{}
+
 	case *SemValFunc:
 		new_env := maps.Clone(env)
 		ty_vars := make([]*SemType, len(val.Params))
 		for i, param := range val.Params {
 			ty_vars[i] = me.newTVar(param)
-			new_env[param.MaybeIdent(true)] = ty_vars[i]
+			new_env[param.Val.(*SemValIdent).Name] = ty_vars[i]
 		}
 		ty_body, subst := me.semTypeInferExpr(val.Body, new_env)
 		if ty_body == nil {
 			return nil, nil
 		}
-		ty_fn_targs := make([]*SemType, len(val.Params)+1)
+		targs_fn := make([]*SemType, len(val.Params)+1)
 		for i := range val.Params {
-			ty_fn_targs[i] = me.applySubstToType(subst, ty_vars[i])
-			val.Params[i].Type = ty_fn_targs[i]
+			targs_fn[i] = me.applySubstToType(subst, ty_vars[i])
+			val.Params[i].Type = targs_fn[i]
 		}
-		ty_fn_targs[len(ty_fn_targs)-1] = ty_body
-		ty_fn := semTypeNew(self, MoPrimTypeFunc, ty_fn_targs...)
-		self.Type = ty_fn
-		return ty_fn, subst
+		targs_fn[len(targs_fn)-1] = ty_body
+		self.Type = semTypeNew(self, MoPrimTypeFunc, targs_fn...)
+		return semTypeNew(self, MoPrimTypeFunc, targs_fn...), subst
+
 	case *SemValCall:
 		ty_fn_0, s1 := me.semTypeInferExpr(val.Callee, env)
 		ty_arg, s2 := make([]*SemType, len(val.Args)), make([]semInferSubst, len(val.Args))
@@ -116,6 +118,7 @@ func (me *semInferCtx) semTypeInferExpr(self *SemExpr, env semInferEnv) (*SemTyp
 		result_subst := me.composeSubst(s5, s6...)
 		self.Type = me.applySubstToType(result_subst, ty_fn_1.TArgs[len(ty_fn_1.TArgs)-1])
 		return self.Type, result_subst
+
 	}
 	return nil, nil
 }
@@ -158,7 +161,7 @@ func (me *semInferCtx) newTVar(dueTo *SemExpr) *SemType {
 	return semTypeNew(dueTo, MoValPrimType(me.next))
 }
 
-func (me *semInferCtx) unify(self *SemExpr, t1 *SemType, t2 *SemType) (semInferSubst, *Diag) {
+func (me *semInferCtx) unify(errDst *SemExpr, t1 *SemType, t2 *SemType) (semInferSubst, *Diag) {
 	if t1.Prim < 0 {
 		return me.tVarBind(int(t1.Prim), t2)
 	} else if t2.Prim < 0 {
@@ -167,7 +170,7 @@ func (me *semInferCtx) unify(self *SemExpr, t1 *SemType, t2 *SemType) (semInferS
 		var err *Diag
 		s1s := make([]semInferSubst, len(t1.TArgs)-1)
 		for i := range t1.TArgs[:len(t1.TArgs)-1] {
-			if s1s[i], err = me.unify(self, t1.TArgs[i], t2.TArgs[i]); err != nil {
+			if s1s[i], err = me.unify(errDst, t1.TArgs[i], t2.TArgs[i]); err != nil {
 				return nil, err
 			}
 		}
@@ -177,7 +180,7 @@ func (me *semInferCtx) unify(self *SemExpr, t1 *SemType, t2 *SemType) (semInferS
 		} else {
 			s1 = me.composeSubst(s1s[0], s1s[1:]...)
 		}
-		s2, err := me.unify(self, me.applySubstToType(s1, t1.TArgs[len(t1.TArgs)-1]), me.applySubstToType(s1, t2.TArgs[len(t2.TArgs)-1]))
+		s2, err := me.unify(errDst, me.applySubstToType(s1, t1.TArgs[len(t1.TArgs)-1]), me.applySubstToType(s1, t2.TArgs[len(t2.TArgs)-1]))
 		if err != nil {
 			return nil, err
 		}
@@ -185,7 +188,7 @@ func (me *semInferCtx) unify(self *SemExpr, t1 *SemType, t2 *SemType) (semInferS
 	} else if t1.Eq(t2) {
 		return semInferSubst{}, nil
 	}
-	return nil, semTypeErrOn(self, t1, t2)
+	return nil, semTypeErrOn(errDst, t1, t2)
 }
 
 func (me *semInferCtx) tVarBind(n int, ty *SemType) (semInferSubst, *Diag) {
