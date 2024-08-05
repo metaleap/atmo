@@ -58,6 +58,8 @@ const (
 	moPrimFnListRange   MoValIdent = "@listRange"
 	moPrimFnListLen     MoValIdent = "@listLen"
 	moPrimFnListConcat  MoValIdent = "@listConcat"
+	moPrimFnTupGet      MoValIdent = "@tupGet"
+	moPrimFnTupSet      MoValIdent = "@tupSet"
 	moPrimFnDictHas     MoValIdent = "@dictHas"
 	moPrimFnDictGet     MoValIdent = "@dictGet"
 	moPrimFnDictSet     MoValIdent = "@dictSet"
@@ -121,6 +123,8 @@ func init() {
 		moPrimFnListRange:   (*Interp).primFnListRange,
 		moPrimFnListLen:     (*Interp).primFnListLen,
 		moPrimFnListConcat:  (*Interp).primFnListConcat,
+		moPrimFnTupGet:      (*Interp).primFnTupGet,
+		moPrimFnTupSet:      (*Interp).primFnTupSet,
 		moPrimFnDictHas:     (*Interp).primFnDictHas,
 		moPrimFnDictGet:     (*Interp).primFnDictGet,
 		moPrimFnDictSet:     (*Interp).primFnDictSet,
@@ -283,14 +287,16 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		return nil, me.expr(&ret, me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
 	}
 
-	// must be list or call then: we handle them the same, per item iteration
+	// must be list or tup or call then: we handle them the same, per item iteration
 
-	is_list := (args[0].Val.PrimType() == MoPrimTypeList)
+	is_list, is_tup := (args[0].Val.PrimType() == MoPrimTypeList), (args[0].Val.PrimType() == MoPrimTypeTup)
 	var call_or_arr MoExprs
 	if call, is := args[0].Val.(MoValCall); is {
 		call_or_arr = MoExprs(call)
 	} else if is_list {
 		call_or_arr = MoExprs(*(args[0].Val.(*MoValList)))
+	} else if is_tup {
+		call_or_arr = MoExprs(*(args[0].Val.(*MoValTup)))
 	} else {
 		return nil, me.exprErr(me.diagSpan(false, true, args[0]).newDiagErr(ErrCodeAtmoTodo, "NEW BUG intro'd in primOpQuasiQuote"))
 	}
@@ -331,7 +337,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			ret = append(ret, evaled)
 		}
 	}
-	return nil, me.expr(util.If[MoVal](is_list, util.Ptr(MoValList(ret)), MoValCall(ret)),
+	return nil, me.expr(util.If[MoVal](is_list, util.Ptr(MoValList(ret)), util.If[MoVal](is_tup, util.Ptr(MoValTup(ret)), MoValCall(ret))),
 		me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
 }
 
@@ -576,6 +582,49 @@ func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		ret = append(ret, *(arg.Val.(*MoValList))...)
 	}
 	return me.expr(&ret, nil, nil, args...)
+}
+
+func (me *Interp) primFnTupGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(2, 2, args); err != nil {
+		return me.exprErr(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	if err := me.checkIs(MoPrimTypeTup, args[0]); err != nil {
+		return me.exprErr(err)
+	}
+	if err := me.checkIs(MoPrimTypeNumUint, args[1]); err != nil {
+		return me.exprErr(err)
+	}
+	tup, idx := *(args[0].Val.(*MoValTup)), args[1].Val.(MoValNumUint)
+	if idx_downcast := int(idx); (idx_downcast < 0) || (idx_downcast >= len(tup)) {
+		return me.exprErr(me.diagSpan(false, true, args[1]).newDiagErr(ErrCodeIndexOutOfBounds, idx_downcast, len(tup)))
+	}
+	return me.exprFrom(tup[idx], args...)
+}
+
+func (me *Interp) primFnTupSet(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(3, 3, args); err != nil {
+		return me.exprErr(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	if err := me.checkIs(MoPrimTypeTup, args[0]); err != nil {
+		return me.exprErr(err)
+	}
+	if err := me.checkIs(MoPrimTypeNumUint, args[1]); err != nil {
+		return me.exprErr(err)
+	}
+	tup, idx := args[0].Val.(*MoValTup), args[1].Val.(MoValNumUint)
+	if idx_downcast := int(idx); (idx_downcast < 0) || (idx_downcast >= len(*tup)) {
+		return me.exprErr(me.diagSpan(false, true, args[1]).newDiagErr(ErrCodeIndexOutOfBounds, idx_downcast, len(*tup)))
+	}
+	it := *tup
+	it[idx] = args[2]
+	*tup = it
+	return me.exprVoid(args...)
 }
 
 func (me *Interp) primFnStrCharAt(_ *MoEnv, args ...*MoExpr) *MoExpr {

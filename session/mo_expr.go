@@ -74,6 +74,8 @@ func (me MoValPrimType) Str(natLang bool) string {
 		return util.If(natLang, "dictionary", "@Dict")
 	case MoPrimTypeList:
 		return util.If(natLang, "list", "@List")
+	case MoPrimTypeTup:
+		return util.If(natLang, "tuple", "@Tup")
 	case MoPrimTypeCall:
 		return util.If(natLang, "call expression", "@Call")
 	case MoPrimTypeFunc:
@@ -110,6 +112,7 @@ type MoValStr string
 type MoValErr struct{ ErrVal *MoExpr }
 type MoValDict []moDictEntry
 type MoValList MoExprs
+type MoValTup MoExprs
 type MoValCall MoExprs
 type MoValFnPrim moFnEager
 type MoValFnLam struct {
@@ -136,6 +139,7 @@ func (MoValStr) PrimType() MoValPrimType         { return MoPrimTypeStr }
 func (MoValErr) PrimType() MoValPrimType         { return MoPrimTypeErr }
 func (*MoValDict) PrimType() MoValPrimType       { return MoPrimTypeDict }
 func (*MoValList) PrimType() MoValPrimType       { return MoPrimTypeList }
+func (*MoValTup) PrimType() MoValPrimType        { return MoPrimTypeTup }
 func (MoValCall) PrimType() MoValPrimType        { return MoPrimTypeCall }
 func (MoValFnPrim) PrimType() MoValPrimType      { return MoPrimTypeFunc }
 func (*MoValFnLam) PrimType() MoValPrimType      { return MoPrimTypeFunc }
@@ -239,6 +243,9 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 		return it.ErrVal.Eq(other.ErrVal)
 	case *MoValList:
 		other := to.Val.(*MoValList)
+		return sl.Eq(*it, *other, (*MoExpr).Eq)
+	case *MoValTup:
+		other := to.Val.(*MoValTup)
 		return sl.Eq(*it, *other, (*MoExpr).Eq)
 	case MoValCall:
 		other := to.Val.(MoValCall)
@@ -386,6 +393,15 @@ func moValStringifyTo(it MoVal, w io.StringWriter) {
 			item.StringifyTo(w)
 		}
 		w.WriteString("]")
+	case *MoValTup:
+		w.WriteString("(")
+		for i, item := range *it {
+			if i > 0 {
+				w.WriteString(", ")
+			}
+			item.StringifyTo(w)
+		}
+		w.WriteString(")")
 	case MoValCall:
 		w.WriteString("(")
 		for i, item := range it {
@@ -533,8 +549,9 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 			val = call_form
 		}
 	case AstNodeKindGroup:
+		is_tup := node.IsParensTuplish()
 		switch {
-		case node.IsSquareBrackets() || node.IsParensTuplish():
+		case node.IsSquareBrackets() || is_tup:
 			nodes := node.Nodes.withoutComments()
 			list := make(MoValList, 0, len(nodes))
 			for _, node := range nodes {
@@ -545,7 +562,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 					list = append(list, expr)
 				}
 			}
-			val = &list
+			val = util.If[MoVal](is_tup, (*MoValTup)(&list), &list)
 		case node.IsCurlyBraces():
 			nodes := node.Nodes.withoutComments()
 			dict := make(MoValDict, 0, len(nodes))
@@ -641,6 +658,10 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 		}
 		it.Body.Walk(onBefore, onAfter)
 	case *MoValList:
+		for _, item := range *it {
+			item.Walk(onBefore, onAfter)
+		}
+	case *MoValTup:
 		for _, item := range *it {
 			item.Walk(onBefore, onAfter)
 		}

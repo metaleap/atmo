@@ -120,6 +120,10 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 								for _, item := range *it {
 									ret.Nodes = append(ret.Nodes, convert(item))
 								}
+							case *session.MoValTup:
+								for _, item := range *it {
+									ret.Nodes = append(ret.Nodes, convert(item))
+								}
 							}
 							if expr.SrcSpan != nil {
 								ret.ClientInfo.SrcFileSpan = expr.SrcSpan

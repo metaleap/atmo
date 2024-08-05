@@ -41,7 +41,9 @@ func (me *SrcPack) semExprFromMoExpr(scope *SemScope, moExpr *MoExpr, parent *Se
 	case MoValIdent:
 		me.semPopulateIdent(ret, it)
 	case *MoValList:
-		me.semPopulateList(ret, it)
+		me.semPopulateList(ret, it, false)
+	case *MoValTup:
+		me.semPopulateList(ret, (*MoValList)(it), true)
 	case *MoValDict:
 		me.semPopulateDict(ret, it)
 	case MoValCall:
@@ -65,11 +67,8 @@ func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
 	self.Val = ident
 }
 
-func (me *SrcPack) semPopulateList(self *SemExpr, it *MoValList) {
-	list := &SemValList{Items: make(SemExprs, len(*it))}
-	if (self.From != nil) && (self.From.SrcNode != nil) {
-		list.IsTup = self.From.SrcNode.IsParensTuplish()
-	}
+func (me *SrcPack) semPopulateList(self *SemExpr, it *MoValList, isTup bool) {
+	list := &SemValList{Items: make(SemExprs, len(*it)), IsTup: isTup}
 	self.Val = list
 	for i, item := range *it {
 		list.Items[i] = me.semExprFromMoExpr(self.Scope, item, self)
