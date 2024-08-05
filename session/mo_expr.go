@@ -534,7 +534,7 @@ func (me *SrcFile) MoExprFromAstNode(node *AstNode) (*MoExpr, *Diag) {
 		}
 	case AstNodeKindGroup:
 		switch {
-		case node.IsSquareBrackets():
+		case node.IsSquareBrackets() || node.IsParensTuplish():
 			nodes := node.Nodes.withoutComments()
 			list := make(MoValList, 0, len(nodes))
 			for _, node := range nodes {

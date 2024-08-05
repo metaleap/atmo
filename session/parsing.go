@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"errors"
 	"strconv"
-	"strings"
 	"unicode/utf8"
 
 	"atmo/util"
@@ -120,11 +119,14 @@ func (me *SrcFile) parseNodes(toks Toks) (ret AstNodes) {
 				node := &AstNode{Kind: AstNodeKindGroup, Toks: toks[0 : len(toks_inner)+2], Lit: toks[0].Src[0]}
 				node.Src = node.Toks.src(me.Src.Text)
 				if len(toks_inner) > 0 {
-					if is_curly := node.IsCurlyBraces(); (!is_curly) && (!node.IsSquareBrackets()) {
+					split_by_comma, is_curly, is_square := toks_inner.split(','), node.IsCurlyBraces(), node.IsSquareBrackets()
+					if (!is_curly) && (!is_square) && ((len(toks_inner) == 0) || (len(split_by_comma) == 1)) {
 						node.Nodes = me.parseNodes(toks_inner)
 					} else {
+						if (!is_curly) && (!is_square) {
+							node.Lit = byte(',')
+						}
 						err_toks := node.Toks[1:2]
-						split_by_comma := toks_inner.split(',')
 						for _, item_toks := range split_by_comma {
 							if len(item_toks) == 0 {
 								node.Nodes = append(node.Nodes, &AstNode{Kind: AstNodeKindErr, Toks: err_toks, Src: err_toks.src(me.Src.Text),
@@ -230,7 +232,7 @@ func (me *AstNode) equals(it *AstNode, includingSpans bool, withoutComments bool
 
 	switch me.Kind {
 	case AstNodeKindGroup, AstNodeKindBlockLine:
-		return (me.Src[0] == it.Src[0]) // covers parens,brackets,braces
+		return (me.Lit == it.Lit) // covers parens,brackets,braces
 	case AstNodeKindLit:
 		switch mine := me.Lit.(type) {
 		case float64:
@@ -276,15 +278,14 @@ func (me *AstNode) ident() string {
 
 func (me *AstNode) IsBracketingWith(opener byte) bool {
 	if me.Kind == AstNodeKindGroup {
-		if lit, is := me.Lit.(byte); is {
-			return (lit == opener)
-		}
+		return (me.Lit == opener)
 	}
 	return false
 }
 func (me *AstNode) IsCurlyBraces() bool    { return me.IsBracketingWith('{') }
 func (me *AstNode) IsSquareBrackets() bool { return me.IsBracketingWith('[') }
-func (me *AstNode) IsParens() bool         { return me.IsBracketingWith('(') }
+func (me *AstNode) IsParensCallish() bool  { return me.IsBracketingWith('(') }
+func (me *AstNode) IsParensTuplish() bool  { return me.IsBracketingWith(',') }
 
 func (me *AstNode) IsIdentOpish() bool {
 	return (me.Kind == AstNodeKindIdent) && (me.Toks[0].Kind == TokKindIdentOpish)
@@ -315,47 +316,6 @@ func (me *AstNode) newDiagWarn(atEnd bool, code DiagCode, args ...any) *Diag {
 }
 func (me *AstNode) newDiagErr(atEnd bool, code DiagCode, args ...any) *Diag {
 	return me.newDiag(DiagKindErr, atEnd, code, args...)
-}
-
-func (me *AstNode) sig(buf *strings.Builder) {
-	if me.Kind == AstNodeKindComment {
-		return
-	}
-	buf.WriteByte('<')
-	buf.WriteString(str.FromInt(int(me.Kind)))
-	buf.WriteByte(',')
-	switch me.Kind {
-	case AstNodeKindIdent:
-		buf.WriteString(me.Lit.(string))
-	case AstNodeKindLit:
-		switch lit := me.Lit.(type) {
-		case float64:
-			buf.WriteString(str.FromFloat(lit, -1))
-		case int64:
-			buf.WriteString(str.FromI64(lit, 36))
-		case uint64:
-			buf.WriteString(str.FromU64(lit, 36))
-		case rune:
-			buf.WriteString(strconv.QuoteRune(lit))
-		case string:
-			buf.WriteString(str.Q(lit))
-		default:
-			panic(me.Lit)
-		}
-	}
-	buf.WriteByte(',')
-	for _, it := range me.Nodes {
-		it.sig(buf)
-	}
-	buf.WriteByte('>')
-}
-
-func (me *AstNode) Sig() string {
-	var buf strings.Builder
-	if me.Kind != AstNodeKindErr && !me.Nodes.hasKind(AstNodeKindErr) {
-		me.sig(&buf)
-	}
-	return buf.String()
 }
 
 func (me *AstNode) SelfAndAncestors() (ret AstNodes) {

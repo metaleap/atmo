@@ -67,6 +67,9 @@ func (me *SrcPack) semPopulateIdent(self *SemExpr, it MoValIdent) {
 
 func (me *SrcPack) semPopulateList(self *SemExpr, it *MoValList) {
 	list := &SemValList{Items: make(SemExprs, len(*it))}
+	if (self.From != nil) && (self.From.SrcNode != nil) {
+		list.IsTup = self.From.SrcNode.IsParensTuplish()
+	}
 	self.Val = list
 	for i, item := range *it {
 		list.Items[i] = me.semExprFromMoExpr(self.Scope, item, self)

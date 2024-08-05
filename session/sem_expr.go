@@ -1,6 +1,7 @@
 package session
 
 import (
+	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 	"strings"
@@ -38,6 +39,7 @@ type SemValCall struct {
 
 type SemValList struct {
 	Items SemExprs
+	IsTup bool
 }
 
 type SemValDict struct {
@@ -259,14 +261,14 @@ func (me *SemExpr) stringifyTo(w *str.Buf) {
 	case *SemValScalar:
 		moValStringifyTo(val.Value, w)
 	case *SemValList:
-		w.WriteByte('[')
+		w.WriteByte(util.If[byte](val.IsTup, '(', '['))
 		for i, item := range val.Items {
 			if i > 0 {
 				w.WriteString(", ")
 			}
 			item.stringifyTo(w)
 		}
-		w.WriteByte(']')
+		w.WriteByte(util.If[byte](val.IsTup, ')', ']'))
 	case *SemValDict:
 		w.WriteByte('{')
 		for i, key := range val.Keys {

@@ -172,22 +172,22 @@ func executeCommand(params *lsp.ExecuteCommandParams) (ret any, err error) {
 						}
 						switch val := from.Val.(type) {
 						case *session.SemValIdent:
-							ret.Val = map[string]any{"Ty": from.Type.String(), "Kind": "scalar",
+							ret.Val = map[string]any{"Ty": util.If[any](from.Type == nil, nil, from.Type.String()), "Kind": "scalar",
 								"MoVal": val.Name}
 						case *session.SemValScalar:
-							ret.Val = map[string]any{"Ty": from.Type.String(), "Kind": "scalar",
+							ret.Val = map[string]any{"Ty": util.If[any](from.Type == nil, nil, from.Type.String()), "Kind": "scalar",
 								"MoVal": val.Value}
 						case *session.SemValList:
-							ret.Val = map[string]any{"Ty": from.Type.String(), "Kind": "list",
+							ret.Val = map[string]any{"Ty": util.If[any](from.Type == nil, nil, from.Type.String()), "Kind": "list", "IsTup": val.IsTup,
 								"Items": sl.To(val.Items, convert)}
 						case *session.SemValDict:
-							ret.Val = map[string]any{"Ty": from.Type.String(), "Kind": "dict",
+							ret.Val = map[string]any{"Ty": util.If[any](from.Type == nil, nil, from.Type.String()), "Kind": "dict",
 								"Keys": sl.To(val.Keys, convert), "Vals": sl.To(val.Vals, convert)}
 						case *session.SemValCall:
-							ret.Val = map[string]any{"Ty": from.Type.String(), "Kind": "call",
+							ret.Val = map[string]any{"Ty": util.If[any](from.Type == nil, nil, from.Type.String()), "Kind": "call",
 								"Callee": convert(val.Callee), "Args": sl.To(val.Args, convert)}
 						case *session.SemValFunc:
-							ret.Val = map[string]any{"Ty": from.Type.String(), "Kind": "func",
+							ret.Val = map[string]any{"Ty": util.If[any](from.Type == nil, nil, from.Type.String()), "Kind": "func",
 								"Params": sl.To(val.Params, convert), "Body": util.If[any](val.Body == nil, nil, convert(val.Body)), "Scope": kv.Keys(val.Scope.Own)}
 						}
 						return
