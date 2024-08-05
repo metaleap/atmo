@@ -203,6 +203,12 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 			tup[i] = me.evalAndApply(env, item)
 		}
 		return me.expr(&tup, expr.SrcFile, expr.SrcSpan)
+	case *MoValObj:
+		obj := make(map[MoValIdent]*MoExpr, len(*val))
+		for name, item := range *val {
+			obj[name] = me.evalAndApply(env, item)
+		}
+		return me.expr((*MoValObj)(&obj), expr.SrcFile, expr.SrcSpan)
 	case *MoValDict:
 		dict := make(MoValDict, 0, len(*val))
 		for _, entry := range *val {

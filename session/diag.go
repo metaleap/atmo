@@ -37,6 +37,7 @@ const (
 	// semantic (errors)
 	ErrCodeExpectedFoo         DiagCode = "Unexpected"
 	ErrCodeUndefined           DiagCode = "NotDefined"
+	ErrCodeNoSuchField         DiagCode = "NoSuchField"
 	ErrCodeNotAValue           DiagCode = "NotAValue"
 	ErrCodeUncallable          DiagCode = "NotCallable"
 	ErrCodeReserved            DiagCode = "Reserved"
@@ -75,6 +76,7 @@ var (
 
 		ErrCodeExpectedFoo:         "expecting %s",
 		ErrCodeUndefined:           "`%s` is not defined or not in scope",
+		ErrCodeNoSuchField:         "`%s` is not a property of this object",
 		ErrCodeNotAValue:           "`%s` cannot be used as a value",
 		ErrCodeUncallable:          "`%s` is not callable",
 		ErrCodeReserved:            "cannot assign to or define `%s` or any other `%s`-prefixed identifier",

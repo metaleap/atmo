@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"atmo/util"
+	"atmo/util/kv"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -32,6 +33,7 @@ const (
 	MoPrimTypeDict
 	MoPrimTypeList
 	MoPrimTypeTup
+	MoPrimTypeObj
 	MoPrimTypeCall
 	MoPrimTypeFunc
 	MoPrimTypeOr
@@ -76,6 +78,8 @@ func (me MoValPrimType) Str(natLang bool) string {
 		return util.If(natLang, "list", "@List")
 	case MoPrimTypeTup:
 		return util.If(natLang, "tuple", "@Tup")
+	case MoPrimTypeObj:
+		return util.If(natLang, "object", "@Obj")
 	case MoPrimTypeCall:
 		return util.If(natLang, "call expression", "@Call")
 	case MoPrimTypeFunc:
@@ -113,6 +117,7 @@ type MoValErr struct{ ErrVal *MoExpr }
 type MoValDict []moDictEntry
 type MoValList MoExprs
 type MoValTup MoExprs
+type MoValObj map[MoValIdent]*MoExpr
 type MoValCall MoExprs
 type MoValFnPrim moFnEager
 type MoValFnLam struct {
@@ -140,6 +145,7 @@ func (MoValErr) PrimType() MoValPrimType         { return MoPrimTypeErr }
 func (*MoValDict) PrimType() MoValPrimType       { return MoPrimTypeDict }
 func (*MoValList) PrimType() MoValPrimType       { return MoPrimTypeList }
 func (*MoValTup) PrimType() MoValPrimType        { return MoPrimTypeTup }
+func (*MoValObj) PrimType() MoValPrimType        { return MoPrimTypeObj }
 func (MoValCall) PrimType() MoValPrimType        { return MoPrimTypeCall }
 func (MoValFnPrim) PrimType() MoValPrimType      { return MoPrimTypeFunc }
 func (*MoValFnLam) PrimType() MoValPrimType      { return MoPrimTypeFunc }
@@ -247,6 +253,9 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	case *MoValTup:
 		other := to.Val.(*MoValTup)
 		return sl.Eq(*it, *other, (*MoExpr).Eq)
+	case *MoValObj:
+		other := to.Val.(*MoValObj)
+		return kv.Eq(*it, *other, (*MoExpr).Eq)
 	case MoValCall:
 		other := to.Val.(MoValCall)
 		return sl.Eq(it, other, (*MoExpr).Eq)
@@ -402,6 +411,19 @@ func moValStringifyTo(it MoVal, w io.StringWriter) {
 			item.StringifyTo(w)
 		}
 		w.WriteString(")")
+	case *MoValObj:
+		w.WriteString("{")
+		var i int
+		for name, item := range *it {
+			if i > 0 {
+				w.WriteString(", ")
+			}
+			moValStringifyTo(name, w)
+			w.WriteString(": ")
+			item.StringifyTo(w)
+			i++
+		}
+		w.WriteString("}")
 	case MoValCall:
 		w.WriteString("(")
 		for i, item := range it {
@@ -662,6 +684,10 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 			item.Walk(onBefore, onAfter)
 		}
 	case *MoValTup:
+		for _, item := range *it {
+			item.Walk(onBefore, onAfter)
+		}
+	case *MoValObj:
 		for _, item := range *it {
 			item.Walk(onBefore, onAfter)
 		}

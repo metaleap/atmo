@@ -43,8 +43,9 @@ type SemValList struct {
 }
 
 type SemValDict struct {
-	Keys SemExprs
-	Vals SemExprs
+	Keys  SemExprs
+	Vals  SemExprs
+	IsObj bool
 }
 
 type SemValFunc struct {
