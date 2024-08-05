@@ -17,7 +17,8 @@ type moFnLazy = func(ctx *Interp, env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr)
 type MoValPrimType int
 
 const (
-	MoPrimTypeAny MoValPrimType = iota
+	MoPrimTypeNever MoValPrimType = iota
+	MoPrimTypeAny
 	MoPrimTypeVoid
 	MoPrimTypePrimTypeTag
 	MoPrimTypeIdent
@@ -30,9 +31,12 @@ const (
 	MoPrimTypeErr
 	MoPrimTypeDict
 	MoPrimTypeList
+	MoPrimTypeTup
 	MoPrimTypeCall
 	MoPrimTypeFunc
 	MoPrimTypeOr
+	MoPrimTypeAnd
+	MoPrimTypeNot
 )
 
 func (me MoValPrimType) isAtomic() bool {
@@ -42,8 +46,10 @@ func (me MoValPrimType) isAtomic() bool {
 func (me MoValPrimType) String() string { return me.Str(false) }
 func (me MoValPrimType) Str(natLang bool) string {
 	switch me {
+	case MoPrimTypeNever:
+		return util.If(natLang, "@Never", "@Never")
 	case MoPrimTypeAny:
-		return util.If(natLang, "untyped-value", "@Any")
+		return util.If(natLang, "@Any", "@Any")
 	case MoPrimTypePrimTypeTag:
 		return util.If(natLang, "primitive-type tag", "@PrimTypeTag")
 	case MoPrimTypeIdent:
@@ -73,7 +79,11 @@ func (me MoValPrimType) Str(natLang bool) string {
 	case MoPrimTypeFunc:
 		return util.If(natLang, "function", "@Func")
 	case MoPrimTypeOr:
-		return util.If(natLang, "union", "@Or")
+		return util.If(natLang, "@Or", "@Or")
+	case MoPrimTypeAnd:
+		return util.If(natLang, "@And", "@And")
+	case MoPrimTypeNot:
+		return util.If(natLang, "@Not", "@Not")
 	}
 	if me < 0 {
 		if letter := rune((-me) + 64); (letter >= 'A') && (letter <= 'Z') {
@@ -81,7 +91,7 @@ func (me MoValPrimType) Str(natLang bool) string {
 		}
 		return "@Some" + str.FromInt(int(-me))
 	}
-	return "@SomeBugPlzReport" + str.FromInt(int(me))
+	return "@Some" + str.FromInt(int(me))
 }
 
 type MoVal interface {

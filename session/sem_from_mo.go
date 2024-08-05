@@ -19,7 +19,7 @@ func (me *SrcPack) semRefresh() {
 	me.moPrePackEval()
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		me.semPopulateRootScope()
-		me.semInferTypes()
+		// me.semInferTypes()
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
 				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) {

@@ -19,9 +19,9 @@ const (
 	moPrimOpSpliceUnquote MoValIdent = "$$"
 	moPrimOpDo            MoValIdent = "@do"
 	moPrimOpSet           MoValIdent = "@set"
-	moPrimOpCaseOf        MoValIdent = "@caseOf"
-	moPrimOpAnd           MoValIdent = "@and"
-	moPrimOpOr            MoValIdent = "@or"
+	moPrimOpBoolCase      MoValIdent = "@boolCase"
+	moPrimOpBoolAnd       MoValIdent = "@boolAnd"
+	moPrimOpBoolOr        MoValIdent = "@boolOr"
 	moPrimOpMacro         MoValIdent = "@macro"
 	moPrimOpExpand        MoValIdent = "@macroExpand"
 	moPrimOpFn            MoValIdent = "@fn"
@@ -45,13 +45,13 @@ const (
 	moPrimFnNumFloatMul MoValIdent = "@numFloatMul"
 	moPrimFnNumFloatDiv MoValIdent = "@numFloatDiv"
 	moPrimFnCast        MoValIdent = "@cast"
-	moPrimFnNot         MoValIdent = "@not"
-	moPrimFnEq          MoValIdent = "@eq"
-	moPrimFnNeq         MoValIdent = "@neq"
-	moPrimFnGeq         MoValIdent = "@geq"
-	moPrimFnLeq         MoValIdent = "@leq"
-	moPrimFnLt          MoValIdent = "@lt"
-	moPrimFnGt          MoValIdent = "@gt"
+	moPrimFnNot         MoValIdent = "@boolNot"
+	moPrimFnCmpEq       MoValIdent = "@cmpEq"
+	moPrimFnCmpNeq      MoValIdent = "@cmpNeq"
+	moPrimFnCmpGeq      MoValIdent = "@cmpGeq"
+	moPrimFnCmpLeq      MoValIdent = "@cmpLeq"
+	moPrimFnCmpLt       MoValIdent = "@cmpLt"
+	moPrimFnCmpGt       MoValIdent = "@cmpGt"
 	moPrimFnPrimTypeTag MoValIdent = "@primTypeTag"
 	moPrimFnListGet     MoValIdent = "@listGet"
 	moPrimFnListSet     MoValIdent = "@listSet"
@@ -77,17 +77,17 @@ const (
 
 func init() {
 	moPrimOpsLazy = map[MoValIdent]moFnLazy{
-		moPrimOpFn:     (*Interp).primOpFn,
-		moPrimOpFnCall: (*Interp).primOpFnCall,
-		moPrimOpCaseOf: (*Interp).primOpCaseOf,
-		moPrimOpAnd:    (*Interp).primOpBoolAnd,
-		moPrimOpOr:     (*Interp).primOpBoolOr,
-		moPrimOpMacro:  (*Interp).primOpMacro,
-		moPrimOpExpand: (*Interp).primOpMacroExpand,
-		moPrimOpQuote:  (*Interp).primOpQuote,
-		moPrimOpQQuote: (*Interp).primOpQuasiQuote,
-		moPrimOpSet:    (*Interp).primOpSet,
-		moPrimOpDo:     (*Interp).primOpDo,
+		moPrimOpFn:       (*Interp).primOpFn,
+		moPrimOpFnCall:   (*Interp).primOpFnCall,
+		moPrimOpBoolCase: (*Interp).primOpCaseOf,
+		moPrimOpBoolAnd:  (*Interp).primOpBoolAnd,
+		moPrimOpBoolOr:   (*Interp).primOpBoolOr,
+		moPrimOpMacro:    (*Interp).primOpMacro,
+		moPrimOpExpand:   (*Interp).primOpMacroExpand,
+		moPrimOpQuote:    (*Interp).primOpQuote,
+		moPrimOpQQuote:   (*Interp).primOpQuasiQuote,
+		moPrimOpSet:      (*Interp).primOpSet,
+		moPrimOpDo:       (*Interp).primOpDo,
 	}
 	moPrimOpsEager = map[MoValIdent]moFnEager{
 		moPrimFnReplEnv:     (*Interp).primFnReplEnv,
@@ -109,12 +109,12 @@ func init() {
 		moPrimFnNumFloatDiv: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
 		moPrimFnNot:         (*Interp).primFnBoolNot,
 		moPrimFnCast:        (*Interp).primFnCast,
-		moPrimFnEq:          (*Interp).primFnEq,
-		moPrimFnNeq:         (*Interp).primFnNeq,
-		moPrimFnGeq:         (*Interp).primFnGeq,
-		moPrimFnLeq:         (*Interp).primFnLeq,
-		moPrimFnLt:          (*Interp).primFnLt,
-		moPrimFnGt:          (*Interp).primFnGt,
+		moPrimFnCmpEq:       (*Interp).primFnEq,
+		moPrimFnCmpNeq:      (*Interp).primFnNeq,
+		moPrimFnCmpGeq:      (*Interp).primFnGeq,
+		moPrimFnCmpLeq:      (*Interp).primFnLeq,
+		moPrimFnCmpLt:       (*Interp).primFnLt,
+		moPrimFnCmpGt:       (*Interp).primFnGt,
 		moPrimFnPrimTypeTag: (*Interp).primFnPrimTypeTag,
 		moPrimFnListGet:     (*Interp).primFnListGet,
 		moPrimFnListSet:     (*Interp).primFnListSet,

@@ -109,14 +109,14 @@ func (me *SemType) stringifyTo(w *strings.Builder) {
 func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
 
 func (me *SemType) normalizeIfAdt() bool {
-	if me.Prim == MoPrimTypeOr {
+	if (me.Prim == MoPrimTypeOr) || (me.Prim == MoPrimTypeAnd) {
 		for i := 0; i < me.TArgs.Len(); i++ {
-			if t := me.TArgs[i]; t == nil {
+			if t := me.TArgs[i]; t.Prim == MoPrimTypeNever {
 				return false
 			} else if t.Prim == MoPrimTypeAny {
 				*me = *t
 				return true
-			} else if t.Prim == MoPrimTypeOr {
+			} else if t.Prim == me.Prim {
 				me.TArgs = append(append(me.TArgs[:i], me.TArgs[i+1:]...), t.TArgs...)
 				i--
 			}
