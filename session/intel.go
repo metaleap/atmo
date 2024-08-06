@@ -118,7 +118,7 @@ func (intel) Info(file *SrcFile, pos SrcFilePos) (ret *IntelInfo) {
 		for it := node; it != nil; it = it.Parent {
 			var str_val string
 			if it.HasFact(SemFactPreComputed, nil, false, false) {
-				str_val = it.String()
+				str_val = it.String(false)
 			}
 			var str_facts string
 			for k := range it.Facts {

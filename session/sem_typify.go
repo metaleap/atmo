@@ -157,20 +157,29 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 			self.Type = semPrimFnTypes[val.Name]
 		}
 	case *SemValList:
+		item_types := make(sl.Of[*SemType], len(val.Items))
+		for i, item := range val.Items {
+			me.semTypify(item, env)
+			item_types[i] = item.Type
+		}
 		if val.IsTup {
-			self.Type = semTypeNew(self, MoPrimTypeTup, sl.To(val.Items, func(it *SemExpr) *SemType { return me.semTypify(it, env) })...)
+			self.Type = semTypeNew(self, MoPrimTypeTup, item_types...)
+		} else if item_type := semTypeFromMultiple(self, true, item_types...); item_type != nil {
+			self.Type = semTypeNew(self, MoPrimTypeList, item_type)
 		}
 	case *SemValDict:
-		if val.IsObj {
-			self.Type = semTypeNew(self, MoPrimTypeObj)
-			self.Type.TArgs, self.Type.Fields = make(sl.Of[*SemType], len(val.Keys)), make(sl.Of[MoValIdent], len(val.Keys))
-			for i, key := range val.Keys {
-				self.Type.Fields[i] = key.MaybeIdent(true)
-				self.Type.TArgs[i] = me.semTypify(val.Vals[i], env)
-			}
-			if sl.Has(self.Type.TArgs, nil) {
-				self.Type = nil
-			}
+		key_types, val_types := make(sl.Of[*SemType], len(val.Keys)), make(sl.Of[*SemType], len(val.Vals))
+		for i, key := range val.Keys {
+			val := val.Vals[i]
+			me.semTypify(key, env)
+			me.semTypify(val, env)
+			key_types[i], val_types[i] = key.Type, val.Type
+		}
+		if !val.IsObj {
+			key_type, val_type := semTypeFromMultiple(self, true, key_types...), semTypeFromMultiple(self, true, val_types...)
+			self.Type = semTypeNew(self, MoPrimTypeDict, key_type, val_type)
+		} else if self.Type = semTypeNew(self, MoPrimTypeObj, val_types...); self.Type != nil {
+			self.Type.Fields = sl.To(val.Keys, func(it *SemExpr) MoValIdent { return it.Val.(*SemValIdent).Name })
 		}
 	case *SemValFunc:
 		sub_env := maps.Clone(env)
@@ -178,13 +187,15 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 			param.Type = semTypeNew(param, MoPrimTypeAny)
 			sub_env[param.MaybeIdent(true)] = param.Type
 		}
-		if ty_ret := me.semTypify(val.Body, sub_env); ty_ret != nil {
+		ty_ret := me.semTypify(val.Body, sub_env)
+		if ty_ret != nil {
 			self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(it *SemExpr) *SemType { return it.Type }), ty_ret)...)
 		}
 	case *SemValCall:
 		callee_name := val.Callee.MaybeIdent(false)
 		prim_op, prim_fn := semTyPrimOps[callee_name], semTyPrimFns[callee_name]
 		if prim_op != nil {
+			val.Callee.Fact(SemFact{Kind: SemFactPrimOp}, val.Callee)
 			if (callee_name != moPrimOpQQuote) && (callee_name != moPrimOpQuote) {
 				sl.Each(val.Args, func(it *SemExpr) { me.semTypify(it, env) })
 				if sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
@@ -198,6 +209,7 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 			if (val.Callee.Type == nil) || sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
 				break
 			} else if prim_fn != nil {
+				val.Callee.Fact(SemFact{Kind: SemFactPrimFn}, val.Callee)
 				prim_fn(me, self)
 			} else if me.semCheckTypePrim(val.Callee, self, MoPrimTypeFunc, -1) {
 				println("TODO")

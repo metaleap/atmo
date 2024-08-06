@@ -281,8 +281,8 @@ func semTypeErrOn(self *SemExpr, expect *SemType, have *SemType) *Diag {
 	}
 	err := self.ErrNew(ErrCodeTypeMismatch, s1, s2)
 	err.Rel = srcFileLocs([]string{
-		str.Fmt("%s decided by `%s`", s1, dt1.String()),
-		str.Fmt("%s decided by `%s`", s2, dt2.String()),
+		str.Fmt("%s decided by `%s`", s1, dt1.String(false)),
+		str.Fmt("%s decided by `%s`", s2, dt2.String(false)),
 	}, t1.DueTo, t2.DueTo)
 	return err
 }
