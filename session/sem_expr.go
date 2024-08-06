@@ -52,7 +52,7 @@ type SemValFunc struct {
 	Scope    *SemScope
 	Params   SemExprs
 	Body     *SemExpr
-	primImpl func(*SrcPack, *SemExpr, *SemScope)
+	primImpl func(*SrcPack, *SemExpr)
 	IsMacro  bool
 }
 

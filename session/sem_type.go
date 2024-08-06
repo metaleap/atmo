@@ -259,17 +259,7 @@ func (me *SrcPack) semCheckTypePrim(expr *SemExpr, dueTo *SemExpr, expect MoValP
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
-	if expr.Type == nil {
-		expr.Type = expect
-		if ident, _ := expr.Val.(*SemValIdent); ident != nil {
-			if _, entry := expr.Scope.Lookup(ident.Name); entry == nil {
-				expr.Type = nil
-				return true
-			} else {
-				me.semScopeEntrySetType(entry, expr)
-			}
-		}
-	} else if !expr.Type.Sats(expect) {
+	if !expr.Type.Sats(expect) {
 		if !expr.HasErrs() { // dont wanna be too noisy
 			expr.ErrAdd(semTypeErr(expr, expect))
 		}

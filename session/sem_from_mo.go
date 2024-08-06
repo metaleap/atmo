@@ -193,28 +193,6 @@ func (me *SemScope) Lookup(ident MoValIdent) (*SemScope, *SemScopeEntry) {
 	return nil, nil
 }
 
-func (me *SrcPack) semScopeEntrySetType(entry *SemScopeEntry, from *SemExpr) {
-	ty_old := entry.Type
-	if ty := from.Type; entry.Type == nil {
-		entry.Type = ty
-	} else {
-		entry.Type = semTypeFromMultiple(from, false, entry.Type, ty)
-	}
-	is_same := (ty_old == entry.Type /*incl nilness*/) || ((entry.Type != nil) && entry.Type.Eq(ty_old))
-	if !is_same {
-		for ref := range entry.Refs {
-			ref.Type = entry.Type
-			var top *SemExpr
-			for p := ref.Parent; p != nil; p = p.Parent {
-				top, p.Type = p, nil
-			}
-			if top != nil {
-				me.semTypify(top, top.Scope)
-			}
-		}
-	}
-}
-
 func (me *SrcPack) semScopePrepOnSet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
