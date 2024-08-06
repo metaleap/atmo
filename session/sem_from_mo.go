@@ -122,8 +122,8 @@ func (me *SrcPack) semPopulateRootScope() {
 				return false // do not traverse into quote call
 			case moPrimOpQQuote:
 				return false // do not traverse into quasiquote for now (TODO: do traverse & handle unquote so that the below cases will trigger in unquoted parts)
-			case moPrimOpFn, moPrimFnMacro:
-				me.semScopePrepOnFn(self) // transform @fn and @macro calls into SemValFunc expr with own SemScope having its Params
+			case moPrimOpFn:
+				me.semScopePrepOnFn(self) // transform @fn calls into SemValFunc expr with own SemScope having its Params
 			case moPrimOpSet:
 				me.semScopePrepOnSet(self) // ensure all @set calls collected in the relevant scope entry
 			}
@@ -263,9 +263,8 @@ func (me *SrcPack) semScopePrepOnFn(self *SemExpr) {
 				}
 			}
 			fn := &SemValFunc{
-				Scope:   &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
-				Params:  ok_params,
-				IsMacro: (call.Callee.Val.(*SemValIdent).Name == moPrimFnMacro),
+				Scope:  &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
+				Params: ok_params,
 			}
 			for _, param := range fn.Params {
 				fn.Scope.Own[param.Val.(*SemValIdent).Name] = &SemScopeEntry{DeclParamOrCallOrFunc: param, Refs: map[*SemExpr]util.Void{param: {}}}

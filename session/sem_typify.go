@@ -16,17 +16,17 @@ func init() {
 		moPrimOpSet:      (*SrcPack).semTyPrimOpSet,
 		moPrimOpDo:       (*SrcPack).semTyPrimOpDo,
 		moPrimOpFn:       (*SrcPack).semTyPrimOpFn,
-		moPrimOpBoolAnd:  (*SrcPack).semTyPrimOpAndOr,
-		moPrimOpBoolOr:   (*SrcPack).semTyPrimOpAndOr,
+		moPrimOpBoolAnd:  (*SrcPack).semTyPrimOpBoolAndOr,
+		moPrimOpBoolOr:   (*SrcPack).semTyPrimOpBoolAndOr,
 		moPrimOpQuote:    (*SrcPack).semTyPrimOpQuote,
 		moPrimOpQQuote:   (*SrcPack).semTyPrimOpQuote,
-		moPrimOpBoolCase: (*SrcPack).semTyPrimOpCaseOf,
-		moPrimFnMacro:    (*SrcPack).semTyPrimOpFn,
+		moPrimOpBoolCond: (*SrcPack).semTyPrimOpBoolCond,
 		moPrimOpExpand:   (*SrcPack).semTyPrimOpExpand,
 		moPrimOpFnCall:   (*SrcPack).semTyPrimOpFnCall,
 	}
 	semTyPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr, *SemScope){
-		moPrimFnNot:         (*SrcPack).semTyPrimFnNot,
+		moPrimFnMacro:       (*SrcPack).semTyPrimFnMacro,
+		moPrimFnBoolNot:     (*SrcPack).semTyPrimFnNot,
 		moPrimFnReplEnv:     (*SrcPack).semTyPrimFnReplEnv,
 		moPrimFnReplPrint:   (*SrcPack).semTyPrimFnReplPrint,
 		moPrimFnReplReset:   (*SrcPack).semTyPrimFnReplReset,
@@ -62,6 +62,11 @@ func init() {
 		moPrimFnDictSet:     (*SrcPack).semTyPrimFnDictSet,
 		moPrimFnDictDel:     (*SrcPack).semTyPrimFnDictDel,
 		moPrimFnDictLen:     (*SrcPack).semTyPrimFnDictLen,
+		moPrimFnObjNew:      nil,
+		moPrimFnObjGet:      nil,
+		moPrimFnObjSet:      nil,
+		moPrimFnTupGet:      nil,
+		moPrimFnTupSet:      nil,
 		moPrimFnErrNew:      (*SrcPack).semTyPrimFnErrNew,
 		moPrimFnErrVal:      (*SrcPack).semTyPrimFnErrVal,
 		moPrimFnStrConcat:   (*SrcPack).semTyPrimFnStrConcat,
@@ -96,7 +101,7 @@ func init() {
 			moPrimFnNumIntDiv:   t(nil, fn, t_int, t_int, t_int),
 			moPrimFnNumIntMod:   t(nil, fn, t_int, t_int, t_int),
 			moPrimFnCast:        t(nil, fn, t_primtypetag, t_any, t_any),
-			moPrimFnNot:         t(nil, fn, t_bool, t_bool),
+			moPrimFnBoolNot:     t(nil, fn, t_bool, t_bool),
 			moPrimFnCmpEq:       t(nil, fn, t_any, t_any, t_bool),
 			moPrimFnCmpNeq:      t(nil, fn, t_any, t_any, t_bool),
 			moPrimFnCmpGeq:      t(nil, fn, t_ord, t_ord, t_bool),
@@ -278,7 +283,7 @@ func (me *SrcPack) semTyPrimOpFn(self *SemExpr, _ *SemScope) {
 	}
 }
 
-func (me *SrcPack) semTyPrimOpAndOr(self *SemExpr, scope *SemScope) {
+func (me *SrcPack) semTyPrimOpBoolAndOr(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
 	sl.Each(call.Args, func(arg *SemExpr) { me.semTypify(arg, scope); _ = me.semCheckType(arg, self.Type) })
@@ -310,7 +315,7 @@ func (me *SrcPack) semTyPrimOpQuote(self *SemExpr, scope *SemScope) {
 	}
 }
 
-func (me *SrcPack) semTyPrimOpCaseOf(self *SemExpr, scope *SemScope) {
+func (me *SrcPack) semTyPrimOpBoolCond(self *SemExpr, scope *SemScope) {
 	call := self.Val.(*SemValCall)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		sl.Each(call.Args, func(arg *SemExpr) { me.semTypify(arg, scope) })
@@ -357,6 +362,15 @@ func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimTyp
 		if me.semCheckCount(2, 2, call.Args, self, true) {
 			sl.Each(call.Args, func(arg *SemExpr) { me.semCheckType(arg, self.Type) })
 		}
+	}
+}
+
+func (me *SrcPack) semTyPrimFnMacro(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeFunc)
+	sl.Each(call.Args, func(arg *SemExpr) { me.semCheckType(arg, self.Type) })
+	if me.semCheckCount(1, 1, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeFunc, -1) {
+		self.Type = call.Args[0].Type
 	}
 }
 

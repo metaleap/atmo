@@ -20,7 +20,7 @@ const (
 	moPrimOpSpliceUnquote MoValIdent = "$$"
 	moPrimOpDo            MoValIdent = "@do"
 	moPrimOpSet           MoValIdent = "@set"
-	moPrimOpBoolCase      MoValIdent = "@boolCase"
+	moPrimOpBoolCond      MoValIdent = "@boolCond"
 	moPrimOpBoolAnd       MoValIdent = "@boolAnd"
 	moPrimOpBoolOr        MoValIdent = "@boolOr"
 	moPrimOpFn            MoValIdent = "@fn"
@@ -46,7 +46,7 @@ const (
 	moPrimFnNumFloatMul MoValIdent = "@numFloatMul"
 	moPrimFnNumFloatDiv MoValIdent = "@numFloatDiv"
 	moPrimFnCast        MoValIdent = "@cast"
-	moPrimFnNot         MoValIdent = "@boolNot"
+	moPrimFnBoolNot     MoValIdent = "@boolNot"
 	moPrimFnCmpEq       MoValIdent = "@cmpEq"
 	moPrimFnCmpNeq      MoValIdent = "@cmpNeq"
 	moPrimFnCmpGeq      MoValIdent = "@cmpGeq"
@@ -85,7 +85,7 @@ func init() {
 	moPrimOpsLazy = map[MoValIdent]moFnLazy{
 		moPrimOpFn:       (*Interp).primOpFn,
 		moPrimOpFnCall:   (*Interp).primOpFnCall,
-		moPrimOpBoolCase: (*Interp).primOpCaseOf,
+		moPrimOpBoolCond: (*Interp).primOpBoolCond,
 		moPrimOpBoolAnd:  (*Interp).primOpBoolAnd,
 		moPrimOpBoolOr:   (*Interp).primOpBoolOr,
 		moPrimOpExpand:   (*Interp).primOpMacroExpand,
@@ -113,7 +113,7 @@ func init() {
 		moPrimFnNumFloatMul: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
 		moPrimFnNumFloatDiv: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
 		moPrimFnMacro:       (*Interp).primFnMacro,
-		moPrimFnNot:         (*Interp).primFnBoolNot,
+		moPrimFnBoolNot:     (*Interp).primFnBoolNot,
 		moPrimFnCast:        (*Interp).primFnCast,
 		moPrimFnCmpEq:       (*Interp).primFnEq,
 		moPrimFnCmpNeq:      (*Interp).primFnNeq,
@@ -363,7 +363,7 @@ func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExp
 	return nil, me.exprFrom(me.macroExpand(env, args[0]), args...)
 }
 
-func (me *Interp) primOpCaseOf(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
+func (me *Interp) primOpBoolCond(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.check(MoPrimTypeDict, 1, 1, args...); err != nil {
 		return nil, me.exprErr(err)
 	}
@@ -429,7 +429,7 @@ func (me *Interp) primFnMacro(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	fn, is := args[0].Val.(*MoValFnLam)
 	if !is {
-		return me.exprErr(me.diagSpan(false, true, args...).newDiagErr(ErrCodeExpectedFoo, "a user-land lambda, not a built-in prim func"))
+		return me.exprErr(me.diagSpan(false, true, args...).newDiagErr(ErrCodeExpectedFoo, "a user-land lambda, not a built-in intrinsic"))
 	}
 	if fn.IsMacro {
 		return args[0]
