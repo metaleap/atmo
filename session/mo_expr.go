@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"atmo/util"
-	"atmo/util/kv"
 	"atmo/util/sl"
 	"atmo/util/str"
 )
@@ -117,7 +116,7 @@ type MoValErr struct{ ErrVal *MoExpr }
 type MoValDict []moDictEntry
 type MoValList MoExprs
 type MoValTup MoExprs
-type MoValObj map[MoValIdent]*MoExpr
+type MoValObj []moDictEntry
 type MoValCall MoExprs
 type MoValFnPrim moFnEager
 type MoValFnLam struct {
@@ -253,9 +252,6 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 	case *MoValTup:
 		other := to.Val.(*MoValTup)
 		return sl.Eq(*it, *other, (*MoExpr).Eq)
-	case *MoValObj:
-		other := to.Val.(*MoValObj)
-		return kv.Eq(*it, *other, (*MoExpr).Eq)
 	case MoValCall:
 		other := to.Val.(MoValCall)
 		return sl.Eq(it, other, (*MoExpr).Eq)
@@ -273,6 +269,18 @@ func (me *MoExpr) Eq(to *MoExpr) bool {
 		dict := *it
 		for i := range dict {
 			if !sl.Any(*other, func(other moDictEntry) bool { return other.Key.Eq(dict[i].Key) && other.Val.Eq(dict[i].Val) }) {
+				return false
+			}
+		}
+		return true
+	case *MoValObj:
+		other := to.Val.(*MoValObj)
+		if len(*it) != len(*other) {
+			return false
+		}
+		obj := *it
+		for i := range obj {
+			if !sl.Any(*other, func(other moDictEntry) bool { return other.Key.Eq(obj[i].Key) && other.Val.Eq(obj[i].Val) }) {
 				return false
 			}
 		}
@@ -413,15 +421,13 @@ func moValStringifyTo(it MoVal, w io.StringWriter) {
 		w.WriteString(")")
 	case *MoValObj:
 		w.WriteString("{")
-		var i int
-		for name, item := range *it {
+		for i, item := range *it {
 			if i > 0 {
 				w.WriteString(", ")
 			}
-			moValStringifyTo(name, w)
+			item.Key.StringifyTo(w)
 			w.WriteString(": ")
-			item.StringifyTo(w)
-			i++
+			item.Val.StringifyTo(w)
 		}
 		w.WriteString("}")
 	case MoValCall:
@@ -689,7 +695,8 @@ func (me *MoExpr) Walk(onBefore func(it *MoExpr) bool, onAfter func(it *MoExpr))
 		}
 	case *MoValObj:
 		for _, item := range *it {
-			item.Walk(onBefore, onAfter)
+			item.Key.Walk(onBefore, onAfter)
+			item.Val.Walk(onBefore, onAfter)
 		}
 	}
 	if onAfter != nil {

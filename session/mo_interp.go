@@ -164,7 +164,7 @@ tco_loop:
 		}
 	}
 	me.diagCtxCall = diag_ctx_orig
-	if did_call {
+	if false && did_call {
 		if err := expr.Err(); (err != nil) && (expr_orig.SrcSpan != nil) {
 			err.Span = *expr_orig.SrcSpan
 		}
@@ -204,9 +204,14 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 		}
 		return me.expr(&tup, expr.SrcFile, expr.SrcSpan)
 	case *MoValObj:
-		obj := make(map[MoValIdent]*MoExpr, len(*val))
-		for name, item := range *val {
-			obj[name] = me.evalAndApply(env, item)
+		obj := make(MoValDict, 0, len(*val))
+		for _, entry := range *val {
+			key := me.evalAndApply(env, entry.Key)
+			val := me.evalAndApply(env, entry.Val)
+			if (!key.IsErr()) && obj.Has(key) {
+				return me.exprErr(entry.Key.SrcSpan.newDiagErr(ErrCodeDictDuplKey, key))
+			}
+			obj.Set(key, val)
 		}
 		return me.expr((*MoValObj)(&obj), expr.SrcFile, expr.SrcSpan)
 	case *MoValDict:

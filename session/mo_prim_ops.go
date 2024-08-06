@@ -60,6 +60,7 @@ const (
 	moPrimFnListConcat  MoValIdent = "@listConcat"
 	moPrimFnTupGet      MoValIdent = "@tupGet"
 	moPrimFnTupSet      MoValIdent = "@tupSet"
+	moPrimFnObjNew      MoValIdent = "@objNew"
 	moPrimFnObjGet      MoValIdent = "@objGet"
 	moPrimFnObjSet      MoValIdent = "@objSet"
 	moPrimFnDictHas     MoValIdent = "@dictHas"
@@ -67,7 +68,7 @@ const (
 	moPrimFnDictSet     MoValIdent = "@dictSet"
 	moPrimFnDictDel     MoValIdent = "@dictDel"
 	moPrimFnDictLen     MoValIdent = "@dictLen"
-	moPrimFnErrNew      MoValIdent = "@err"
+	moPrimFnErrNew      MoValIdent = "@errNew"
 	moPrimFnErrVal      MoValIdent = "@errVal"
 	moPrimFnStrConcat   MoValIdent = "@strConcat"
 	moPrimFnStrLen      MoValIdent = "@strLen"
@@ -127,6 +128,7 @@ func init() {
 		moPrimFnListConcat:  (*Interp).primFnListConcat,
 		moPrimFnTupGet:      (*Interp).primFnTupGet,
 		moPrimFnTupSet:      (*Interp).primFnTupSet,
+		moPrimFnObjNew:      (*Interp).primFnObjNew,
 		moPrimFnObjGet:      (*Interp).primFnObjGet,
 		moPrimFnObjSet:      (*Interp).primFnObjSet,
 		moPrimFnDictHas:     (*Interp).primFnDictHas,
@@ -271,8 +273,13 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		return nil, me.exprFrom(evaled, args[0])
 	}
 
-	// dict? call ourselves on each key and value
-	if dict, is := args[0].Val.(*MoValDict); is {
+	// dict or obj? call ourselves on each key and value
+	obj, is_obj := args[0].Val.(*MoValObj)
+	dict, is_dict := args[0].Val.(*MoValDict)
+	if is_obj {
+		dict = (*MoValDict)(obj)
+	}
+	if is_dict || is_obj {
 		ret := make(MoValDict, 0, len(*dict))
 		for _, entry := range *dict {
 			_, key := me.primOpQuasiQuote(env, entry.Key)
@@ -288,20 +295,7 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 			}
 			ret.Set(key, val)
 		}
-		return nil, me.expr(&ret, me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
-	}
-
-	// obj? similar
-	if obj, is := args[0].Val.(*MoValObj); is {
-		ret := make(map[MoValIdent]*MoExpr, len(*obj))
-		for k, v := range *obj {
-			_, val := me.primOpQuasiQuote(env, v)
-			if err := val.Err(); err != nil {
-				return nil, me.exprErr(err, v)
-			}
-			ret[k] = val
-		}
-		return nil, me.expr((*MoValObj)(&ret), me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
+		return nil, me.expr(util.If[MoVal](is_obj, (*MoValObj)(&ret), &ret), me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
 	}
 
 	// must be list or tup or call then: we handle them the same, per item iteration
@@ -601,6 +595,25 @@ func (me *Interp) primFnListConcat(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	return me.expr(&ret, nil, nil, args...)
 }
 
+func (me *Interp) primFnObjNew(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return me.exprErr(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	if err := me.checkIs(MoPrimTypeDict, args[0]); err != nil {
+		return me.exprErr(err)
+	}
+	dict := args[0].Val.(*MoValDict)
+	for _, entry := range *dict {
+		if err := me.checkIs(MoPrimTypeIdent, entry.Key); err != nil {
+			return me.exprErr(err)
+		}
+	}
+	return me.expr((*MoValObj)(dict), nil, nil, args...)
+}
+
 func (me *Interp) primFnObjGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(2, 2, args); err != nil {
 		return me.exprErr(err)
@@ -614,12 +627,11 @@ func (me *Interp) primFnObjGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeIdent, args[1]); err != nil {
 		return me.exprErr(err)
 	}
-	obj, idx := *(args[0].Val.(*MoValObj)), args[1].Val.(MoValIdent)
-	val, ok := obj[idx]
-	if !ok {
-		return me.exprErr(me.diagSpan(false, true, args[1]).newDiagErr(ErrCodeNoSuchField, idx))
+	found := ((*MoValDict)(args[0].Val.(*MoValObj))).Get(args[1])
+	if found == nil {
+		return me.exprVoid(args...)
 	}
-	return me.exprFrom(val, args...)
+	return me.exprFrom(found, args...)
 }
 
 func (me *Interp) primFnObjSet(_ *MoEnv, args ...*MoExpr) *MoExpr {
@@ -635,13 +647,8 @@ func (me *Interp) primFnObjSet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkIs(MoPrimTypeIdent, args[1]); err != nil {
 		return me.exprErr(err)
 	}
-	obj, idx := *(args[0].Val.(*MoValObj)), args[1].Val.(MoValIdent)
-	val, ok := obj[idx]
-	if !ok {
-		return me.exprErr(me.diagSpan(false, true, args[1]).newDiagErr(ErrCodeNoSuchField, idx))
-	}
-	obj[idx] = val
-	*(args[0].Val.(*MoValObj)) = obj
+	dict := (*MoValDict)(args[0].Val.(*MoValObj))
+	dict.Set(args[1], args[2])
 	return me.exprVoid(args...)
 }
 
