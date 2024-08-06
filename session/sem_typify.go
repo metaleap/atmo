@@ -263,6 +263,7 @@ func (me *SrcPack) semTyPrimOpQuote(self *SemExpr) {
 			switch val := it.Val.(type) {
 			case *SemValScalar:
 				it.Type = semTypeNew(self, val.Value.PrimType())
+				it.Type.Singleton = val.Value
 			case *SemValList:
 				it.Type = semTypeNew(self, MoPrimTypeList)
 			case *SemValDict:

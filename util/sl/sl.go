@@ -172,6 +172,10 @@ func Any[TSlice ~[]TItem, TItem any](slice TSlice, pred func(TItem) bool) bool {
 	return false
 }
 
+func Equal[TSlice ~[]TItem, TItem comparable](slice1 TSlice, slice2 TSlice) bool {
+	return Eq(slice1, slice2, func(item1 TItem, item2 TItem) bool { return item1 == item2 })
+}
+
 func Eq[TSlice ~[]TItem, TItem any](slice1 TSlice, slice2 TSlice, eq func(TItem, TItem) bool) bool {
 	var idx int
 	return (len(slice1) == len(slice2)) && All(slice1, func(slice1Item TItem) (ret bool) {

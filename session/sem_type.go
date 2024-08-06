@@ -9,18 +9,20 @@ import (
 )
 
 type SemType struct {
-	DueTo  *SemExpr
-	Prim   MoValPrimType
-	TArgs  sl.Of[*SemType]
-	Fields sl.Of[MoValIdent]
+	DueTo     *SemExpr
+	Prim      MoValPrimType
+	TArgs     sl.Of[*SemType]
+	Fields    sl.Of[MoValIdent]
+	Singleton MoVal
 }
 
 func (me *SemType) Eq(to *SemType) bool {
 	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqAnyOrder, sl.Eq[sl.Of[*SemType]])
-	return (me == to) || ((me != nil) && (to != nil) && (me.Prim == to.Prim) && sl_eq(me.TArgs, to.TArgs, (*SemType).Eq))
+	return (me == to) || ((me != nil) && (to != nil) && (me.Prim == to.Prim) && (me.Singleton == to.Singleton) &&
+		sl.Equal(me.Fields, to.Fields) && sl_eq(me.TArgs, to.TArgs, (*SemType).Eq))
 }
 
-func (me *SemType) IsSubOf(of *SemType) bool {
+func (me *SemType) IsSubTypeOf(of *SemType) bool {
 	switch {
 	case (me == nil) || (of == nil):
 		return (me == of)
@@ -29,51 +31,32 @@ func (me *SemType) IsSubOf(of *SemType) bool {
 	case of.Prim == MoPrimTypeNever:
 		return false
 	case (len(me.TArgs) == 0) && (len(of.TArgs) == 0):
-		return me.Prim == of.Prim
+		return (me.Prim == of.Prim) && util.If((me.Singleton == nil), (of.Singleton == nil), (of.Singleton == nil) || (of.Singleton == me.Singleton))
 	case (me.Prim == MoPrimTypeObj) && (of.Prim == MoPrimTypeObj):
 		for i, targ := range of.TArgs {
 			field_name := of.Fields[i]
 			if idx := sl.IdxOf(me.Fields, field_name); idx < 0 {
 				return false
-			} else if !me.TArgs[idx].IsSubOf(targ) {
+			} else if !me.TArgs[idx].IsSubTypeOf(targ) {
 				return false
 			}
 		}
 		return true
 	case (me.Prim == MoPrimTypeTup) && (of.Prim == MoPrimTypeTup):
 		for i, targ := range of.TArgs {
-			if (i >= len(me.TArgs)) || !me.TArgs[i].IsSubOf(targ) {
+			if (i >= len(me.TArgs)) || !me.TArgs[i].IsSubTypeOf(targ) {
 				return false
 			}
 		}
 		return true
 	case (me.Prim == MoPrimTypeFunc) && (of.Prim == MoPrimTypeFunc) && (len(me.TArgs) == len(of.TArgs)):
 		for i, targ := range me.TArgs { // last (return) tArg covariant, the others contravariant:
-			if is := util.If((i == (len(me.TArgs) - 1)), targ.IsSubOf(of.TArgs[i]), of.TArgs[i].IsSubOf(targ)); !is {
+			if is := util.If((i == (len(me.TArgs) - 1)), targ.IsSubTypeOf(of.TArgs[i]), of.TArgs[i].IsSubTypeOf(targ)); !is {
 				return false
 			}
 		}
 	}
-	return false
-}
-
-func (me *SemType) Sats(expect *SemType) bool {
-	switch {
-	case me == expect:
-		return true
-	case (me == nil) || (expect == nil):
-		return false
-	case expect.Prim == MoPrimTypeAny:
-		return true
-	case me.Prim == MoPrimTypeOr:
-		return sl.All(me.TArgs, func(targ *SemType) bool { return targ.Sats(expect) })
-	case expect.Prim == MoPrimTypeOr:
-		return sl.Any(expect.TArgs, func(targ *SemType) bool { return me.Sats(targ) })
-	case (expect.Prim == MoPrimTypeFunc) && (len(expect.TArgs) == 0): // means "any function" — note a func type with zero args would still have the return t-arg, so 0-arity is an OK sentinel for any-function
-		return me.Prim == MoPrimTypeFunc
-	}
-	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqAnyOrder, sl.Eq[sl.Of[*SemType]])
-	return (me.Prim == expect.Prim) && sl_eq(me.TArgs, expect.TArgs, (*SemType).Sats)
+	return me.Eq(of)
 }
 
 func (me *SemType) String() (ret string) {
@@ -276,7 +259,7 @@ func (me *SrcPack) semCheckTypePrim(expr *SemExpr, dueTo *SemExpr, expect MoValP
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
-	if !expr.Type.IsSubOf(expect) {
+	if !expr.Type.IsSubTypeOf(expect) {
 		if !expr.HasErrs() { // dont wanna be too noisy
 			expr.ErrAdd(semTypeErr(expr, expect))
 		}
