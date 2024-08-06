@@ -282,9 +282,10 @@ func (me *SrcPack) semScopePrepOnFn(self *SemExpr) {
 				fn.Body = expr_do
 			}
 			if (fn.Body != nil) && (len(ok_params) == len(params_list.Items)) {
-				fn.Body.Walk(true, nil, func(it *SemExpr) {
-					it.Scope = fn.Scope
-				})
+				fn.Body.Walk(true, func(it *SemExpr) bool {
+					it.Scope = fn.Scope // nested inner funcs are walked after this outer one anyway, so we can do this here & now
+					return true
+				}, nil)
 				self.Val = fn
 			}
 		}

@@ -20,6 +20,43 @@ func (me *SemType) Eq(to *SemType) bool {
 	return (me == to) || ((me != nil) && (to != nil) && (me.Prim == to.Prim) && sl_eq(me.TArgs, to.TArgs, (*SemType).Eq))
 }
 
+func (me *SemType) IsSubOf(of *SemType) bool {
+	switch {
+	case (me == nil) || (of == nil):
+		return (me == of)
+	case (me == of) || (of.Prim == MoPrimTypeAny) || (me.Prim == MoPrimTypeNever):
+		return true
+	case of.Prim == MoPrimTypeNever:
+		return false
+	case (len(me.TArgs) == 0) && (len(of.TArgs) == 0):
+		return me.Prim == of.Prim
+	case (me.Prim == MoPrimTypeObj) && (of.Prim == MoPrimTypeObj):
+		for i, targ := range of.TArgs {
+			field_name := of.Fields[i]
+			if idx := sl.IdxOf(me.Fields, field_name); idx < 0 {
+				return false
+			} else if !me.TArgs[idx].IsSubOf(targ) {
+				return false
+			}
+		}
+		return true
+	case (me.Prim == MoPrimTypeTup) && (of.Prim == MoPrimTypeTup):
+		for i, targ := range of.TArgs {
+			if (i >= len(me.TArgs)) || !me.TArgs[i].IsSubOf(targ) {
+				return false
+			}
+		}
+		return true
+	case (me.Prim == MoPrimTypeFunc) && (of.Prim == MoPrimTypeFunc) && (len(me.TArgs) == len(of.TArgs)):
+		for i, targ := range me.TArgs { // last (return) tArg covariant, the others contravariant:
+			if is := util.If((i == (len(me.TArgs) - 1)), targ.IsSubOf(of.TArgs[i]), of.TArgs[i].IsSubOf(targ)); !is {
+				return false
+			}
+		}
+	}
+	return false
+}
+
 func (me *SemType) Sats(expect *SemType) bool {
 	switch {
 	case me == expect:
@@ -146,6 +183,9 @@ func semTypeEnsureDueTo(dueTo *SemExpr, ty *SemType) *SemType {
 }
 
 func semTypeNew(dueTo *SemExpr, prim MoValPrimType, tyArgs ...*SemType) *SemType {
+	if sl.Has(tyArgs, nil) {
+		return nil
+	}
 	ret := &SemType{DueTo: dueTo, Prim: prim, TArgs: sl.To(tyArgs, func(targ *SemType) *SemType { return semTypeEnsureDueTo(dueTo, targ) })}
 	if len(tyArgs) > 0 {
 		if !ret.normalizeIfAdt() {
