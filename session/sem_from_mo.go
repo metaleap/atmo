@@ -133,8 +133,10 @@ func (me *SrcPack) semPopulateRootScope() {
 	// finally, gather all `SemScopeEntry.Refs` and also mark unused func params
 	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
 		if call, _ := self.Val.(*SemValCall); call != nil {
-			ident := call.Callee.MaybeIdent(true)
-			return (ident != moPrimOpQuote) && (ident != moPrimOpQQuote)
+			if ident, _ := call.Callee.Val.(*SemValIdent); ident != nil {
+				ident.IsCallee = true
+				return (ident.Name != moPrimOpQuote) && (ident.Name != moPrimOpQQuote)
+			}
 		}
 		return true
 	}, func(self *SemExpr) {
@@ -155,6 +157,16 @@ func (me *SrcPack) semPopulateRootScope() {
 						decl.Args[0].Val.(*SemValIdent).IsDeclUsed = true
 					}
 				}
+			}
+		}
+	})
+	// finally, gather all `SemScopeEntry.Refs` and also mark unused func params
+	me.Trees.Sem.TopLevel.Walk(nil, nil, func(self *SemExpr) {
+		if ident, _ := self.Val.(*SemValIdent); ident != nil {
+			if (ident.IsDecl) && !ident.IsDeclUsed {
+				self.Fact(SemFact{Kind: SemFactUnused}, self)
+			} else if (!ident.IsCallee) && (moPrimOpsLazy[ident.Name] != nil) {
+				self.ErrAdd(self.ErrNew(ErrCodeNotAValue, ident.Name))
 			}
 		}
 	})

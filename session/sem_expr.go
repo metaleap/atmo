@@ -30,6 +30,7 @@ type SemValIdent struct {
 	IsSet      bool
 	Unresolved bool
 	IsDeclUsed bool
+	IsCallee   bool
 }
 
 type SemValCall struct {
