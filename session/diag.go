@@ -74,7 +74,7 @@ var (
 		ErrCodeLitSyntax:          "invalid literal: %s", // actual error msg in %s
 		ErrCodeBracketingMismatch: "opening and closing %s don't match up",
 
-		ErrCodeExpectedFoo:         "expecting %s",
+		ErrCodeExpectedFoo:         "expected %s",
 		ErrCodeUndefined:           "`%s` is not defined or not in scope",
 		ErrCodeNoSuchField:         "`%s` is not a property of this object",
 		ErrCodeNotAValue:           "`%s` cannot be used as a value",

@@ -9,9 +9,10 @@ import (
 )
 
 type SemType struct {
-	DueTo *SemExpr
-	Prim  MoValPrimType
-	TArgs sl.Of[*SemType]
+	DueTo  *SemExpr
+	Prim   MoValPrimType
+	TArgs  sl.Of[*SemType]
+	Fields sl.Of[MoValIdent]
 }
 
 func (me *SemType) Eq(to *SemType) bool {

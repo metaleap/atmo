@@ -21,7 +21,7 @@ var (
 )
 
 func Main() {
-	session.DoSrcPackEvals, session.DoSrcPackSems = true, false
+	session.DoSrcPackEvals, session.DoSrcPackSems = true, true
 
 	var err error
 	if curDirPath, err = os.Getwd(); err != nil {

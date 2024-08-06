@@ -21,7 +21,7 @@ func init() {
 		moPrimOpQuote:    (*SrcPack).semTyPrimOpQuote,
 		moPrimOpQQuote:   (*SrcPack).semTyPrimOpQuote,
 		moPrimOpBoolCase: (*SrcPack).semTyPrimOpCaseOf,
-		moPrimOpMacro:    (*SrcPack).semTyPrimOpFn,
+		moPrimFnMacro:    (*SrcPack).semTyPrimOpFn,
 		moPrimOpExpand:   (*SrcPack).semTyPrimOpExpand,
 		moPrimOpFnCall:   (*SrcPack).semTyPrimOpFnCall,
 	}

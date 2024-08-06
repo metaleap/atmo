@@ -19,7 +19,7 @@ func (me *SrcPack) semRefresh() {
 	me.moPrePackEval()
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		me.semPopulateRootScope()
-		// me.semInferTypes()
+		me.semTySynth()
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
 				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) {
@@ -122,7 +122,7 @@ func (me *SrcPack) semPopulateRootScope() {
 				return false // do not traverse into quote call
 			case moPrimOpQQuote:
 				return false // do not traverse into quasiquote for now (TODO: do traverse & handle unquote so that the below cases will trigger in unquoted parts)
-			case moPrimOpFn, moPrimOpMacro:
+			case moPrimOpFn, moPrimFnMacro:
 				me.semScopePrepOnFn(self) // transform @fn and @macro calls into SemValFunc expr with own SemScope having its Params
 			case moPrimOpSet:
 				me.semScopePrepOnSet(self) // ensure all @set calls collected in the relevant scope entry
@@ -137,8 +137,9 @@ func (me *SrcPack) semPopulateRootScope() {
 			if (!val.IsDecl) && (!val.IsSet) {
 				if _, entry := self.Scope.Lookup(val.Name); entry == nil {
 					val.Unresolved = true
-					is_prim_op := (semTyPrimOps[val.Name] != nil)
-					self.ErrAdd(self.ErrNew(util.If(is_prim_op, ErrCodeNotAValue, ErrCodeUndefined), val.Name))
+					if is_prim_op := (semTyPrimOps[val.Name] != nil); !is_prim_op {
+						self.ErrAdd(self.ErrNew(ErrCodeUndefined, val.Name))
+					}
 				} else {
 					entry.Refs[self] = util.Void{}
 					switch decl := entry.DeclParamOrCallOrFunc.Val.(type) {
@@ -264,7 +265,7 @@ func (me *SrcPack) semScopePrepOnFn(self *SemExpr) {
 			fn := &SemValFunc{
 				Scope:   &SemScope{Parent: self.Scope, Own: map[MoValIdent]*SemScopeEntry{}},
 				Params:  ok_params,
-				IsMacro: (call.Callee.Val.(*SemValIdent).Name == moPrimOpMacro),
+				IsMacro: (call.Callee.Val.(*SemValIdent).Name == moPrimFnMacro),
 			}
 			for _, param := range fn.Params {
 				fn.Scope.Own[param.Val.(*SemValIdent).Name] = &SemScopeEntry{DeclParamOrCallOrFunc: param, Refs: map[*SemExpr]util.Void{param: {}}}

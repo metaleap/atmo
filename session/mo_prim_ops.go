@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"atmo/util"
+	"atmo/util/sl"
 	"atmo/util/str"
 )
 
@@ -22,11 +23,11 @@ const (
 	moPrimOpBoolCase      MoValIdent = "@boolCase"
 	moPrimOpBoolAnd       MoValIdent = "@boolAnd"
 	moPrimOpBoolOr        MoValIdent = "@boolOr"
-	moPrimOpMacro         MoValIdent = "@macro"
-	moPrimOpExpand        MoValIdent = "@macroExpand"
 	moPrimOpFn            MoValIdent = "@fn"
 	moPrimOpFnCall        MoValIdent = "@fnCall"
+	moPrimOpExpand        MoValIdent = "@macroExpand"
 
+	moPrimFnMacro       MoValIdent = "@macro"
 	moPrimFnReplEnv     MoValIdent = "@replEnv"
 	moPrimFnReplPrint   MoValIdent = "@replPrint"
 	moPrimFnReplReset   MoValIdent = "@replReset"
@@ -87,7 +88,6 @@ func init() {
 		moPrimOpBoolCase: (*Interp).primOpCaseOf,
 		moPrimOpBoolAnd:  (*Interp).primOpBoolAnd,
 		moPrimOpBoolOr:   (*Interp).primOpBoolOr,
-		moPrimOpMacro:    (*Interp).primOpMacro,
 		moPrimOpExpand:   (*Interp).primOpMacroExpand,
 		moPrimOpQuote:    (*Interp).primOpQuote,
 		moPrimOpQQuote:   (*Interp).primOpQuasiQuote,
@@ -112,6 +112,7 @@ func init() {
 		moPrimFnNumFloatSub: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) - opr.(MoValNumFloat) }),
 		moPrimFnNumFloatMul: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) * opr.(MoValNumFloat) }),
 		moPrimFnNumFloatDiv: moPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, func(opl MoVal, opr MoVal) MoVal { return opl.(MoValNumFloat) / opr.(MoValNumFloat) }),
+		moPrimFnMacro:       (*Interp).primFnMacro,
 		moPrimFnNot:         (*Interp).primFnBoolNot,
 		moPrimFnCast:        (*Interp).primFnCast,
 		moPrimFnCmpEq:       (*Interp).primFnEq,
@@ -179,7 +180,7 @@ func (me *Interp) primOpSet(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 		owner_env = env
 	}
 
-	const can_set_macros = false
+	const can_set_macros = true
 	if (!can_set_macros) && (found != nil) {
 		if fn, _ := found.Val.(*MoValFnLam); (fn != nil) && fn.IsMacro {
 			return nil, me.exprErr(me.diagSpan(true, false, args...).newDiagErr(ErrCodeAtmoTodo, "mutating macros currently disabled, let us know whether you disagree with that or not"))
@@ -416,9 +417,34 @@ func (me *Interp) primOpBoolOr(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 
 // eager prim-ops below, lazy ones above
 
-func (me *Interp) primFnBoolNot(env *MoEnv, args ...*MoExpr) *MoExpr {
+func (me *Interp) primFnMacro(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	if err := me.checkCount(1, 1, args); err != nil {
 		return me.exprErr(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
+	}
+	if err := me.checkIs(MoPrimTypeFunc, args[0]); err != nil {
+		return me.exprErr(err)
+	}
+	fn, is := args[0].Val.(*MoValFnLam)
+	if !is {
+		return me.exprErr(me.diagSpan(false, true, args...).newDiagErr(ErrCodeExpectedFoo, "a user-land lambda, not a built-in prim func"))
+	}
+	if fn.IsMacro {
+		return args[0]
+	}
+	dupl := *fn
+	dupl.IsMacro = true
+	return me.expr(&dupl, nil, nil, args...)
+}
+
+func (me *Interp) primFnBoolNot(_ *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return me.exprErr(err)
+	}
+	if err := me.checkArgErrs(args...); err != nil {
+		return err
 	}
 	switch {
 	case args[0].EqFalse():
@@ -629,7 +655,7 @@ func (me *Interp) primFnObjGet(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	found := ((*MoValDict)(args[0].Val.(*MoValObj))).Get(args[1])
 	if found == nil {
-		return me.exprVoid(args...)
+		return me.exprErr(me.diagSpan(false, true, args[1]).newDiagErr(ErrCodeNoSuchField, args[1].Val.(MoValIdent)))
 	}
 	return me.exprFrom(found, args...)
 }
@@ -946,7 +972,7 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	}
 	var ret MoVal
 	switch convert_to {
-	case MoPrimTypeCall, MoPrimTypeDict, MoPrimTypeFunc, MoPrimTypeList, MoPrimTypeBool, MoPrimTypeVoid, MoPrimTypeOr:
+	case MoPrimTypeCall, MoPrimTypeFunc, MoPrimTypeBool, MoPrimTypeVoid, MoPrimTypeAny, MoPrimTypeNever, MoPrimTypeOr, MoPrimTypeAnd, MoPrimTypeNot:
 		break
 
 	case MoPrimTypeErr:
@@ -998,6 +1024,38 @@ func (me *Interp) primFnCast(_ *MoEnv, args ...*MoExpr) *MoExpr {
 		}
 	case MoPrimTypeStr:
 		ret = MoValStr(convertee.String())
+	case MoPrimTypeTup:
+		switch it := convertee.Val.(type) {
+		case *MoValList:
+			dupl := *it
+			ret = (*MoValTup)(&dupl)
+		}
+	case MoPrimTypeList:
+		switch it := convertee.Val.(type) {
+		case *MoValTup:
+			dupl := *it
+			ret = (*MoValList)(&dupl)
+		case *MoValDict:
+			list := make(MoValList, len(*it))
+			for i, entry := range *it {
+				list[i] = entry.Key
+			}
+			ret = &list
+		}
+	case MoPrimTypeObj:
+		switch it := convertee.Val.(type) {
+		case *MoValDict:
+			if sl.All(*it, func(it moDictEntry) bool { return it.Key.Val.PrimType() == MoPrimTypeIdent }) {
+				dupl := *it
+				ret = (*MoValObj)(&dupl)
+			}
+		}
+	case MoPrimTypeDict:
+		switch it := convertee.Val.(type) {
+		case *MoValObj:
+			dupl := *it
+			ret = (*MoValDict)(&dupl)
+		}
 	default:
 		return me.exprErr(me.diagSpan(false, true, args...).newDiagErr(ErrCodeAtmoTodo, "primFnCast: unhandled prim-type-tag "+convert_to.Str(false)))
 	}
