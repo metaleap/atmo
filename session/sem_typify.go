@@ -62,21 +62,21 @@ func init() {
 		moPrimFnDictSet:     (*SrcPack).semTyPrimFnDictSet,
 		moPrimFnDictDel:     (*SrcPack).semTyPrimFnDictDel,
 		moPrimFnDictLen:     (*SrcPack).semTyPrimFnDictLen,
-		moPrimFnObjNew:      nil,
-		moPrimFnObjGet:      nil,
-		moPrimFnObjSet:      nil,
-		moPrimFnTupGet:      nil,
-		moPrimFnTupSet:      nil,
-		moPrimFnErrNew:      (*SrcPack).semTyPrimFnErrNew,
-		moPrimFnErrVal:      (*SrcPack).semTyPrimFnErrVal,
-		moPrimFnStrConcat:   (*SrcPack).semTyPrimFnStrConcat,
-		moPrimFnStrLen:      (*SrcPack).semTyPrimFnStrLen,
-		moPrimFnStrCharAt:   (*SrcPack).semTyPrimFnStrCharAt,
-		moPrimFnStrRange:    (*SrcPack).semTyPrimFnStrRange,
-		moPrimFnStr:         (*SrcPack).semTyPrimFnStr,
-		moPrimFnExprStr:     (*SrcPack).semTyPrimFnExprStr,
-		moPrimFnExprParse:   (*SrcPack).semTyPrimFnExprParse,
-		moPrimFnExprEval:    (*SrcPack).semTyPrimFnExprEval,
+		// moPrimFnObjNew:      (*SrcPack).semTyPrimFnObjNew,
+		// moPrimFnObjGet:      (*SrcPack).semTyPrimFnObjGet,
+		// moPrimFnObjSet:      (*SrcPack).semTyPrimFnObjSet,
+		moPrimFnTupGet:    (*SrcPack).semTyPrimFnTupGet,
+		moPrimFnTupSet:    (*SrcPack).semTyPrimFnTupSet,
+		moPrimFnErrNew:    (*SrcPack).semTyPrimFnErrNew,
+		moPrimFnErrVal:    (*SrcPack).semTyPrimFnErrVal,
+		moPrimFnStrConcat: (*SrcPack).semTyPrimFnStrConcat,
+		moPrimFnStrLen:    (*SrcPack).semTyPrimFnStrLen,
+		moPrimFnStrCharAt: (*SrcPack).semTyPrimFnStrCharAt,
+		moPrimFnStrRange:  (*SrcPack).semTyPrimFnStrRange,
+		moPrimFnStr:       (*SrcPack).semTyPrimFnStr,
+		moPrimFnExprStr:   (*SrcPack).semTyPrimFnExprStr,
+		moPrimFnExprParse: (*SrcPack).semTyPrimFnExprParse,
+		moPrimFnExprEval:  (*SrcPack).semTyPrimFnExprEval,
 	}
 	{
 		t, fn := semTypeNew, MoPrimTypeFunc
@@ -452,6 +452,44 @@ func (me *SrcPack) semTyPrimFnPrimTypeTag(self *SemExpr, scope *SemScope) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypePrimTypeTag)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, semTypeNew(call.Callee, MoPrimTypePrimTypeTag))
+	}
+}
+
+func (me *SrcPack) semTyPrimFnTupGet(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
+	if me.semCheckCount(2, 2, call.Args, self, true) {
+		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeTup, -1) {
+			ty_tup := call.Args[0].Type
+			self.Type = semTypeFromMultiple(call.Args[1], true, ty_tup.TArgs...)
+			if scalar, _ := call.Args[1].Val.(*SemValScalar); scalar != nil {
+				if idx := scalar.Value.(MoValNumUint); len(ty_tup.TArgs) <= int(idx) {
+					_ = me.semCheckTypePrim(call.Args[0], call.Args[1], MoPrimTypeTup, int(idx)+1)
+				} else {
+					self.Type = ty_tup.TArgs[idx]
+				}
+			}
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, ty_tup, call.Args[1].Type, self.Type)
+		}
+	}
+}
+
+func (me *SrcPack) semTyPrimFnTupSet(self *SemExpr, scope *SemScope) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
+	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
+	if me.semCheckCount(3, 3, call.Args, self, true) {
+		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeTup, -1) {
+			ty_tup := call.Args[0].Type
+			if scalar, _ := call.Args[1].Val.(*SemValScalar); scalar != nil {
+				if idx := scalar.Value.(MoValNumUint); len(ty_tup.TArgs) <= int(idx) {
+					_ = me.semCheckTypePrim(call.Args[0], call.Args[1], MoPrimTypeTup, int(idx)+1)
+				} else {
+					_ = me.semCheckType(call.Args[2], ty_tup.TArgs[idx])
+				}
+			}
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, self.Type)
+		}
 	}
 }
 

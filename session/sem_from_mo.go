@@ -123,9 +123,9 @@ func (me *SrcPack) semPopulateRootScope() {
 			case moPrimOpQQuote:
 				return false // do not traverse into quasiquote for now (TODO: do traverse & handle unquote so that the below cases will trigger in unquoted parts)
 			case moPrimOpFn:
-				me.semScopePrepOnFn(self) // transform @fn calls into SemValFunc expr with own SemScope having its Params
+				me.semScopePrepOnFn(self) // transform @fn call into SemValFunc expr with own SemScope having its Params
 			case moPrimOpSet:
-				me.semScopePrepOnSet(self) // ensure all @set calls collected in the relevant scope entry
+				me.semScopePrepOnSet(self) // ensure all @set calls get collected in the relevant scope entry (or create it)
 			}
 		}
 		return true
