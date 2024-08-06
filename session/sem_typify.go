@@ -2,6 +2,7 @@ package session
 
 import (
 	"atmo/util/sl"
+	"atmo/util/str"
 	"maps"
 )
 
@@ -192,28 +193,25 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 			self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(it *SemExpr) *SemType { return it.Type }), ty_ret)...)
 		}
 	case *SemValCall:
+		me.semTypify(val.Callee, env)
+		sl.Each(val.Args, func(it *SemExpr) { me.semTypify(it, env) })
 		callee_name := val.Callee.MaybeIdent(false)
 		prim_op, prim_fn := semTyPrimOps[callee_name], semTyPrimFns[callee_name]
+		if (callee_name != moPrimOpQQuote) && (callee_name != moPrimOpQuote) && sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
+			break
+		}
 		if prim_op != nil {
 			val.Callee.Fact(SemFact{Kind: SemFactPrimOp}, val.Callee)
-			if (callee_name != moPrimOpQQuote) && (callee_name != moPrimOpQuote) {
-				sl.Each(val.Args, func(it *SemExpr) { me.semTypify(it, env) })
-				if sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
-					break
-				}
-			}
 			prim_op(me, self)
-		} else {
-			me.semTypify(val.Callee, env)
-			sl.Each(val.Args, func(it *SemExpr) { me.semTypify(it, env) })
-			if (val.Callee.Type == nil) || sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
-				break
-			} else if prim_fn != nil {
-				val.Callee.Fact(SemFact{Kind: SemFactPrimFn}, val.Callee)
-				prim_fn(me, self)
-			} else if me.semCheckTypePrim(val.Callee, self, MoPrimTypeFunc, -1) {
-				println("TODO")
-			}
+		} else if val.Callee.Type == nil {
+			break
+		} else if prim_fn != nil {
+			val.Callee.Fact(SemFact{Kind: SemFactPrimFn}, val.Callee)
+			prim_fn(me, self)
+		} else if val.Callee.Type.Prim != MoPrimTypeFunc {
+			self.ErrAdd(val.Callee.ErrNew(ErrCodeNotCallable, str.Shorten(val.Callee.String(true), 22)))
+		} else if fn := val.Callee.Val.(*SemValFunc); me.semCheckCount(len(fn.Params), len(fn.Params), val.Args, self, true) {
+			self.Type = val.Callee.Type.TArgs[len(val.Callee.Type.TArgs)-1]
 		}
 	}
 	return self.Type
@@ -257,23 +255,24 @@ func (me *SrcPack) semTyPrimOpBoolAndOr(self *SemExpr) {
 }
 
 func (me *SrcPack) semTyPrimOpQuote(self *SemExpr) {
+	// TODO: handle unquotes if quasi-quote call
 	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
+	self.Type = semTypeNew(self, MoPrimTypeAny)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		call.Args[0].Walk(false, nil, func(it *SemExpr) {
 			switch val := it.Val.(type) {
 			case *SemValScalar:
-				it.Type = semTypeNew(call.Callee, val.Value.PrimType())
+				it.Type = semTypeNew(self, val.Value.PrimType())
 			case *SemValList:
-				it.Type = semTypeNew(call.Callee, MoPrimTypeList)
+				it.Type = semTypeNew(self, MoPrimTypeList)
 			case *SemValDict:
-				it.Type = semTypeNew(call.Callee, MoPrimTypeDict)
+				it.Type = semTypeNew(self, MoPrimTypeDict)
 			case *SemValIdent:
-				it.Type = semTypeNew(call.Callee, MoPrimTypeIdent)
+				it.Type = semTypeNew(self, MoPrimTypeIdent)
 			case *SemValCall:
-				it.Type = semTypeNew(call.Callee, MoPrimTypeCall)
+				it.Type = semTypeNew(self, MoPrimTypeCall)
 			case *SemValFunc:
-				it.Type = semTypeNew(call.Callee, MoPrimTypeFunc)
+				it.Type = semTypeNew(self, MoPrimTypeFunc)
 				it.ErrAdd(it.ErrNew(ErrCodeAtmoTodo, "encountered a Func expr inside a quote call"))
 			}
 		})

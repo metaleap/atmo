@@ -79,7 +79,7 @@ func (me *SemType) Sats(expect *SemType) bool {
 func (me *SemType) String() (ret string) {
 	var buf str.Buf
 	me.stringifyTo(&buf)
-	if ret = buf.String(); str.Begins(ret, "(") && str.Ends(ret, ")") {
+	if ret = buf.String(); str.Begins(ret, "(") && str.Ends(ret, ")") && (me.Prim != MoPrimTypeTup) {
 		ret = ret[1 : len(ret)-1]
 	}
 	return
@@ -100,11 +100,28 @@ func (me *SemType) stringifyTo(w *strings.Builder) {
 		w.WriteByte('[')
 		me.TArgs[0].stringifyTo(w)
 		w.WriteByte(']')
+	case me.Prim == MoPrimTypeTup:
+		w.WriteByte('(')
+		for i, targ := range me.TArgs {
+			if i > 0 {
+				w.WriteString(", ")
+			}
+			targ.stringifyTo(w)
+		}
+		w.WriteByte(')')
 	case (me.Prim == MoPrimTypeDict) && (len(me.TArgs) == 2):
 		w.WriteByte('{')
 		me.TArgs[0].stringifyTo(w)
 		w.WriteString(": ")
 		me.TArgs[1].stringifyTo(w)
+		w.WriteByte('}')
+	case me.Prim == MoPrimTypeObj:
+		w.WriteByte('{')
+		for i, targ := range me.TArgs {
+			moValStringifyTo(me.Fields[i], w)
+			w.WriteString(": ")
+			targ.stringifyTo(w)
+		}
 		w.WriteByte('}')
 	case (me.Prim == MoPrimTypeFunc) && (len(me.TArgs) > 0):
 		w.WriteByte('(')
@@ -215,7 +232,7 @@ func (me *SrcPack) semCheckCount(wantAtLeast int, wantAtMost int, have SemExprs,
 		moniker := util.If(!forArgs, "expression"+plural+" in here", "arg"+plural+" for callee")
 		if forArgs && (errDst != nil) {
 			if call, _ := errDst.Val.(*SemValCall); (call != nil) && (call.Callee.From != nil) && (call.Callee.From.SrcNode != nil) && (call.Callee.From.SrcNode.Src != "") {
-				moniker += " `" + call.Callee.From.SrcNode.Src + "`"
+				moniker += " `" + str.Shorten(call.Callee.From.SrcNode.Src, 11) + "`"
 			}
 		}
 		err_loc := errDst
@@ -259,7 +276,7 @@ func (me *SrcPack) semCheckTypePrim(expr *SemExpr, dueTo *SemExpr, expect MoValP
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
-	if !expr.Type.Sats(expect) {
+	if !expr.Type.IsSubOf(expect) {
 		if !expr.HasErrs() { // dont wanna be too noisy
 			expr.ErrAdd(semTypeErr(expr, expect))
 		}
@@ -281,8 +298,8 @@ func semTypeErrOn(self *SemExpr, expect *SemType, have *SemType) *Diag {
 	}
 	err := self.ErrNew(ErrCodeTypeMismatch, s1, s2)
 	err.Rel = srcFileLocs([]string{
-		str.Fmt("%s decided by `%s`", s1, dt1.String(false)),
-		str.Fmt("%s decided by `%s`", s2, dt2.String(false)),
+		str.Fmt("%s required by `%s`", s1, dt1.String(false)),
+		str.Fmt("%s provided by `%s`", s2, dt2.String(false)),
 	}, t1.DueTo, t2.DueTo)
 	return err
 }

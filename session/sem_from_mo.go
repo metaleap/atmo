@@ -131,7 +131,13 @@ func (me *SrcPack) semPopulateRootScope() {
 		return true
 	}, nil)
 	// finally, gather all `SemScopeEntry.Refs` and also mark unused func params
-	me.Trees.Sem.TopLevel.Walk(nil, nil, func(self *SemExpr) {
+	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
+		if call, _ := self.Val.(*SemValCall); call != nil {
+			ident := call.Callee.MaybeIdent(true)
+			return (ident != moPrimOpQuote) && (ident != moPrimOpQQuote)
+		}
+		return true
+	}, func(self *SemExpr) {
 		switch val := self.Val.(type) {
 		case *SemValIdent:
 			if (!val.IsDecl) && (!val.IsSet) {

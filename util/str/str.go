@@ -63,6 +63,13 @@ func Shorter(s1 string, s2 string) (string, string) {
 	return s1, s2
 }
 
+func Shorten(s string, lenMax int) string {
+	if len(s) > lenMax {
+		s = s[:lenMax] + "..."
+	}
+	return s
+}
+
 func Replace(s string, repl Dict) string {
 	replacer := Replacer(s, repl)
 	if replacer == nil {

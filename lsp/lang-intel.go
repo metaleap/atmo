@@ -1,8 +1,6 @@
 package lsp
 
 import (
-	"html"
-
 	lsp "atmo/lsp/sdk"
 	"atmo/session"
 	"atmo/util"
@@ -139,7 +137,7 @@ func init() {
 						if item.CodeLang != "" {
 							items[i].Value = "\n \n```" + item.CodeLang + "\n" + item.Value + "\n```"
 						} else {
-							items[i].Value = html.EscapeString(item.Value)
+							items[i].Value = item.Value
 						}
 					}
 					strs := sl.Where(sl.To(items, func(it session.IntelItem) string { return it.Value }), func(s string) bool { return s != "" })
