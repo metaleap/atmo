@@ -145,7 +145,7 @@ tco_loop:
 					did_call = true
 					switch fn := evaled_callee.Val.(type) {
 					default:
-						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(ErrCodeUncallable, evaled_callee.String()))
+						env, expr = nil, me.exprErr(me.diagSpan(true, false).newDiagErr(ErrCodeNotCallable, evaled_callee.String()))
 					case MoValFnPrim:
 						expr = fn(me, env, evaled_call_args...)
 						expr.setSrcSpanIfNone(diag_ctx_cur)
@@ -188,7 +188,7 @@ func (me *Interp) evalExpr(env *MoEnv, expr *MoExpr) *MoExpr {
 		}
 		if found == nil {
 			_, is_lazy_prim_op := moPrimOpsLazy[val]
-			return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, ErrCodeUndefined, ErrCodeNotAValue), val))
+			return me.exprErr(me.diagSpan(false, true, expr).newDiagErr(util.If(!is_lazy_prim_op, ErrCodeNotDefined, ErrCodeNotAValue), val))
 		}
 		return me.expr(found.Val, expr.SrcFile, expr.SrcSpan)
 	case *MoValList:

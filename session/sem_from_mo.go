@@ -23,7 +23,7 @@ func (me *SrcPack) semRefresh() {
 		if !me.Trees.Sem.TopLevel.AnyErrs() {
 			me.Trees.Sem.TopLevel.Walk(nil, func(it *SemExpr) bool {
 				if (it.Type == nil) && (!it.HasErrs()) && (!it.HasFact(SemFactPrimOp, nil, false, false)) {
-					it.ErrAdd(it.ErrNew(ErrCodeUntypifiable))
+					it.ErrAdd(it.ErrNew(ErrCodeNotTypifiable))
 				}
 				return true
 			}, nil)
@@ -138,7 +138,7 @@ func (me *SrcPack) semPopulateRootScope() {
 				if _, entry := self.Scope.Lookup(val.Name); entry == nil {
 					val.Unresolved = true
 					if is_prim_op := (semTyPrimOps[val.Name] != nil); !is_prim_op {
-						self.ErrAdd(self.ErrNew(ErrCodeUndefined, val.Name))
+						self.ErrAdd(self.ErrNew(ErrCodeNotDefined, val.Name))
 					}
 				} else {
 					entry.Refs[self] = util.Void{}

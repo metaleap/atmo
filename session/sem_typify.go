@@ -2,6 +2,7 @@ package session
 
 import (
 	"atmo/util/sl"
+	"maps"
 )
 
 var (
@@ -172,21 +173,34 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 			}
 		}
 	case *SemValFunc:
+		sub_env := maps.Clone(env)
+		for _, param := range val.Params {
+			param.Type = semTypeNew(param, MoPrimTypeAny)
+			sub_env[param.MaybeIdent(true)] = param.Type
+		}
+		if ty_ret := me.semTypify(val.Body, sub_env); ty_ret != nil {
+			self.Type = semTypeNew(self, MoPrimTypeFunc, append(sl.To(val.Params, func(it *SemExpr) *SemType { return it.Type }), ty_ret)...)
+		}
 	case *SemValCall:
 		callee_name := val.Callee.MaybeIdent(false)
 		prim_op, prim_fn := semTyPrimOps[callee_name], semTyPrimFns[callee_name]
 		if prim_op != nil {
 			if (callee_name != moPrimOpQQuote) && (callee_name != moPrimOpQuote) {
 				sl.Each(val.Args, func(it *SemExpr) { me.semTypify(it, env) })
+				if sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
+					break
+				}
 			}
 			prim_op(me, self)
 		} else {
 			me.semTypify(val.Callee, env)
 			sl.Each(val.Args, func(it *SemExpr) { me.semTypify(it, env) })
-			if prim_fn != nil {
+			if (val.Callee.Type == nil) || sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
+				break
+			} else if prim_fn != nil {
 				prim_fn(me, self)
-			} else {
-
+			} else if me.semCheckTypePrim(val.Callee, self, MoPrimTypeFunc, -1) {
+				println("TODO")
 			}
 		}
 	}

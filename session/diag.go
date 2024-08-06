@@ -36,10 +36,10 @@ const (
 
 	// semantic (errors)
 	ErrCodeExpectedFoo         DiagCode = "Unexpected"
-	ErrCodeUndefined           DiagCode = "NotDefined"
+	ErrCodeNotDefined          DiagCode = "NotDefined"
 	ErrCodeNoSuchField         DiagCode = "NoSuchField"
 	ErrCodeNotAValue           DiagCode = "NotAValue"
-	ErrCodeUncallable          DiagCode = "NotCallable"
+	ErrCodeNotCallable         DiagCode = "NotCallable"
 	ErrCodeReserved            DiagCode = "Reserved"
 	ErrCodeNoElseCase          DiagCode = "ElseCaseMissing"
 	ErrCodeIndexOutOfBounds    DiagCode = "IndexOutOfBounds"
@@ -51,7 +51,7 @@ const (
 	ErrCodeTypeMismatch        DiagCode = "TypeMismatch"
 	ErrCodeTypeInfinite        DiagCode = "TypeInfinite"
 	ErrCodeComputationFailed   DiagCode = "ComputationFailed"
-	ErrCodeUntypifiable        DiagCode = "Untypifiable"
+	ErrCodeNotTypifiable       DiagCode = "Untypifiable"
 	ErrCodeInterpLimitExceeded DiagCode = "InterpLimitExceeded"
 
 	// semantic (warnings / infos / hints)
@@ -75,10 +75,10 @@ var (
 		ErrCodeBracketingMismatch: "opening and closing %s don't match up",
 
 		ErrCodeExpectedFoo:         "expected %s",
-		ErrCodeUndefined:           "`%s` is not defined or not in scope",
+		ErrCodeNotDefined:          "`%s` is not defined or not in scope",
 		ErrCodeNoSuchField:         "`%s` is not a property of this object",
 		ErrCodeNotAValue:           "`%s` cannot be used as a value",
-		ErrCodeUncallable:          "`%s` is not callable",
+		ErrCodeNotCallable:         "`%s` is not callable",
 		ErrCodeReserved:            "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
 		ErrCodeNoElseCase:          "missing a fallback case",
 		ErrCodeIndexOutOfBounds:    "index %d out of bounds, given length %d",
@@ -90,7 +90,7 @@ var (
 		ErrCodeTypeMismatch:        "type mismatch: %s vs. %s",
 		ErrCodeTypeInfinite:        "infinite type detected: `%s`",
 		ErrCodeComputationFailed:   "%v",
-		ErrCodeUntypifiable:        "expression untypifiable",
+		ErrCodeNotTypifiable:       "expression untypifiable",
 		ErrCodeInterpLimitExceeded: "the interpreter's user-set loop limit (%d) or call limit (%d) has been breached",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
