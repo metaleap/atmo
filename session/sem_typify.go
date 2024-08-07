@@ -1,6 +1,7 @@
 package session
 
 import (
+	"atmo/util"
 	"atmo/util/sl"
 	"atmo/util/str"
 	"maps"
@@ -511,21 +512,16 @@ func (me *SrcPack) semTyPrimFnObjGet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
-		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeIdent)) {
-			ty_obj, ident := call.Args[0].Type, call.Args[1].UnquotedIfQuoteCall().Val.(*SemValIdent)
-			self.Type = ty_obj.mapIfOr(call.Args[1], func(ty *SemType) *SemType {
-				if idx := sl.IdxOf(ty.Fields, ident.Name); idx >= 0 {
-					return ty.TArgs[idx]
-				}
-				self.ErrAdd(call.Args[1].ErrNew(ErrCodeNoSuchField, ident.Name))
-				return nil
-			})
-			if self.Type != nil {
-				call.Callee.Type.TArgs[0] = semTypeNew(call.Args[1], MoPrimTypeObj, self.Type)
-				call.Callee.Type.TArgs[0].Fields = []MoValIdent{ident.Name}
-				call.Callee.Type.TArgs[len(call.Callee.Type.TArgs)-1] = self.Type
+		self.Type = semTypeMapIfOr(call.Callee, call.Args[0].Type, call.Args[1].Type, func(tyObj, tyKey *SemType) *SemType {
+			ident, _ := tyKey.Singleton.(MoValIdent)
+			if idx := sl.IdxOf(tyObj.Fields, ident); idx >= 0 {
+				return tyObj.TArgs[idx]
 			}
+			self.ErrAdd(call.Args[1].ErrNew(ErrCodeNoSuchField, util.If(ident != "", string(ident), str.Shorten(call.Args[1].String(true), 11))))
+			return nil
+		})
+		if self.Type != nil {
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
 		}
 	}
 }
@@ -535,16 +531,19 @@ func (me *SrcPack) semTyPrimFnObjSet(self *SemExpr) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
 	if me.semCheckCount(3, 3, call.Args, self, true) {
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeIdent)) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeObj, -1) {
-			ty_obj := call.Args[0].Type
-			ident := call.Args[1].Val.(*SemValIdent)
-			if idx := sl.IdxOf(ty_obj.Fields, ident.Name); idx < 0 {
-				self.ErrAdd(call.Args[1].ErrNew(ErrCodeNoSuchField, ident.Name))
-			} else {
-				_ = me.semCheckType(call.Args[2], ty_obj.TArgs[idx])
+		ty_val := semTypeMapIfOr(call.Callee, call.Args[0].Type, call.Args[1].Type, func(tyObj, tyKey *SemType) *SemType {
+			ident, _ := tyKey.Singleton.(MoValIdent)
+			if idx := sl.IdxOf(tyObj.Fields, ident); idx >= 0 {
+				return tyObj.TArgs[idx]
 			}
+			self.ErrAdd(call.Args[1].ErrNew(ErrCodeNoSuchField, util.If(ident != "", string(ident), str.Shorten(call.Args[1].String(true), 11))))
+			return nil
+		})
+		if ty_val == nil {
+			self.Type = nil
+		} else if me.semCheckTypeLax(call.Args[2], ty_val, true) {
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, self.Type)
 		}
-		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, self.Type)
 	}
 }
 

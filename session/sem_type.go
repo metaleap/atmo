@@ -32,6 +32,12 @@ func (me *SemType) Eq(to *SemType) bool {
 		sl.Equal(me.Fields, to.Fields) && sl_eq(me.TArgs, to.TArgs, (*SemType).Eq))
 }
 
+func (me *SemType) fieldNamesIfObj(quoted bool) string {
+	return str.Join(sl.To(me.Fields, func(it MoValIdent) string {
+		return string(util.If(quoted, "`"+it+"`", it))
+	}), ",")
+}
+
 func (me *SemType) hasSingletons() bool {
 	return (me == nil) || (me.Singleton != nil) || sl.Any(me.TArgs, (*SemType).hasSingletons)
 }
@@ -146,7 +152,7 @@ func (me *SemType) sansSingletons() *SemType {
 	}
 	dupl := *me
 	dupl.Singleton, dupl.TArgs = nil, sl.To(dupl.TArgs, (*SemType).sansSingletons)
-	return &dupl
+	return util.If(dupl.normalizeIfAdt(), &dupl, nil)
 }
 
 func (me *SemType) String() (ret string) {
