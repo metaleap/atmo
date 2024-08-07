@@ -172,23 +172,6 @@ func (me *SrcPack) semPopulateRootScope() {
 	})
 }
 
-func (me *SrcPack) semReplaceExprValWithComputedValIfPermissible(self *SemExpr, val any, ty *SemType) {
-	if self.isPrecomputedPermissible() && (ty != nil) {
-		if self.ValOrig == nil {
-			self.ValOrig = self.Val
-		}
-		if moval, is := val.(MoVal); is {
-			me.semPopulateScalar(self, moval)
-		} else if scalar, _ := val.(*SemValScalar); scalar != nil {
-			me.semPopulateScalar(self, scalar.Value)
-		} else {
-			self.Val = val
-		}
-		self.Type = ty
-		self.Fact(SemFact{Kind: SemFactPreComputed}, self.Type.DueTo)
-	}
-}
-
 type SemScope struct {
 	Own    map[MoValIdent]*SemScopeEntry
 	Parent *SemScope `json:"-"`
@@ -278,7 +261,7 @@ func (me *SrcPack) semScopePrepOnFn(self *SemExpr) {
 				fn.Body = expr_do
 			}
 			if (fn.Body != nil) && (len(ok_params) == len(params_list.Items)) {
-				fn.Body.Walk(true, func(it *SemExpr) bool {
+				fn.Body.Walk(func(it *SemExpr) bool {
 					it.Scope = fn.Scope // nested inner funcs are walked after this outer one anyway, so we can do this here & now
 					return true
 				}, nil)

@@ -22,6 +22,12 @@ func (me *SemType) Eq(to *SemType) bool {
 		sl.Equal(me.Fields, to.Fields) && sl_eq(me.TArgs, to.TArgs, (*SemType).Eq))
 }
 
+func (me *SemType) hasSingletons() bool {
+	return (me == nil) || (me.Singleton != nil) || sl.Any(me.TArgs, (*SemType).hasSingletons)
+}
+
+func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
+
 func (me *SemType) IsSubTypeOf(of *SemType) bool {
 	switch {
 	case (me == nil) || (of == nil):
@@ -55,8 +61,62 @@ func (me *SemType) IsSubTypeOf(of *SemType) bool {
 				return false
 			}
 		}
+	case me.Prim == MoPrimTypeOr:
+		return sl.All(me.TArgs, func(ty *SemType) bool { return ty.IsSubTypeOf(of) })
+	case of.Prim == MoPrimTypeOr: // TODO: {foo:1|2} is in fact sub of {foo:1}|{foo:2} — yet the below code doesn't agree yet, and should.
+		return sl.Any(of.TArgs, func(ty *SemType) bool { return me.IsSubTypeOf(ty) }) // per above: this is correct but not yet complete.
 	}
 	return me.Eq(of)
+}
+
+func (me *SemType) normalizeIfAdt() bool {
+	if (me.Prim == MoPrimTypeOr) || (me.Prim == MoPrimTypeAnd) {
+		for i := 0; i < me.TArgs.Len(); i++ {
+			if t := me.TArgs[i]; (t == nil) || (t.Prim == MoPrimTypeNever) {
+				return false
+			} else if t.Prim == MoPrimTypeAny {
+				*me = *t
+				return true
+			} else if t.Prim == me.Prim {
+				me.TArgs = append(append(me.TArgs[:i], me.TArgs[i+1:]...), t.TArgs...)
+				i--
+			}
+		}
+		me.TArgs.EnsureAllUnique((*SemType).Eq)
+		i1 := -1
+		me.TArgs = me.TArgs.Where(func(t1 *SemType) bool {
+			i1++
+			i2 := -1
+			return me.TArgs.All(func(t2 *SemType) bool {
+				i2++
+				return (t1 == t2) || (!t1.IsSubTypeOf(t2) || ((i1 < i2) && t2.IsSubTypeOf(t1)))
+			})
+		})
+		switch len(me.TArgs) {
+		case 0:
+			return false
+		case 1:
+			*me = *(me.TArgs[0])
+		}
+	}
+	return true
+}
+
+func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemType {
+	if me.Prim != MoPrimTypeOr {
+		return f(me)
+	}
+	targs := sl.To(me.TArgs, f)
+	return util.If(sl.Has(targs, nil), nil, semTypeFromMultiple(dueTo, true, targs...))
+}
+
+func (me *SemType) sansSingletons() *SemType {
+	if (me == nil) || !me.hasSingletons() {
+		return me
+	}
+	dupl := *me
+	dupl.Singleton, dupl.TArgs = nil, sl.To(dupl.TArgs, (*SemType).sansSingletons)
+	return &dupl
 }
 
 func (me *SemType) String() (ret string) {
@@ -151,49 +211,6 @@ func (me *SemType) stringifyTo(w *strings.Builder) {
 	}
 }
 
-func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
-
-func (me *SemType) normalizeIfAdt() bool {
-	if (me.Prim == MoPrimTypeOr) || (me.Prim == MoPrimTypeAnd) {
-		for i := 0; i < me.TArgs.Len(); i++ {
-			if t := me.TArgs[i]; (t == nil) || (t.Prim == MoPrimTypeNever) {
-				return false
-			} else if t.Prim == MoPrimTypeAny {
-				*me = *t
-				return true
-			} else if t.Prim == me.Prim {
-				me.TArgs = append(append(me.TArgs[:i], me.TArgs[i+1:]...), t.TArgs...)
-				i--
-			}
-		}
-		me.TArgs.EnsureAllUnique((*SemType).Eq)
-		i1 := -1
-		me.TArgs = me.TArgs.Where(func(t1 *SemType) bool {
-			i1++
-			i2 := -1
-			return me.TArgs.All(func(t2 *SemType) bool {
-				i2++
-				return (t1 == t2) || (!t1.IsSubTypeOf(t2) || ((i1 < i2) && t2.IsSubTypeOf(t1)))
-			})
-		})
-		switch len(me.TArgs) {
-		case 0:
-			return false
-		case 1:
-			*me = *(me.TArgs[0])
-		}
-	}
-	return true
-}
-
-func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemType {
-	if me.Prim != MoPrimTypeOr {
-		return f(me)
-	}
-	targs := sl.To(me.TArgs, f)
-	return util.If(sl.Has(targs, nil), nil, semTypeFromMultiple(dueTo, true, targs...))
-}
-
 func semTypeEnsureDueTo(dueTo *SemExpr, ty *SemType) *SemType {
 	if dueTo != nil {
 		should := func(t *SemType) bool {
@@ -281,7 +298,15 @@ func (me *SrcPack) semCheckTypePrim(expr *SemExpr, dueTo *SemExpr, expect MoValP
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
-	if !expr.Type.IsSubTypeOf(expect) {
+	return me.semCheckTypeLax(expr, expect, false)
+}
+
+func (me *SrcPack) semCheckTypeLax(expr *SemExpr, expect *SemType, sansSingletons bool) bool {
+	ty := expr.Type
+	if sansSingletons {
+		ty, expect = ty.sansSingletons(), expect.sansSingletons()
+	}
+	if !ty.IsSubTypeOf(expect) {
 		if !expr.HasErrs() { // dont wanna be too noisy
 			expr.ErrAdd(semTypeErr(expr, expect))
 		}
@@ -298,9 +323,9 @@ func semTypeErrOn(self *SemExpr, expect *SemType, have *SemType) *Diag {
 	t1, t2 := expect, have
 	dt1, dt2 := expect.DueTo, have.DueTo
 	s1, s2 := "`"+t1.String()+"` value", "`"+t2.String()+"` value"
-	if t1.Prim != t2.Prim {
-		s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
-	}
+	// if t1.Prim != t2.Prim {
+	// 	s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
+	// }
 	err := self.ErrNew(ErrCodeTypeMismatch, s1, s2)
 	err.Rel = srcFileLocs([]string{
 		str.Fmt("%s required by `%s`", s1, dt1.String(false)),

@@ -14,7 +14,6 @@ type SemExpr struct {
 	Scope   *SemScope `json:"-"`
 	ErrsOwn Diags     `json:",omitempty"`
 	Val     any
-	ValOrig any                  `json:"-"` // nil unless Val was statically pre-computed from its orig expr, which then is preserved in here
 	Facts   map[SemFact]SemExprs `json:"-"`
 	Type    *SemType             `json:"-"`
 }
@@ -84,7 +83,7 @@ func (me *SemExpr) ErrNew(code DiagCode, args ...any) *Diag {
 }
 
 func (me *SemExpr) Errs() (ret Diags) {
-	me.Walk(true, nil, func(it *SemExpr) {
+	me.Walk(nil, func(it *SemExpr) {
 		ret.Add(it.ErrsOwn...)
 	})
 	return
@@ -122,7 +121,7 @@ func (me *SemExpr) FactsFrom(from *SemExpr) {
 }
 
 func (me *SemExpr) HasErrs() (ret bool) {
-	me.Walk(true, func(it *SemExpr) bool {
+	me.Walk(func(it *SemExpr) bool {
 		ret = ret || (len(it.ErrsOwn) > 0)
 		return !ret
 	}, nil)
@@ -192,36 +191,30 @@ func (me *SemExpr) UnquotedIfQuoteCall() *SemExpr {
 	return me
 }
 
-func (me *SemExpr) Walk(origValTooIfValPrecomputedFromExpr bool, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
+func (me *SemExpr) Walk(onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
 	if onBefore != nil && !onBefore(me) {
 		return
 	}
-	vals := []any{me.Val}
-	if origValTooIfValPrecomputedFromExpr && (me.ValOrig != nil) {
-		vals = append(vals, me.ValOrig)
-	}
-	for _, val := range vals {
-		switch it := val.(type) {
-		case *SemValCall:
-			it.Callee.Walk(origValTooIfValPrecomputedFromExpr, onBefore, onAfter)
-			for _, arg := range it.Args {
-				arg.Walk(origValTooIfValPrecomputedFromExpr, onBefore, onAfter)
-			}
-		case *SemValList:
-			for _, item := range it.Items {
-				item.Walk(origValTooIfValPrecomputedFromExpr, onBefore, onAfter)
-			}
-		case *SemValDict:
-			for i, key := range it.Keys {
-				key.Walk(origValTooIfValPrecomputedFromExpr, onBefore, onAfter)
-				it.Vals[i].Walk(origValTooIfValPrecomputedFromExpr, onBefore, onAfter)
-			}
-		case *SemValFunc:
-			for _, param := range it.Params {
-				param.Walk(origValTooIfValPrecomputedFromExpr, onBefore, onAfter)
-			}
-			it.Body.Walk(origValTooIfValPrecomputedFromExpr, onBefore, onAfter)
+	switch it := me.Val.(type) {
+	case *SemValCall:
+		it.Callee.Walk(onBefore, onAfter)
+		for _, arg := range it.Args {
+			arg.Walk(onBefore, onAfter)
 		}
+	case *SemValList:
+		for _, item := range it.Items {
+			item.Walk(onBefore, onAfter)
+		}
+	case *SemValDict:
+		for i, key := range it.Keys {
+			key.Walk(onBefore, onAfter)
+			it.Vals[i].Walk(onBefore, onAfter)
+		}
+	case *SemValFunc:
+		for _, param := range it.Params {
+			param.Walk(onBefore, onAfter)
+		}
+		it.Body.Walk(onBefore, onAfter)
 	}
 	if onAfter != nil {
 		onAfter(me)
@@ -236,7 +229,7 @@ func (me SemExprs) At(srcFile *SrcFile, pos *SrcFilePos) (ret *SemExpr) {
 	for _, top_expr := range me {
 		if (top_expr.From != nil) && (top_expr.From.SrcFile == srcFile) && (top_expr.From.SrcSpan != nil) && (top_expr.From.SrcSpan.Contains(pos)) {
 			ret = top_expr
-			top_expr.Walk(true, func(it *SemExpr) bool {
+			top_expr.Walk(func(it *SemExpr) bool {
 				if (it.From != nil) && (it.From.SrcSpan != nil) && it.From.SrcSpan.Contains(pos) {
 					ret = it
 				}
@@ -258,7 +251,7 @@ func (me SemExprs) Errs() (ret Diags) {
 func (me SemExprs) Walk(onlyInFile *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
 	for _, expr := range me {
 		if (onlyInFile == nil) || (expr.From.SrcFile == onlyInFile) {
-			expr.Walk(true, onBefore, onAfter)
+			expr.Walk(onBefore, onAfter)
 		}
 	}
 }

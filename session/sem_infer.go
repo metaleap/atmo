@@ -26,7 +26,7 @@ func (me *SrcPack) semInferTypes() {
 		// fully_typified = func(t *SemType) bool {
 		// 	return (t.Prim >= 0) && sl.All(t.TArgs, fully_typified)
 		// }
-		top_expr.Walk(false, nil, func(it *SemExpr) {
+		top_expr.Walk(nil, func(it *SemExpr) {
 			if it.Type != nil {
 				it.Type = ctx.applySubstToType(subst, it.Type)
 				// if !fully_typified(it.Type) {

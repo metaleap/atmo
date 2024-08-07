@@ -46,8 +46,8 @@ func init() {
 		moPrimFnNumFloatMul: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat),
 		moPrimFnNumFloatDiv: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat),
 		moPrimFnCast:        (*SrcPack).semTyPrimFnCast,
-		moPrimFnCmpEq:       (*SrcPack).semTyPrimFnEqNeq,
-		moPrimFnCmpNeq:      (*SrcPack).semTyPrimFnEqNeq,
+		moPrimFnCmpEq:       (*SrcPack).semTyPrimFnCmpEqNeq,
+		moPrimFnCmpNeq:      (*SrcPack).semTyPrimFnCmpEqNeq,
 		moPrimFnCmpGeq:      (*SrcPack).semTyPrimFnCmpOrd,
 		moPrimFnCmpLeq:      (*SrcPack).semTyPrimFnCmpOrd,
 		moPrimFnCmpLt:       (*SrcPack).semTyPrimFnCmpOrd,
@@ -260,7 +260,7 @@ func (me *SrcPack) semTyPrimOpQuote(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(self, MoPrimTypeAny)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
-		call.Args[0].Walk(false, nil, func(it *SemExpr) {
+		call.Args[0].Walk(nil, func(it *SemExpr) {
 			switch val := it.Val.(type) {
 			case *SemValScalar:
 				it.Type = semTypeNew(self, val.Value.PrimType())
@@ -383,12 +383,14 @@ func (me *SrcPack) semTyPrimFnCast(self *SemExpr) {
 	}
 }
 
-func (me *SrcPack) semTyPrimFnEqNeq(self *SemExpr) {
+func (me *SrcPack) semTyPrimFnCmpEqNeq(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
-	if (me.semCheckCount(2, 2, call.Args, self, true)) && (call.Args[0].Type != nil) && (call.Args[1].Type != nil) {
-		_ = me.semCheckType(call.Args[1], call.Args[0].Type)
+	if me.semCheckCount(2, 2, call.Args, self, true) {
 		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
+		if (call.Args[0].Type != nil) && (call.Args[1].Type != nil) && me.semCheckTypeLax(call.Args[1], call.Args[0].Type, true) {
+			_ = me.semCheckTypeLax(call.Args[0], call.Args[1].Type, true)
+		}
 	}
 }
 
@@ -396,14 +398,16 @@ func (me *SrcPack) semTyPrimFnCmpOrd(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
-		if t0, t1 := call.Args[0].Type, call.Args[1].Type; (t0 != nil) && (t1 != nil) && me.semCheckType(call.Args[1], t0) {
-			if lhs, rhs := semCheckIs[SemValScalar](-1, call.Args[0]), semCheckIs[SemValScalar](-1, call.Args[1]); (lhs != nil) && (rhs != nil) {
-				ok_types := []MoValPrimType{MoPrimTypeChar, MoPrimTypeStr, MoPrimTypeNumFloat, MoPrimTypeNumInt, MoPrimTypeNumUint}
-				if !sl.Has(ok_types, lhs.Value.PrimType()) {
-					call.Args[0].ErrAdd(call.Args[0].ErrNew(ErrCodeExpectedFoo, "a comparable value here"))
-				} else if !sl.Has(ok_types, rhs.Value.PrimType()) {
-					call.Args[1].ErrAdd(call.Args[1].ErrNew(ErrCodeExpectedFoo, "a comparable value here"))
-				}
+		if t0, t1 := call.Args[0].Type, call.Args[1].Type; (t0 != nil) && (t1 != nil) && me.semCheckTypeLax(call.Args[1], t0, true) && me.semCheckTypeLax(call.Args[0], t1, true) {
+			ty_cmp := semTypeNew(call.Callee, MoPrimTypeOr,
+				semTypeNew(call.Callee, MoPrimTypeChar),
+				semTypeNew(call.Callee, MoPrimTypeStr),
+				semTypeNew(call.Callee, MoPrimTypeNumFloat),
+				semTypeNew(call.Callee, MoPrimTypeNumInt),
+				semTypeNew(call.Callee, MoPrimTypeNumUint),
+			)
+			if me.semCheckTypeLax(call.Args[0], ty_cmp, true) {
+				_ = me.semCheckTypeLax(call.Args[1], ty_cmp, true)
 			}
 		}
 		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
