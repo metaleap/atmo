@@ -31,6 +31,7 @@ func Main() {
 		if err != nil {
 			panic(err)
 		}
+		defer func() { _ = file.Sync(); _ = file.Close() }()
 		lsp.StdErr = file
 	}
 

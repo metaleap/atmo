@@ -16,8 +16,8 @@ type SemType struct {
 	Singleton MoVal
 }
 
-func (me *SemType) checkIsPrimElseErrOn(tyDueTo *SemExpr, errOwner *SemExpr, errSpan *SemExpr, wantPrim MoValPrimType, wantArity int) bool {
-	if ty_expect := semTypeNew(tyDueTo, wantPrim, sl.Repeat(wantArity, semTypeNew(tyDueTo, MoPrimTypeAny))...); (me == nil) || !me.IsSubTypeOf(ty_expect) {
+func (me *SemType) checkIsPrimElseErrOn(expectedTyDueTo *SemExpr, errOwner *SemExpr, errSpan *SemExpr, wantPrim MoValPrimType, wantArity int) bool {
+	if ty_expect := semTypeNew(expectedTyDueTo, wantPrim, sl.Repeat(wantArity, semTypeNew(expectedTyDueTo, MoPrimTypeAny))...); (me == nil) || !me.IsSubTypeOf(ty_expect) {
 		if me != nil {
 			errOwner.ErrAdd(semTypeErrOn(errSpan, ty_expect, me))
 		}

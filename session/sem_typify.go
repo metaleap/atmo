@@ -569,18 +569,6 @@ func (me *SrcPack) semTyPrimFnObjNew(self *SemExpr) {
 	}
 }
 
-func (me *SrcPack) semTyPrimFnListGet(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
-	if me.semCheckCount(2, 2, call.Args, self, true) {
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeList, 1) {
-			ty_list := call.Args[0].Type
-			self.Type = ty_list.TArgs[0]
-		}
-		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
-	}
-}
-
 func (me *SrcPack) semTyPrimFnListLen(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeNumUint)
@@ -589,24 +577,40 @@ func (me *SrcPack) semTyPrimFnListLen(self *SemExpr) {
 	}
 }
 
+func (me *SrcPack) semTyPrimFnListGet(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	if me.semCheckCount(2, 2, call.Args, self, true) && me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) {
+		self.Type = call.Args[0].Type.mapIfOr(call.Callee, func(tyList *SemType) *SemType {
+			if !tyList.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeList, 1) {
+				return nil
+			}
+			return tyList.TArgs[0]
+		})
+		if self.Type != nil {
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
+		}
+	}
+}
+
 func (me *SrcPack) semTyPrimFnListSet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
-	if me.semCheckCount(3, 3, call.Args, self, true) {
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeList, 1) {
-			ty_list := call.Args[0].Type
-			if !ty_list.TArgs[0].IsAny() {
-				_ = me.semCheckType(call.Args[2], ty_list.TArgs[0])
+	if me.semCheckCount(3, 3, call.Args, self, true) && me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) {
+		ty_val := call.Args[0].Type.mapIfOr(call.Callee, func(tyList *SemType) *SemType {
+			if !tyList.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeList, 1) {
+				return nil
 			}
+			return tyList.TArgs[0]
+		})
+		if (ty_val != nil) && me.semCheckTypeLax(call.Args[2], ty_val, true) {
+			self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, self.Type)
 		}
-		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, self.Type)
 	}
 }
 
 func (me *SrcPack) semTyPrimFnListRange(self *SemExpr) {
 	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeList)
 	if me.semCheckCount(3, 3, call.Args, self, true) {
 		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckType(call.Args[2], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeList, 1) {
 			ty_list := call.Args[0].Type
@@ -618,15 +622,16 @@ func (me *SrcPack) semTyPrimFnListRange(self *SemExpr) {
 
 func (me *SrcPack) semTyPrimFnListConcat(self *SemExpr) {
 	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny))
-	if me.semCheckCount(1, 1, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeList, 1) {
-		list, _ := call.Args[0].Val.(*SemValList)
-		if ty_list := call.Args[0].Type; (ty_list.TArgs[0].Prim != MoPrimTypeList) && ((list == nil) || (len(list.Items) > 0)) {
-			_ = me.semCheckType(call.Args[0], semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeList, semTypeNew(call.Callee, MoPrimTypeAny)))) // to provoke type error diag
-		} else {
-			self.Type = ty_list.TArgs[0]
+	if me.semCheckCount(1, 1, call.Args, self, true) && call.Args[0].Type != nil {
+		ty_item := call.Args[0].Type.mapIfOr(call.Callee, func(tyList *SemType) *SemType {
+			if !tyList.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeList, 1) {
+				return nil
+			}
+			return tyList.TArgs[0]
+		})
+		if self.Type = semTypeNew(call.Callee, MoPrimTypeList, ty_item); self.Type != nil {
+			call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
 		}
-		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
 	}
 }
 
