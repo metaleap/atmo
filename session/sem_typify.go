@@ -459,11 +459,10 @@ func (me *SrcPack) semTyPrimFnObjGet(self *SemExpr) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeIdent)) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeObj, -1) {
-			ty_obj := call.Args[0].Type
-			self.Type = semTypeFromMultiple(call.Args[1], true, ty_obj.TArgs...)
-			ident := call.Args[1].UnquotedIfQuoteCall().Val.(*SemValIdent)
+		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeIdent)) {
+			ty_obj, ident := call.Args[0].Type, call.Args[1].UnquotedIfQuoteCall().Val.(*SemValIdent)
 			self.Type = ty_obj.mapIfOr(call.Args[1], func(ty *SemType) *SemType {
+				println(ident.Name)
 				if idx := sl.IdxOf(ty.Fields, ident.Name); idx >= 0 {
 					return ty_obj.TArgs[idx]
 				}
@@ -471,8 +470,8 @@ func (me *SrcPack) semTyPrimFnObjGet(self *SemExpr) {
 				return nil
 			})
 			if self.Type != nil {
-				call.Callee.Type.TArgs[0] = semTypeNew(call.Args[1], MoPrimTypeObj, self.Type)
-				call.Callee.Type.TArgs[0].Fields = []MoValIdent{ident.Name}
+				// call.Callee.Type.TArgs[0] = semTypeNew(call.Args[1], MoPrimTypeObj, self.Type)
+				// call.Callee.Type.TArgs[0].Fields = []MoValIdent{ident.Name}
 			}
 		}
 	}
