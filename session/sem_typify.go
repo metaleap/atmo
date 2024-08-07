@@ -462,16 +462,15 @@ func (me *SrcPack) semTyPrimFnObjGet(self *SemExpr) {
 		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeIdent)) {
 			ty_obj, ident := call.Args[0].Type, call.Args[1].UnquotedIfQuoteCall().Val.(*SemValIdent)
 			self.Type = ty_obj.mapIfOr(call.Args[1], func(ty *SemType) *SemType {
-				println(ident.Name)
 				if idx := sl.IdxOf(ty.Fields, ident.Name); idx >= 0 {
-					return ty_obj.TArgs[idx]
+					return ty.TArgs[idx]
 				}
 				self.ErrAdd(call.Args[1].ErrNew(ErrCodeNoSuchField, ident.Name))
 				return nil
 			})
 			if self.Type != nil {
-				// call.Callee.Type.TArgs[0] = semTypeNew(call.Args[1], MoPrimTypeObj, self.Type)
-				// call.Callee.Type.TArgs[0].Fields = []MoValIdent{ident.Name}
+				call.Callee.Type.TArgs[0] = semTypeNew(call.Args[1], MoPrimTypeObj, self.Type)
+				call.Callee.Type.TArgs[0].Fields = []MoValIdent{ident.Name}
 			}
 		}
 	}
