@@ -722,9 +722,16 @@ func (me *SrcPack) semTyPrimFnErrVal(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
-		if me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeErr, 1) {
-			self.Type = call.Args[0].Type.TArgs[0]
-		}
+		ty_vals := call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
+			if ty == nil {
+				return nil
+			} else if (ty.Prim != MoPrimTypeErr) || (len(ty.TArgs) != 1) {
+				self.ErrAdd(semTypeErrOn(call.Args[0], semTypeNew(call.Callee, MoPrimTypeErr, semTypeNew(call.Callee, MoPrimTypeAny)), ty))
+				return nil
+			}
+			return ty.TArgs[0]
+		})
+		self.Type = semTypeFromMultiple(call.Callee, false, ty_vals)
 		call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, call.Args[0].Type, self.Type)
 	}
 }
