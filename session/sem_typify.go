@@ -468,19 +468,14 @@ func (me *SrcPack) semTyPrimFnTupGet(self *SemExpr) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) {
-			ty_tup := call.Args[0].Type
-			if ty_tup.Prim == MoPrimTypeTup {
-				self.Type = semTypeFromMultiple(call.Args[1], true, ty_tup.TArgs...)
-			}
-			self.Type = ty_tup.mapIfOr(call.Args[1], func(ty *SemType) *SemType {
-				if ty.Prim != MoPrimTypeTup {
-					self.ErrAdd(semTypeErrOn(call.Args[1], semTypeNew(call.Callee, MoPrimTypeTup), ty))
-				} else if scalar, _ := call.Args[1].Val.(*SemValScalar); scalar != nil {
-					if idx := scalar.Value.(MoValNumUint); len(ty.TArgs) <= int(idx) {
-						_ = me.semCheckTypePrim(call.Args[0], call.Args[1], MoPrimTypeTup, int(idx)+1)
-					} else {
-						return ty.TArgs[idx]
+			self.Type = semTypeMapIfOr(call.Callee, call.Args[0].Type, call.Args[1].Type, func(tyTup, tyIdx *SemType) *SemType {
+				if tyTup.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeTup, -1) && tyIdx.checkIsPrimElseErrOn(call.Callee, self, call.Args[1], MoPrimTypeNumUint, 0) {
+					idx, has_idx := tyIdx.Singleton.(MoValNumUint)
+					if (!has_idx) || (int(idx) >= len(tyTup.TArgs)) {
+						self.ErrAdd(call.Args[1].ErrNew(ErrCodeNoSuchField, util.If(has_idx, MoValToString(idx), str.Shorten(call.Args[1].String(true), 11))))
+						return nil
 					}
+					return tyTup.TArgs[idx]
 				}
 				return nil
 			})

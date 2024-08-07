@@ -289,6 +289,9 @@ func Uniq[TSlice ~[]TItem, TItem comparable](slice TSlice) TSlice {
 }
 
 func Repeat[TItem any](howMany int, item TItem) []TItem {
+	if howMany <= 0 {
+		return nil
+	}
 	ret := make([]TItem, howMany)
 	for i := range ret {
 		ret[i] = item
