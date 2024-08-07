@@ -177,7 +177,7 @@ func parseLit[T cmp.Ordered](toks Toks, kind AstNodeKind, parseFunc func(string)
 	tok := toks[0]
 	lit, err := parseFunc(tok.Src)
 	if err != nil {
-		return &AstNode{Kind: AstNodeKindErr, Toks: toks[:1], Src: tok.Src, errParsing: errToDiag(err, ErrCodeLitSyntax, tok.span())}
+		return &AstNode{Kind: AstNodeKindErr, Toks: toks[:1], Src: tok.Src, errParsing: errToDiag(err, ErrCodeLitWontParse, tok.span())}
 	}
 	return &AstNode{Kind: kind, Toks: toks[:1], Src: tok.Src, Lit: lit}
 }

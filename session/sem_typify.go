@@ -210,23 +210,34 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 		if prim_op != nil {
 			val.Callee.Fact(SemFact{Kind: SemFactPrimOp}, val.Callee)
 			prim_op(me, self)
-		} else if val.Callee.Type == nil {
-			break
-		} else if ty_fn := semTypeEnsureDueTo(val.Callee, val.Callee.Type); prim_fn != nil {
+		} else if prim_fn != nil {
 			val.Callee.Fact(SemFact{Kind: SemFactPrimFn}, val.Callee)
 			prim_fn(me, self)
-		} else if num_params := len(ty_fn.TArgs) - 1; ty_fn.Prim != MoPrimTypeFunc {
-			self.ErrAdd(val.Callee.ErrNew(ErrCodeNotCallable, str.Shorten(val.Callee.String(true), 22)))
-		} else if fn, _ := val.Callee.Val.(*SemValFunc); me.semCheckCount(num_params, num_params, val.Args, self, true) &&
-			((fn == nil) || me.semCheckCount(len(fn.Params), len(fn.Params), val.Args, self, true)) {
-			self.Type = ty_fn.TArgs[num_params] // the func's return type
-			var idx int
-			sl.Each(val.Args, func(arg *SemExpr) {
-				_ = me.semCheckType(arg, ty_fn.TArgs[idx])
-				idx++
+		} else if val.Callee.Type != nil {
+			n_params := -1
+			_ = val.Callee.Type.mapIfOr(val.Callee, func(tyFn *SemType) *SemType {
+				tyFn = semTypeEnsureDueTo(val.Callee, tyFn)
+				if num_params := len(tyFn.TArgs) - 1; tyFn.Prim != MoPrimTypeFunc {
+					self.ErrAdd(val.Callee.ErrNew(ErrCodeNotCallable, str.Shorten(val.Callee.String(true), 22)))
+				} else if (n_params >= 0) && (num_params != n_params) {
+					if n_params < 0 {
+						n_params = num_params
+					} else {
+						self.ErrAdd(val.Callee.ErrNew(ErrCodeOrFuncsParamsMismatch, n_params, num_params))
+					}
+				} else if fn, _ := val.Callee.Val.(*SemValFunc); me.semCheckCount(num_params, num_params, val.Args, self, true) &&
+					((fn == nil) || me.semCheckCount(len(fn.Params), len(fn.Params), val.Args, self, true)) {
+					self.Type = tyFn.TArgs[num_params] // the func's return type
+					var idx int
+					sl.Each(val.Args, func(arg *SemExpr) {
+						_ = me.semCheckType(arg, tyFn.TArgs[idx])
+						idx++
+					})
+				}
+				n_params = len(tyFn.TArgs) - 1
+				return tyFn
 			})
 		}
-
 	}
 	return self.Type
 }

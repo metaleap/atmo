@@ -22,8 +22,9 @@ const (
 type DiagCode string
 
 const (
-	ErrCodeAtmoTodo      DiagCode = "AtmoTodo"
-	ErrCodeFileReadError DiagCode = "FileReadError"
+	ErrCodeAtmoTodo            DiagCode = "AtmoTodo"
+	ErrCodeFileReadError       DiagCode = "FileReadError"
+	ErrCodeInterpLimitExceeded DiagCode = "InterpLimitExceeded"
 
 	// lexing
 	ErrCodeWhitespace  DiagCode = "Whitespace"
@@ -32,27 +33,27 @@ const (
 
 	// parsing
 	ErrCodeBracketingMismatch DiagCode = "BracketingMismatch"
-	ErrCodeLitSyntax          DiagCode = "LitSyntax"
+	ErrCodeLitWontParse       DiagCode = "LiteralDoesntParse"
 
 	// semantic (errors)
-	ErrCodeExpectedFoo         DiagCode = "Unexpected"
-	ErrCodeNotDefined          DiagCode = "NotDefined"
-	ErrCodeNoSuchField         DiagCode = "NoSuchField"
-	ErrCodeNotAValue           DiagCode = "NotAValue"
-	ErrCodeNotCallable         DiagCode = "NotCallable"
-	ErrCodeReserved            DiagCode = "Reserved"
-	ErrCodeNoElseCase          DiagCode = "ElseCaseMissing"
-	ErrCodeIndexOutOfBounds    DiagCode = "IndexOutOfBounds"
-	ErrCodeRangeNegative       DiagCode = "RangeNegative"
-	ErrCodeDictDuplKey         DiagCode = "DictDuplKey"
-	ErrCodeNotComparable       DiagCode = "NotComparable"
-	ErrCodeNotConvertible      DiagCode = "NotConvertible"
-	ErrCodeDuplTopDecl         DiagCode = "DuplTopDecl"
-	ErrCodeTypeMismatch        DiagCode = "TypeMismatch"
-	ErrCodeTypeInfinite        DiagCode = "TypeInfinite"
-	ErrCodeComputationFailed   DiagCode = "ComputationFailed"
-	ErrCodeNotTypifiable       DiagCode = "Untypifiable"
-	ErrCodeInterpLimitExceeded DiagCode = "InterpLimitExceeded"
+	ErrCodeExpectedFoo           DiagCode = "Unexpected"
+	ErrCodeNotDefined            DiagCode = "NotDefined"
+	ErrCodeNoSuchField           DiagCode = "NoSuchField"
+	ErrCodeNotAValue             DiagCode = "NotAValue"
+	ErrCodeNotCallable           DiagCode = "NotCallable"
+	ErrCodeReserved              DiagCode = "Reserved"
+	ErrCodeNoElseCase            DiagCode = "ElseCaseMissing"
+	ErrCodeIndexOutOfBounds      DiagCode = "IndexOutOfBounds"
+	ErrCodeRangeNegative         DiagCode = "RangeNegative"
+	ErrCodeDictDuplKey           DiagCode = "DictDuplKey"
+	ErrCodeNotComparable         DiagCode = "NotComparable"
+	ErrCodeNotConvertible        DiagCode = "NotConvertible"
+	ErrCodeDuplTopDecl           DiagCode = "DuplTopDecl"
+	ErrCodeTypeMismatch          DiagCode = "TypeMismatch"
+	ErrCodeTypeInfinite          DiagCode = "TypeInfinite"
+	ErrCodeComputationFailed     DiagCode = "ComputationFailed"
+	ErrCodeNotTypifiable         DiagCode = "Untypifiable"
+	ErrCodeOrFuncsParamsMismatch DiagCode = "OrFuncsParamsCountMismatch"
 
 	// semantic (warnings / infos / hints)
 	HintCodeUnused DiagCode = "Unused"
@@ -71,27 +72,28 @@ var (
 		ErrCodeLexingError: "invalid token: %s", // actual error msg in %s
 		ErrCodeIndentation: "incorrect indentation",
 
-		ErrCodeLitSyntax:          "invalid literal: %s", // actual error msg in %s
+		ErrCodeLitWontParse:       "invalid literal: %s", // actual error msg in %s
 		ErrCodeBracketingMismatch: "opening and closing %s don't match up",
 
-		ErrCodeExpectedFoo:         "expected %s",
-		ErrCodeNotDefined:          "`%s` is not defined or not in scope",
-		ErrCodeNoSuchField:         "`%s` is not a property of this object",
-		ErrCodeNotAValue:           "`%s` cannot be used as a value, only as a callee with arguments",
-		ErrCodeNotCallable:         "`%s` is not callable",
-		ErrCodeReserved:            "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
-		ErrCodeNoElseCase:          "missing a fallback case",
-		ErrCodeIndexOutOfBounds:    "index %d out of bounds, given length %d",
-		ErrCodeRangeNegative:       "range end %d is smaller than range start %d",
-		ErrCodeDictDuplKey:         "duplicate key `%s` in dict constructor",
-		ErrCodeNotComparable:       "operands `%s` and `%s` cannot be compared in %s terms",
-		ErrCodeNotConvertible:      "cannot convert `%s` to %s",
-		ErrCodeDuplTopDecl:         "top-level declaration `%s` already defined",
-		ErrCodeTypeMismatch:        "expected %s instead of %s",
-		ErrCodeTypeInfinite:        "infinite type detected: `%s`",
-		ErrCodeComputationFailed:   "%v",
-		ErrCodeNotTypifiable:       "expression untypifiable",
-		ErrCodeInterpLimitExceeded: "the interpreter's user-set loop limit (%d) or call limit (%d) has been breached",
+		ErrCodeExpectedFoo:           "expected %s",
+		ErrCodeNotDefined:            "`%s` is not defined or not in scope",
+		ErrCodeNoSuchField:           "`%s` is not a property of this object",
+		ErrCodeNotAValue:             "`%s` cannot be used as a value, only as a callee with arguments",
+		ErrCodeNotCallable:           "`%s` is not callable",
+		ErrCodeReserved:              "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
+		ErrCodeNoElseCase:            "missing a fallback case",
+		ErrCodeIndexOutOfBounds:      "index %d out of bounds, given length %d",
+		ErrCodeRangeNegative:         "range end %d is smaller than range start %d",
+		ErrCodeDictDuplKey:           "duplicate key `%s` in dict constructor",
+		ErrCodeNotComparable:         "operands `%s` and `%s` cannot be compared in %s terms",
+		ErrCodeNotConvertible:        "cannot convert `%s` to %s",
+		ErrCodeDuplTopDecl:           "top-level declaration `%s` already defined",
+		ErrCodeTypeMismatch:          "expected %s instead of %s",
+		ErrCodeTypeInfinite:          "infinite type detected: `%s`",
+		ErrCodeComputationFailed:     "%v",
+		ErrCodeNotTypifiable:         "expression untypifiable",
+		ErrCodeInterpLimitExceeded:   "the interpreter's user-set loop limit (%d) or call limit (%d) has been breached",
+		ErrCodeOrFuncsParamsMismatch: "union of funcs with different parameter counts (%d vs. %d) not callable",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}
