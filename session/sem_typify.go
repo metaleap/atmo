@@ -677,7 +677,7 @@ func (me *SrcPack) semTyPrimFnDictSet(self *SemExpr) {
 			}
 			return nil
 		})
-		if (ty_key != nil) && me.semCheckTypeLax(call.Args[1], ty_key, true) && me.semCheckTypeLax(call.Args[2], semTypeFromMultiple(call.Callee, false, ty_rets...), true) {
+		if (ty_key != nil) && me.semCheckTypeLax(call.Args[1], ty_key, true) && me.semCheckTypeLax(call.Args[2], semTypeFromMultiple(call.Args[0], false, ty_rets...), true) {
 			call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, self.Type)
 		}
 	}
