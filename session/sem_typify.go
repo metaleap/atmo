@@ -688,15 +688,17 @@ func (me *SrcPack) semTyPrimFnDictDel(self *SemExpr) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
 	if me.semCheckCount(2, 2, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeDict, 2) && me.semCheckTypePrim(call.Args[1], call.Callee, MoPrimTypeList, 1) {
-		ty_dict := call.Args[0].Type
-		ty_key := ty_dict.TArgs[0]
-		if ty_key.Prim == MoPrimTypeAny {
-			ty_key = call.Args[1].Type.TArgs[0]
-			ty_dict.TArgs[0] = ty_key
-		} else {
-			_ = me.semCheckType(call.Args[1], semTypeNew(call.Args[0], MoPrimTypeList, ty_key))
+		ty_keys := call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
+			if (ty.Prim != MoPrimTypeDict) || (len(ty.TArgs) != 2) {
+				self.ErrAdd(semTypeErrOn(call.Args[0], semTypeNew(call.Callee, MoPrimTypeDict, semTypeNew(call.Callee, MoPrimTypeAny), semTypeNew(call.Callee, MoPrimTypeAny)), ty))
+				return nil
+			}
+			return ty.TArgs[0]
+		})
+		if ty_key := semTypeFromMultiple(call.Callee, false, ty_keys); ty_key != nil {
+			_ = me.semCheckTypeLax(call.Args[1], semTypeNew(call.Args[0], MoPrimTypeList, ty_key), true)
 		}
-		call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, ty_dict, ty_key, self.Type)
+		call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
 	}
 }
 
