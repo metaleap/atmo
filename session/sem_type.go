@@ -273,11 +273,11 @@ func (me *SrcPack) semCheckTypePrim(expr *SemExpr, dueTo *SemExpr, expect MoValP
 		return true
 	}
 	arity = util.If((arity < 0), 0, arity)
-	targs, targ := make([]*SemType, arity), semTypeNew(dueTo, MoPrimTypeAny)
-	for i := range targs {
-		targs[i] = targ
+	t_anys, t_any := make([]*SemType, arity), semTypeNew(dueTo, MoPrimTypeAny)
+	for i := range t_anys {
+		t_anys[i] = t_any
 	}
-	return me.semCheckType(expr, semTypeNew(dueTo, expect, targs...))
+	return me.semCheckType(expr, semTypeNew(dueTo, expect, t_anys...))
 }
 
 func (me *SrcPack) semCheckType(expr *SemExpr, expect *SemType) bool {
