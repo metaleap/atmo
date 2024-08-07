@@ -153,6 +153,7 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 	switch val := self.Val.(type) {
 	case *SemValScalar:
 		self.Type = semTypeNew(self, val.Value.PrimType())
+		self.Type.Singleton = val.Value
 	case *SemValIdent:
 		if self.Type = env[val.Name]; self.Type == nil {
 			self.Type = semPrimFnTypes[val.Name]
@@ -270,6 +271,7 @@ func (me *SrcPack) semTyPrimOpQuote(self *SemExpr) {
 				it.Type = semTypeNew(self, MoPrimTypeDict)
 			case *SemValIdent:
 				it.Type = semTypeNew(self, MoPrimTypeIdent)
+				it.Type.Singleton = val.Name
 			case *SemValCall:
 				it.Type = semTypeNew(self, MoPrimTypeCall)
 			case *SemValFunc:
@@ -420,16 +422,23 @@ func (me *SrcPack) semTyPrimFnTupGet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(2, 2, call.Args, self, true) {
-		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeTup, -1) {
+		if me.semCheckType(call.Args[1], semTypeNew(call.Callee, MoPrimTypeNumUint)) {
 			ty_tup := call.Args[0].Type
-			self.Type = semTypeFromMultiple(call.Args[1], true, ty_tup.TArgs...)
-			if scalar, _ := call.Args[1].Val.(*SemValScalar); scalar != nil {
-				if idx := scalar.Value.(MoValNumUint); len(ty_tup.TArgs) <= int(idx) {
-					_ = me.semCheckTypePrim(call.Args[0], call.Args[1], MoPrimTypeTup, int(idx)+1)
-				} else {
-					self.Type = ty_tup.TArgs[idx]
-				}
+			if ty_tup.Prim == MoPrimTypeTup {
+				self.Type = semTypeFromMultiple(call.Args[1], true, ty_tup.TArgs...)
 			}
+			self.Type = ty_tup.mapIfOr(call.Args[1], func(ty *SemType) *SemType {
+				if ty.Prim != MoPrimTypeTup {
+					self.ErrAdd(semTypeErrOn(call.Args[1], semTypeNew(call.Callee, MoPrimTypeTup), ty))
+				} else if scalar, _ := call.Args[1].Val.(*SemValScalar); scalar != nil {
+					if idx := scalar.Value.(MoValNumUint); len(ty.TArgs) <= int(idx) {
+						_ = me.semCheckTypePrim(call.Args[0], call.Args[1], MoPrimTypeTup, int(idx)+1)
+					} else {
+						return ty.TArgs[idx]
+					}
+				}
+				return nil
+			})
 		}
 		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
 	}
@@ -471,6 +480,7 @@ func (me *SrcPack) semTyPrimFnObjGet(self *SemExpr) {
 			if self.Type != nil {
 				call.Callee.Type.TArgs[0] = semTypeNew(call.Args[1], MoPrimTypeObj, self.Type)
 				call.Callee.Type.TArgs[0].Fields = []MoValIdent{ident.Name}
+				call.Callee.Type.TArgs[len(call.Callee.Type.TArgs)-1] = self.Type
 			}
 		}
 	}

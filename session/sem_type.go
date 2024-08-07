@@ -79,6 +79,10 @@ func (me *SemType) stringifyTo(w *strings.Builder) {
 	switch {
 	case len(me.TArgs) == 0:
 		w.WriteString(me.Prim.Str(false))
+		if me.Singleton != nil {
+			w.WriteString("=")
+			moValStringifyTo(me.Singleton, w)
+		}
 	case (me.Prim == MoPrimTypeList) && (len(me.TArgs) == 1):
 		w.WriteByte('[')
 		me.TArgs[0].stringifyTo(w)
@@ -182,11 +186,12 @@ func (me *SemType) normalizeIfAdt() bool {
 	return true
 }
 
-func (me *SemType) mapIfOr(dueTo *SemExpr, f func(*SemType) *SemType) *SemType {
+func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemType {
 	if me.Prim != MoPrimTypeOr {
 		return f(me)
 	}
-	return semTypeFromMultiple(dueTo, true, sl.To(me.TArgs, f)...)
+	targs := sl.To(me.TArgs, f)
+	return util.If(sl.Has(targs, nil), nil, semTypeFromMultiple(dueTo, true, targs...))
 }
 
 func semTypeEnsureDueTo(dueTo *SemExpr, ty *SemType) *SemType {
