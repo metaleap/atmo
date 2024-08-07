@@ -176,7 +176,7 @@ func IsEmailishEnough(str string) bool {
 		(idx_last_dot > idx_at) && (idx_last_dot < l-1))
 }
 
-func In(str string, set ...string) bool {
+func In[T ~string](str T, set ...T) bool {
 	for i := range set {
 		if set[i] == str {
 			return true

@@ -77,7 +77,7 @@ var (
 		ErrCodeExpectedFoo:         "expected %s",
 		ErrCodeNotDefined:          "`%s` is not defined or not in scope",
 		ErrCodeNoSuchField:         "`%s` is not a property of this object",
-		ErrCodeNotAValue:           "`%s` cannot be used as a value",
+		ErrCodeNotAValue:           "`%s` cannot be used as a value, only as a callee with arguments",
 		ErrCodeNotCallable:         "`%s` is not callable",
 		ErrCodeReserved:            "cannot assign to or define `%s` or any other `%s`-prefixed identifier",
 		ErrCodeNoElseCase:          "missing a fallback case",

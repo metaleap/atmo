@@ -101,6 +101,9 @@ func (me *SemType) stringifyTo(w *strings.Builder) {
 	case me.Prim == MoPrimTypeObj:
 		w.WriteByte('{')
 		for i, targ := range me.TArgs {
+			if i > 0 {
+				w.WriteString(", ")
+			}
 			moValStringifyTo(me.Fields[i], w)
 			w.WriteString(": ")
 			targ.stringifyTo(w)
@@ -149,7 +152,7 @@ func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
 func (me *SemType) normalizeIfAdt() bool {
 	if (me.Prim == MoPrimTypeOr) || (me.Prim == MoPrimTypeAnd) {
 		for i := 0; i < me.TArgs.Len(); i++ {
-			if t := me.TArgs[i]; t.Prim == MoPrimTypeNever {
+			if t := me.TArgs[i]; (t == nil) || (t.Prim == MoPrimTypeNever) {
 				return false
 			} else if t.Prim == MoPrimTypeAny {
 				*me = *t
@@ -160,6 +163,15 @@ func (me *SemType) normalizeIfAdt() bool {
 			}
 		}
 		me.TArgs.EnsureAllUnique((*SemType).Eq)
+		i1 := -1
+		me.TArgs = me.TArgs.Where(func(t1 *SemType) bool {
+			i1++
+			i2 := -1
+			return me.TArgs.All(func(t2 *SemType) bool {
+				i2++
+				return (t1 == t2) || (!t1.IsSubTypeOf(t2) || ((i1 < i2) && t2.IsSubTypeOf(t1)))
+			})
+		})
 		switch len(me.TArgs) {
 		case 0:
 			return false
@@ -168,6 +180,13 @@ func (me *SemType) normalizeIfAdt() bool {
 		}
 	}
 	return true
+}
+
+func (me *SemType) mapIfOr(dueTo *SemExpr, f func(*SemType) *SemType) *SemType {
+	if me.Prim != MoPrimTypeOr {
+		return f(me)
+	}
+	return semTypeFromMultiple(dueTo, true, sl.To(me.TArgs, f)...)
 }
 
 func semTypeEnsureDueTo(dueTo *SemExpr, ty *SemType) *SemType {
@@ -187,10 +206,8 @@ func semTypeNew(dueTo *SemExpr, prim MoValPrimType, tyArgs ...*SemType) *SemType
 		return nil
 	}
 	ret := &SemType{DueTo: dueTo, Prim: prim, TArgs: sl.To(tyArgs, func(targ *SemType) *SemType { return semTypeEnsureDueTo(dueTo, targ) })}
-	if len(tyArgs) > 0 {
-		if !ret.normalizeIfAdt() {
-			ret = nil
-		}
+	if (len(tyArgs) > 0) && !ret.normalizeIfAdt() {
+		return nil
 	}
 	return ret
 }

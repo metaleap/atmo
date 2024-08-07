@@ -185,6 +185,13 @@ func (me *SrcPack) Refs(self *SemExpr, onlyInFile *SrcFile) (sets SemExprs, gets
 	return
 }
 
+func (me *SemExpr) UnquotedIfQuoteCall() *SemExpr {
+	if call, _ := me.Val.(*SemValCall); (call != nil) && (str.In(call.Callee.MaybeIdent(false), moPrimOpQuote, moPrimOpQQuote)) && (len(call.Args) == 1) {
+		return call.Args[0]
+	}
+	return me
+}
+
 func (me *SemExpr) Walk(origValTooIfValPrecomputedFromExpr bool, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
 	if onBefore != nil && !onBefore(me) {
 		return
