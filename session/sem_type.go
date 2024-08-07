@@ -106,11 +106,14 @@ func (me *SemType) normalizeIfAdt() bool {
 }
 
 func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemType {
-	if me.Prim != MoPrimTypeOr {
+	if (me == nil) || (me.Prim != MoPrimTypeOr) {
 		return f(me)
 	}
 	targs := sl.To(me.TArgs, f)
-	return util.If(sl.Has(targs, nil), nil, semTypeFromMultiple(dueTo, true, targs...))
+	if sl.Has(targs, nil) {
+		return nil
+	}
+	return semTypeFromMultiple(dueTo, true, targs...)
 }
 
 func semTypeMapIfOr(dueTo *SemExpr, t1 *SemType, t2 *SemType, f func(t1 *SemType, t2 *SemType) *SemType) *SemType {

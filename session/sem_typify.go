@@ -648,18 +648,15 @@ func (me *SrcPack) semTyPrimFnDictHas(self *SemExpr) {
 func (me *SrcPack) semTyPrimFnDictGet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
-	if me.semCheckCount(2, 2, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeDict, 2) {
-		ty_dict := call.Args[0].Type
-		ty_key, ty_ret := ty_dict.TArgs[0], ty_dict.TArgs[1]
-		if ty_key.Prim == MoPrimTypeAny {
-			ty_key = call.Args[1].Type
-			ty_dict.TArgs[0] = ty_key
-		} else {
-			_ = me.semCheckType(call.Args[1], ty_key)
-		}
-		ty_ret = semTypeFromMultiple(call.Callee, true, ty_ret, semTypeNew(call.Callee, MoPrimTypeVoid))
-		self.Type = ty_ret
-		call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, ty_dict, ty_key, self.Type)
+	if me.semCheckCount(2, 2, call.Args, self, true) && (call.Args[0].Type != nil) {
+		var ty_rets sl.Of[*SemType]
+		_ = call.Args[0].Type.mapIfOr(call.Args[0], func(tyDict *SemType) *SemType {
+			ty_rets.Add(tyDict.TArgs[1])
+			_ = me.semCheckTypeLax(call.Args[1], tyDict.TArgs[0], true)
+			return tyDict
+		})
+		self.Type = semTypeFromMultiple(call.Args[0], false, append(ty_rets, semTypeNew(call.Callee, MoPrimTypeVoid))...)
+		call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
 	}
 }
 
