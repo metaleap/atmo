@@ -113,6 +113,20 @@ func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemTyp
 	return util.If(sl.Has(targs, nil), nil, semTypeFromMultiple(dueTo, true, targs...))
 }
 
+func semTypeMapIfOr(dueTo *SemExpr, t1 *SemType, t2 *SemType, f func(t1 *SemType, t2 *SemType) *SemType) *SemType {
+	if or1, or2 := (t1.Prim == MoPrimTypeOr), (t2.Prim == MoPrimTypeOr); or1 || or2 {
+		t1s, t2s := util.If(or1, t1.TArgs, []*SemType{t1}), util.If(or2, t2.TArgs, []*SemType{t2})
+		var ret sl.Of[*SemType]
+		for _, t1 := range t1s {
+			for _, t2 := range t2s {
+				ret.Add(f(t1, t2))
+			}
+		}
+		return semTypeFromMultiple(dueTo, false, ret...)
+	}
+	return f(t1, t2)
+}
+
 func (me *SemType) sansSingletons() *SemType {
 	if (me == nil) || !me.hasSingletons() {
 		return me

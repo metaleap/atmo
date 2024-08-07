@@ -31,20 +31,20 @@ func init() {
 		moPrimFnReplEnv:     (*SrcPack).semTyPrimFnReplEnv,
 		moPrimFnReplPrint:   (*SrcPack).semTyPrimFnReplPrint,
 		moPrimFnReplReset:   (*SrcPack).semTyPrimFnReplReset,
-		moPrimFnNumUintAdd:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint),
-		moPrimFnNumUintSub:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint),
-		moPrimFnNumUintMul:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint),
-		moPrimFnNumUintDiv:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint),
-		moPrimFnNumUintMod:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint),
-		moPrimFnNumIntAdd:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt),
-		moPrimFnNumIntSub:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt),
-		moPrimFnNumIntMul:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt),
-		moPrimFnNumIntDiv:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt),
-		moPrimFnNumIntMod:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt),
-		moPrimFnNumFloatAdd: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat),
-		moPrimFnNumFloatSub: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat),
-		moPrimFnNumFloatMul: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat),
-		moPrimFnNumFloatDiv: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat),
+		moPrimFnNumUintAdd:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, false, func(opL MoValNumUint, opR MoValNumUint) MoValNumUint { return opL + opR }),
+		moPrimFnNumUintSub:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, false, func(opL MoValNumUint, opR MoValNumUint) MoValNumUint { return opL - opR }),
+		moPrimFnNumUintMul:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, false, func(opL MoValNumUint, opR MoValNumUint) MoValNumUint { return opL * opR }),
+		moPrimFnNumUintDiv:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, true, func(opL MoValNumUint, opR MoValNumUint) MoValNumUint { return opL / opR }),
+		moPrimFnNumUintMod:  semPrimFnArith[MoValNumUint](MoPrimTypeNumUint, true, func(opL MoValNumUint, opR MoValNumUint) MoValNumUint { return opL % opR }),
+		moPrimFnNumIntAdd:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, false, func(opL MoValNumInt, opR MoValNumInt) MoValNumInt { return opL + opR }),
+		moPrimFnNumIntSub:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, false, func(opL MoValNumInt, opR MoValNumInt) MoValNumInt { return opL - opR }),
+		moPrimFnNumIntMul:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, false, func(opL MoValNumInt, opR MoValNumInt) MoValNumInt { return opL * opR }),
+		moPrimFnNumIntDiv:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, true, func(opL MoValNumInt, opR MoValNumInt) MoValNumInt { return opL / opR }),
+		moPrimFnNumIntMod:   semPrimFnArith[MoValNumInt](MoPrimTypeNumInt, true, func(opL MoValNumInt, opR MoValNumInt) MoValNumInt { return opL % opR }),
+		moPrimFnNumFloatAdd: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, false, func(opL MoValNumFloat, opR MoValNumFloat) MoValNumFloat { return opL + opR }),
+		moPrimFnNumFloatSub: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, false, func(opL MoValNumFloat, opR MoValNumFloat) MoValNumFloat { return opL - opR }),
+		moPrimFnNumFloatMul: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, false, func(opL MoValNumFloat, opR MoValNumFloat) MoValNumFloat { return opL * opR }),
+		moPrimFnNumFloatDiv: semPrimFnArith[MoValNumFloat](MoPrimTypeNumFloat, true, func(opL MoValNumFloat, opR MoValNumFloat) MoValNumFloat { return opL / opR }),
 		moPrimFnCast:        (*SrcPack).semTyPrimFnCast,
 		moPrimFnCmpEq:       (*SrcPack).semTyPrimFnCmpEqNeq,
 		moPrimFnCmpNeq:      (*SrcPack).semTyPrimFnCmpEqNeq,
@@ -344,12 +344,28 @@ func (me *SrcPack) semTyPrimOpFnCall(self *SemExpr) {
 	}
 }
 
-func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType) func(*SrcPack, *SemExpr) {
+func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimType, isDivOrMod bool, do func(T, T) T) func(*SrcPack, *SemExpr) {
 	return func(me *SrcPack, self *SemExpr) {
 		call := self.Val.(*SemValCall)
 		self.Type = semTypeNew(call.Callee, t)
 		if me.semCheckCount(2, 2, call.Args, self, true) {
-			sl.Each(call.Args, func(arg *SemExpr) { me.semCheckType(arg, self.Type) })
+			ok, tl, tr := true, call.Args[0].Type, call.Args[1].Type
+			if sl.Each(call.Args, func(arg *SemExpr) { ok = me.semCheckType(arg, self.Type) && ok }); ok {
+				self.Type = semTypeMapIfOr(call.Callee, tl, tr, func(t1, t2 *SemType) *SemType {
+					if (t1.Singleton != nil) && (t2.Singleton != nil) {
+						var zero T
+						if isDivOrMod && (t2.Singleton.(T) == zero) {
+							self.ErrAdd(call.Args[1].ErrNew(ErrCodeDivModZero))
+						} else {
+							ret := semTypeNew(call.Args[0], self.Type.Prim)
+							ret.Singleton = MoVal(do(t1.Singleton.(T), t2.Singleton.(T)))
+							return ret
+						}
+					}
+					return self.Type
+				})
+			}
+			call.Callee.Type = semTypeNew(call.Callee, MoPrimTypeFunc, tl, tr, self.Type)
 		}
 	}
 }

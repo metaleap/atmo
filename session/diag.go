@@ -54,6 +54,7 @@ const (
 	ErrCodeComputationFailed     DiagCode = "ComputationFailed"
 	ErrCodeNotTypifiable         DiagCode = "Untypifiable"
 	ErrCodeOrFuncsParamsMismatch DiagCode = "OrFuncsParamsCountMismatch"
+	ErrCodeDivModZero            DiagCode = "NumDivModZero"
 
 	// semantic (warnings / infos / hints)
 	HintCodeUnused DiagCode = "Unused"
@@ -94,6 +95,7 @@ var (
 		ErrCodeNotTypifiable:         "expression untypifiable",
 		ErrCodeInterpLimitExceeded:   "the interpreter's user-set loop limit (%d) or call limit (%d) has been breached",
 		ErrCodeOrFuncsParamsMismatch: "union of funcs with different parameter counts (%d vs. %d) not callable",
+		ErrCodeDivModZero:            "(potential) division by zero",
 
 		HintCodeUnused: "code unreachable or without effects (and will be discarded by code generation)",
 	}
