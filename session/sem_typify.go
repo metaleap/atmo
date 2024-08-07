@@ -168,6 +168,9 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 			self.Type = semTypeNew(self, MoPrimTypeTup, item_types...)
 		} else if item_type := semTypeFromMultiple(self, true, item_types...); item_type != nil {
 			self.Type = semTypeNew(self, MoPrimTypeList, item_type)
+			if len(val.Items) == 0 { // need sentinel so that `[]` (which types as `[@Any]`) will satisfy type `[@Foo]`
+				self.Type.Singleton = MoValPrimTypeTag(MoPrimTypeAny)
+			}
 		}
 	case *SemValDict:
 		key_types, val_types := make(sl.Of[*SemType], len(val.Keys)), make(sl.Of[*SemType], len(val.Vals))
@@ -182,6 +185,9 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 			self.Type = semTypeNew(self, MoPrimTypeDict, key_type, val_type)
 		} else if self.Type = semTypeNew(self, MoPrimTypeObj, val_types...); self.Type != nil {
 			self.Type.Fields = sl.To(val.Keys, func(it *SemExpr) MoValIdent { return it.Val.(*SemValIdent).Name })
+			if len(val.Keys) == 0 { // need sentinel so that `{}` (which types as `{@Any:@Any}`) will satisfy type `{@Foo:@Bar}`
+				self.Type.Singleton = MoValPrimTypeTag(MoPrimTypeAny)
+			}
 		}
 	case *SemValFunc:
 		sub_env := maps.Clone(env)
@@ -206,14 +212,21 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 			prim_op(me, self)
 		} else if val.Callee.Type == nil {
 			break
-		} else if prim_fn != nil {
+		} else if ty_fn := semTypeEnsureDueTo(val.Callee, val.Callee.Type); prim_fn != nil {
 			val.Callee.Fact(SemFact{Kind: SemFactPrimFn}, val.Callee)
 			prim_fn(me, self)
-		} else if val.Callee.Type.Prim != MoPrimTypeFunc {
+		} else if num_params := len(ty_fn.TArgs) - 1; ty_fn.Prim != MoPrimTypeFunc {
 			self.ErrAdd(val.Callee.ErrNew(ErrCodeNotCallable, str.Shorten(val.Callee.String(true), 22)))
-		} else if fn := val.Callee.Val.(*SemValFunc); me.semCheckCount(len(fn.Params), len(fn.Params), val.Args, self, true) {
-			self.Type = val.Callee.Type.TArgs[len(val.Callee.Type.TArgs)-1]
+		} else if fn, _ := val.Callee.Val.(*SemValFunc); me.semCheckCount(num_params, num_params, val.Args, self, true) &&
+			((fn == nil) || me.semCheckCount(len(fn.Params), len(fn.Params), val.Args, self, true)) {
+			self.Type = ty_fn.TArgs[num_params] // the func's return type
+			var idx int
+			sl.Each(val.Args, func(arg *SemExpr) {
+				_ = me.semCheckType(arg, ty_fn.TArgs[idx])
+				idx++
+			})
 		}
+
 	}
 	return self.Type
 }

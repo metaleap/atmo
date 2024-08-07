@@ -55,6 +55,9 @@ func (me *SemType) IsSubTypeOf(of *SemType) bool {
 			}
 		}
 		return true
+	case ((me.Prim == MoPrimTypeList) || (me.Prim == MoPrimTypeDict)) && (of.Prim == me.Prim):
+		return (me.Singleton == MoValPrimTypeTag(MoPrimTypeAny) /*used as sentinel on [] and {} literals */) ||
+			sl.Eq(me.TArgs, of.TArgs, (*SemType).IsSubTypeOf)
 	case (me.Prim == MoPrimTypeFunc) && (of.Prim == MoPrimTypeFunc) && (len(me.TArgs) == len(of.TArgs)):
 		for i, targ := range me.TArgs { // last (return) tArg covariant, the others contravariant:
 			if is := util.If((i == (len(me.TArgs) - 1)), targ.IsSubTypeOf(of.TArgs[i]), of.TArgs[i].IsSubTypeOf(targ)); !is {

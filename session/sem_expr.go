@@ -153,6 +153,16 @@ func (me *SemExpr) isCallArg() bool {
 	return false
 }
 
+func (me *SemExpr) isEmptyDictOrListOrObj() bool {
+	switch val := me.Val.(type) {
+	case *SemValList:
+		return len(val.Items) == 0
+	case *SemValDict:
+		return len(val.Keys) == 0
+	}
+	return false
+}
+
 func (me *SemExpr) isPrecomputedPermissible() bool {
 	return (!me.HasErrs()) && !me.HasFact(SemFactNotPure, nil, false, true)
 }
