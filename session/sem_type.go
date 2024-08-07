@@ -16,6 +16,16 @@ type SemType struct {
 	Singleton MoVal
 }
 
+func (me *SemType) checkIsPrimElseErrOn(tyDueTo *SemExpr, errOwner *SemExpr, errSpan *SemExpr, wantPrim MoValPrimType, wantArity int) bool {
+	if ty_expect := semTypeNew(tyDueTo, wantPrim, sl.Repeat(wantArity, semTypeNew(tyDueTo, MoPrimTypeAny))...); (me == nil) || !me.IsSubTypeOf(ty_expect) {
+		if me != nil {
+			errOwner.ErrAdd(semTypeErrOn(errSpan, ty_expect, me))
+		}
+		return false
+	}
+	return true
+}
+
 func (me *SemType) Eq(to *SemType) bool {
 	sl_eq := util.If((me.Prim == MoPrimTypeOr), sl.EqAnyOrder, sl.Eq[sl.Of[*SemType]])
 	return (me == to) || ((me != nil) && (to != nil) && (me.Prim == to.Prim) && (me.Singleton == to.Singleton) &&
@@ -55,7 +65,7 @@ func (me *SemType) IsSubTypeOf(of *SemType) bool {
 			}
 		}
 		return true
-	case ((me.Prim == MoPrimTypeList) || (me.Prim == MoPrimTypeDict)) && (of.Prim == me.Prim):
+	case ((me.Prim == MoPrimTypeList) || (me.Prim == MoPrimTypeDict) || (me.Prim == MoPrimTypeErr)) && (of.Prim == me.Prim):
 		return (me.Singleton == MoValPrimTypeTag(MoPrimTypeAny) /*used as sentinel on [] and {} literals */) ||
 			sl.Eq(me.TArgs, of.TArgs, (*SemType).IsSubTypeOf)
 	case (me.Prim == MoPrimTypeFunc) && (of.Prim == MoPrimTypeFunc) && (len(me.TArgs) == len(of.TArgs)):
@@ -113,7 +123,7 @@ func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemTyp
 	if sl.Has(targs, nil) {
 		return nil
 	}
-	return semTypeFromMultiple(dueTo, true, targs...)
+	return semTypeFromMultiple(dueTo, false, targs...)
 }
 
 func semTypeMapIfOr(dueTo *SemExpr, t1 *SemType, t2 *SemType, f func(t1 *SemType, t2 *SemType) *SemType) *SemType {

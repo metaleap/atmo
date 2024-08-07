@@ -650,13 +650,17 @@ func (me *SrcPack) semTyPrimFnDictGet(self *SemExpr) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(2, 2, call.Args, self, true) && (call.Args[0].Type != nil) {
 		var ty_rets sl.Of[*SemType]
-		_ = call.Args[0].Type.mapIfOr(call.Args[0], func(tyDict *SemType) *SemType {
-			ty_rets.Add(tyDict.TArgs[1])
-			_ = me.semCheckTypeLax(call.Args[1], tyDict.TArgs[0], true)
-			return tyDict
+		ty_key := call.Args[0].Type.mapIfOr(call.Args[0], func(tyDict *SemType) *SemType {
+			if tyDict.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeDict, 2) {
+				ty_rets.Add(tyDict.TArgs[1])
+				return tyDict.TArgs[0]
+			}
+			return nil
 		})
-		self.Type = semTypeFromMultiple(call.Args[0], false, append(ty_rets, semTypeNew(call.Callee, MoPrimTypeVoid))...)
-		call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
+		if (ty_key != nil) && me.semCheckTypeLax(call.Args[1], ty_key, true) {
+			self.Type = semTypeFromMultiple(call.Args[0], false, append(ty_rets, semTypeNew(call.Callee, MoPrimTypeVoid))...)
+			call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
+		}
 	}
 }
 
@@ -665,21 +669,17 @@ func (me *SrcPack) semTyPrimFnDictSet(self *SemExpr) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
 	if me.semCheckCount(3, 3, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeDict, 2) {
-		ty_dict := call.Args[0].Type
-		ty_key, ty_val := ty_dict.TArgs[0], ty_dict.TArgs[1]
-		if ty_key.Prim == MoPrimTypeAny {
-			ty_key = call.Args[1].Type
-			ty_dict.TArgs[0] = ty_key
-		} else {
-			_ = me.semCheckType(call.Args[1], ty_key)
+		var ty_rets sl.Of[*SemType]
+		ty_key := call.Args[0].Type.mapIfOr(call.Args[0], func(tyDict *SemType) *SemType {
+			if tyDict.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeDict, 2) {
+				ty_rets.Add(tyDict.TArgs[1])
+				return tyDict.TArgs[0]
+			}
+			return nil
+		})
+		if (ty_key != nil) && me.semCheckTypeLax(call.Args[1], ty_key, true) && me.semCheckTypeLax(call.Args[2], semTypeFromMultiple(call.Callee, false, ty_rets...), true) {
+			call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, call.Args[2].Type, self.Type)
 		}
-		if ty_val.Prim == MoPrimTypeAny {
-			ty_val = call.Args[2].Type
-			ty_dict.TArgs[1] = ty_val
-		} else {
-			_ = me.semCheckType(call.Args[2], ty_val)
-		}
-		call.Callee.Type = semTypeNew(self, MoPrimTypeFunc, ty_dict, ty_key, ty_val, self.Type)
 	}
 }
 
@@ -688,12 +688,11 @@ func (me *SrcPack) semTyPrimFnDictDel(self *SemExpr) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
 	self.Fact(SemFact{Kind: SemFactNotPure}, call.Callee)
 	if me.semCheckCount(2, 2, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeDict, 2) && me.semCheckTypePrim(call.Args[1], call.Callee, MoPrimTypeList, 1) {
-		ty_keys := call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
-			if (ty.Prim != MoPrimTypeDict) || (len(ty.TArgs) != 2) {
-				self.ErrAdd(semTypeErrOn(call.Args[0], semTypeNew(call.Callee, MoPrimTypeDict, semTypeNew(call.Callee, MoPrimTypeAny), semTypeNew(call.Callee, MoPrimTypeAny)), ty))
+		ty_keys := call.Args[0].Type.mapIfOr(call.Callee, func(tyDict *SemType) *SemType {
+			if !tyDict.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeDict, 2) {
 				return nil
 			}
-			return ty.TArgs[0]
+			return tyDict.TArgs[0]
 		})
 		if ty_key := semTypeFromMultiple(call.Callee, false, ty_keys); ty_key != nil {
 			_ = me.semCheckTypeLax(call.Args[1], semTypeNew(call.Args[0], MoPrimTypeList, ty_key), true)
@@ -725,10 +724,7 @@ func (me *SrcPack) semTyPrimFnErrVal(self *SemExpr) {
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
 		ty_vals := call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
-			if ty == nil {
-				return nil
-			} else if (ty.Prim != MoPrimTypeErr) || (len(ty.TArgs) != 1) {
-				self.ErrAdd(semTypeErrOn(call.Args[0], semTypeNew(call.Callee, MoPrimTypeErr, semTypeNew(call.Callee, MoPrimTypeAny)), ty))
+			if (ty == nil) || !ty.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeErr, 1) {
 				return nil
 			}
 			return ty.TArgs[0]
