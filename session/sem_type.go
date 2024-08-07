@@ -352,14 +352,11 @@ func semTypeErr(expr *SemExpr, expect *SemType) *Diag {
 func semTypeErrOn(self *SemExpr, expect *SemType, have *SemType) *Diag {
 	t1, t2 := expect, have
 	dt1, dt2 := expect.DueTo, have.DueTo
-	s1, s2 := "`"+t1.String()+"` value", "`"+t2.String()+"` value"
-	// if t1.Prim != t2.Prim {
-	// 	s1, s2 = t1.Prim.Str(true), t2.Prim.Str(true)
-	// }
-	err := self.ErrNew(ErrCodeTypeMismatch, s1, s2)
+	s1, s2 := "`"+t1.String()+"`", "`"+t2.String()+"`"
+	err := self.ErrNew(ErrCodeTypeMismatch, s1+" value", s2+" value")
 	err.Rel = srcFileLocs([]string{
-		str.Fmt("%s required by `%s`", s1, dt1.String(false)),
-		str.Fmt("%s provided by `%s`", s2, dt2.String(false)),
+		str.Fmt("wanting %s due to `%s`", s1, str.Shorten(dt1.String(false), 22)),
+		str.Fmt("but given %s due to `%s`", s2, str.Shorten(dt2.String(false), 22)),
 	}, t1.DueTo, t2.DueTo)
 	return err
 }
