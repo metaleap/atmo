@@ -90,7 +90,7 @@ func (me *SemType) IsSubTypeOf(of *SemType) bool {
 		return sl.Any(of.TArgs, func(ty *SemType) bool { return me.IsSubTypeOf(ty) }) // per above: this is correct but not yet complete.
 	case me.Prim == MoPrimTypeAnd:
 		return me.TArgs.Any(func(ty *SemType) bool { return ty.IsSubTypeOf(of) })
-	case of.Prim == MoPrimTypeAnd: // TODO: similar to above, see also jaked.org/blog/2021-10-28-Reconstructing-TypeScript-part-5#subtyping-intersection-types
+	case of.Prim == MoPrimTypeAnd: // TODO: similar to above comment on Or, see also jaked.org/blog/2021-10-28-Reconstructing-TypeScript-part-5#subtyping-intersection-types
 		return of.TArgs.All(func(ty *SemType) bool { return me.IsSubTypeOf(ty) })
 	}
 	return me.Eq(of)

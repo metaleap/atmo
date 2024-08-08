@@ -13,10 +13,6 @@ func (me *SrcPack) semRefresh() {
 		it := me.semExprFromMoExpr(&me.Trees.Sem.Scope, top_expr, nil)
 		me.Trees.Sem.TopLevel = append(me.Trees.Sem.TopLevel, it)
 	}
-	if me.Interp == nil {
-		_ = newInterp(me, nil)
-	}
-	me.moPrePackEval()
 	if !me.Trees.Sem.TopLevel.AnyErrs() {
 		me.semPopulateRootScope()
 		me.semTySynth()
@@ -132,13 +128,7 @@ func (me *SrcPack) semPopulateRootScope() {
 	}, nil)
 	// finally, gather all `SemScopeEntry.Refs` and also mark unused func params
 	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
-		if call, _ := self.Val.(*SemValCall); call != nil {
-			if ident, _ := call.Callee.Val.(*SemValIdent); ident != nil {
-				ident.IsCallee = true
-				return (ident.Name != moPrimOpQuote) && (ident.Name != moPrimOpQQuote)
-			}
-		}
-		return true
+		return !self.isCallOn(moPrimOpQuote, moPrimOpQQuote) // no traversing into quote/quasiquote
 	}, func(self *SemExpr) {
 		switch val := self.Val.(type) {
 		case *SemValIdent:
@@ -160,12 +150,9 @@ func (me *SrcPack) semPopulateRootScope() {
 			}
 		}
 	})
-	// finally, gather all `SemScopeEntry.Refs` and also mark unused func params
+	// above, ident use was marked, now we can gather unuseds
 	me.Trees.Sem.TopLevel.Walk(nil, func(self *SemExpr) bool {
-		if call, _ := self.Val.(*SemValCall); call != nil {
-			return !str.In(call.Callee.MaybeIdent(false), moPrimOpQuote, moPrimOpQQuote)
-		}
-		return true
+		return !self.isCallOn(moPrimOpQuote, moPrimOpQQuote) // no traversing into quote/quasiquote
 	}, func(self *SemExpr) {
 		if ident, _ := self.Val.(*SemValIdent); ident != nil {
 			if (ident.IsDecl) && !ident.IsDeclUsed {

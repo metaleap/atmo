@@ -313,8 +313,7 @@ func (me *Interp) macroExpand(env *MoEnv, expr *MoExpr) *MoExpr {
 func (me *MoExpr) callee() *MoExpr {
 	if me == nil {
 		return nil
-	}
-	if call, is := me.Val.(MoValCall); is {
+	} else if call, is := me.Val.(MoValCall); is {
 		return call[0]
 	}
 	return nil

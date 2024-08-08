@@ -153,6 +153,16 @@ func (me *SemExpr) isCallArg() bool {
 	return false
 }
 
+func (me *SemExpr) isCallOn(calleeAnyOf ...MoValIdent) bool {
+	if call, _ := me.Val.(*SemValCall); call != nil {
+		if ident, _ := call.Callee.Val.(*SemValIdent); ident != nil {
+			ident.IsCallee = true
+			return str.In(ident.Name, calleeAnyOf...)
+		}
+	}
+	return false
+}
+
 func (me *SemExpr) isEmptyDictOrListOrObj() bool {
 	switch val := me.Val.(type) {
 	case *SemValList:
@@ -256,6 +266,10 @@ func (me SemExprs) Errs() (ret Diags) {
 		ret.Add(top_expr.Errs()...)
 	}
 	return
+}
+
+func (me SemExprs) FindFirstWhere(pred func(*SemExpr) bool) *SemExpr {
+	return nil
 }
 
 func (me SemExprs) Walk(onlyInFile *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
