@@ -44,6 +44,7 @@ func (me *SemType) hasSingletons() bool {
 
 func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
 
+func (me *SemType) IsSuperTypeOf(of *SemType) bool { return of.IsSubTypeOf(me) }
 func (me *SemType) IsSubTypeOf(of *SemType) bool {
 	switch {
 	case (me == nil) || (of == nil):
@@ -98,7 +99,7 @@ func (me *SemType) normalizeIfAdt() bool {
 			} else if t.Prim == MoPrimTypeAny {
 				*me = *t
 				return true
-			} else if t.Prim == me.Prim {
+			} else if t.Prim == me.Prim { // lift inner or/and parts to outer
 				me.TArgs = append(append(me.TArgs[:i], me.TArgs[i+1:]...), t.TArgs...)
 				i--
 			}
@@ -110,7 +111,8 @@ func (me *SemType) normalizeIfAdt() bool {
 			i2 := -1
 			return me.TArgs.All(func(t2 *SemType) bool {
 				i2++
-				return (t1 == t2) || (!t1.IsSubTypeOf(t2) || ((i1 < i2) && t2.IsSubTypeOf(t1)))
+				fn_is := util.If(me.Prim == MoPrimTypeAnd, (*SemType).IsSuperTypeOf, (*SemType).IsSubTypeOf)
+				return (t1 == t2) || (!fn_is(t1, t2) || ((i1 < i2) && fn_is(t2, t1)))
 			})
 		})
 		switch len(me.TArgs) {
