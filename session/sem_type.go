@@ -1,6 +1,7 @@
 package session
 
 import (
+	"slices"
 	"strings"
 
 	"atmo/util"
@@ -91,6 +92,17 @@ func (me *SemType) IsSubTypeOf(of *SemType) bool {
 	return me.Eq(of)
 }
 
+func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemType {
+	if (me == nil) || (me.Prim != MoPrimTypeOr) {
+		return f(me)
+	}
+	targs := sl.To(me.TArgs, f)
+	if sl.Has(targs, nil) {
+		return nil
+	}
+	return semTypeFromMultiple(dueTo, false, targs...)
+}
+
 func (me *SemType) normalizeIfAdt() bool {
 	if (me.Prim == MoPrimTypeOr) || (me.Prim == MoPrimTypeAnd) {
 		for i := 0; i < me.TArgs.Len(); i++ {
@@ -125,29 +137,51 @@ func (me *SemType) normalizeIfAdt() bool {
 	return true
 }
 
-func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemType {
-	if (me == nil) || (me.Prim != MoPrimTypeOr) {
-		return f(me)
-	}
-	targs := sl.To(me.TArgs, f)
-	if sl.Has(targs, nil) {
-		return nil
-	}
-	return semTypeFromMultiple(dueTo, false, targs...)
-}
-
-func semTypeMapIfOr(dueTo *SemExpr, t1 *SemType, t2 *SemType, f func(t1 *SemType, t2 *SemType) *SemType) *SemType {
-	if or1, or2 := (t1.Prim == MoPrimTypeOr), (t2.Prim == MoPrimTypeOr); or1 || or2 {
-		t1s, t2s := util.If(or1, t1.TArgs, []*SemType{t1}), util.If(or2, t2.TArgs, []*SemType{t2})
-		var ret sl.Of[*SemType]
-		for _, t1 := range t1s {
-			for _, t2 := range t2s {
-				ret.Add(f(t1, t2))
+func (me *SemType) overlaps(ty *SemType) bool {
+	switch {
+	case (me.Prim == MoPrimTypeNever) || (ty.Prim == MoPrimTypeNever):
+		return false
+	case (me.Prim == MoPrimTypeAny) || (ty.Prim == MoPrimTypeAny):
+		return true
+	case me.Prim == MoPrimTypeOr:
+		return sl.Any(me.TArgs, func(tyArg *SemType) bool { return tyArg.overlaps(ty) })
+	case ty.Prim == MoPrimTypeOr:
+		return sl.Any(ty.TArgs, func(tyArg *SemType) bool { return me.overlaps(tyArg) })
+	case me.Prim == MoPrimTypeAnd:
+		return sl.All(me.TArgs, func(tyArg *SemType) bool { return tyArg.overlaps(ty) })
+	case ty.Prim == MoPrimTypeAnd:
+		return sl.All(ty.TArgs, func(tyArg *SemType) bool { return me.overlaps(tyArg) })
+	case (me.Singleton != nil) && (ty.Singleton != nil):
+		return (me.Singleton == ty.Singleton)
+	case (me.Singleton != nil) || (ty.Singleton != nil):
+		return (me.Prim == ty.Prim)
+	case (me.Prim == MoPrimTypeObj) && (ty.Prim == MoPrimTypeObj):
+		idx := -1
+		return sl.All(me.TArgs, func(tyArg *SemType) bool {
+			idx++
+			field_name := me.Fields[idx]
+			if field_idx_other := sl.IdxOf(ty.Fields, field_name); field_idx_other < 0 {
+				return true
+			} else {
+				return tyArg.overlaps(ty.TArgs[field_idx_other])
 			}
-		}
-		return semTypeFromMultiple(dueTo, false, ret...)
+		})
+	case (me.Prim == MoPrimTypeTup) && (ty.Prim == MoPrimTypeTup):
+		idx := -1
+		return sl.All(me.TArgs, func(tyArg *SemType) bool {
+			idx++
+			if idx >= len(ty.TArgs) {
+				return true
+			} else {
+				return tyArg.overlaps(ty.TArgs[idx])
+			}
+		})
+	case (me.Prim == MoPrimTypeList) && (ty.Prim == MoPrimTypeList):
+		return me.TArgs[0].overlaps(ty.TArgs[0])
+	case (me.Prim == MoPrimTypeDict) && (ty.Prim == MoPrimTypeDict):
+		return me.TArgs[0].overlaps(ty.TArgs[0]) && me.TArgs[1].overlaps(ty.TArgs[1])
 	}
-	return f(t1, t2)
+	return me.Eq(ty)
 }
 
 func (me *SemType) sansSingletons() *SemType {
@@ -251,6 +285,26 @@ func (me *SemType) stringifyTo(w *strings.Builder) {
 	}
 }
 
+func semTypeDistributeUnions(tys ...*SemType) (ret sl.Of[[]*SemType]) {
+	var dist func([]*SemType, int)
+	dist = func(tys []*SemType, i int) {
+		if i == len(tys) {
+			ret.Add(tys)
+		} else if ti := tys[i]; ti.Prim != MoPrimTypeOr {
+			dist(tys, i+1)
+		} else {
+			for _, t := range ti.TArgs {
+				ts2 := append(append(slices.Clone(tys[:i]), t), tys[i+1:]...)
+				dist(ts2, i+1)
+			}
+		}
+	}
+	if len(tys) > 0 {
+		dist(tys, 0)
+	}
+	return
+}
+
 func semTypeEnsureDueTo(dueTo *SemExpr, ty *SemType) *SemType {
 	if dueTo != nil {
 		should := func(t *SemType) bool {
@@ -261,6 +315,20 @@ func semTypeEnsureDueTo(dueTo *SemExpr, ty *SemType) *SemType {
 		}
 	}
 	return ty
+}
+
+func semTypeMapIfOr(dueTo *SemExpr, t1 *SemType, t2 *SemType, f func(t1 *SemType, t2 *SemType) *SemType) *SemType {
+	if or1, or2 := (t1.Prim == MoPrimTypeOr), (t2.Prim == MoPrimTypeOr); or1 || or2 {
+		t1s, t2s := util.If(or1, t1.TArgs, []*SemType{t1}), util.If(or2, t2.TArgs, []*SemType{t2})
+		var ret sl.Of[*SemType]
+		for _, t1 := range t1s {
+			for _, t2 := range t2s {
+				ret.Add(f(t1, t2))
+			}
+		}
+		return semTypeFromMultiple(dueTo, false, ret...)
+	}
+	return f(t1, t2)
 }
 
 func semTypeNew(dueTo *SemExpr, prim MoValPrimType, tyArgs ...*SemType) *SemType {

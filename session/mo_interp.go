@@ -364,7 +364,7 @@ func (me *Interp) checkCountWithSrcSpan(wantAtLeast int, wantAtMost int, have Mo
 }
 
 func (me *Interp) checkIs(want MoValPrimType, have *MoExpr) *Diag {
-	if have_type := have.Val.PrimType(); have_type != want {
+	if have_type := have.Val.PrimType(); (want != MoPrimTypeAny) && (have_type != want) {
 		return me.diagSpan(false, true, have).newDiagErr(ErrCodeTypeMismatch, want.Str(true), have_type.Str(true))
 	}
 	return nil
