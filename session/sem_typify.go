@@ -333,7 +333,10 @@ func (me *SrcPack) semTyPrimOpExpand(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
-		_ = me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeCall, 0)
+		_ = call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
+			_ = ty.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeCall, 0)
+			return ty
+		})
 	}
 }
 

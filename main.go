@@ -17,7 +17,7 @@ func main() {
 		lsp.Main()
 	case "repl":
 		repl.Main()
-	case "run":
-		panic("TODO")
+	default:
+		panic("command '" + cmd_name + "' not implemented")
 	}
 }
