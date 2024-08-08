@@ -448,6 +448,9 @@ func moValStringifyTo(it MoVal, w io.StringWriter) {
 	}
 }
 func MoValToString(it MoVal) string {
+	if it == nil {
+		return "<nil>"
+	}
 	var buf strings.Builder
 	moValStringifyTo(it, &buf)
 	return buf.String()

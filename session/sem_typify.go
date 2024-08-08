@@ -416,11 +416,14 @@ func (me *SrcPack) semTyPrimFnCast(self *SemExpr) {
 	if me.semCheckCount(2, 2, call.Args, self, true) {
 		ty_prim := semTypeNew(call.Callee, MoPrimTypePrimTypeTag)
 		if me.semCheckType(call.Args[0], ty_prim) {
-			if cast_to, _ := call.Args[0].Val.(*SemValScalar); (cast_to != nil) && (cast_to.Value.PrimType() == MoPrimTypePrimTypeTag) {
-				self.Type = semTypeNew(call.Args[0], MoValPrimType(cast_to.Value.(MoValPrimTypeTag)))
-			}
+			self.Type = call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
+				if ty.Singleton != nil {
+					return semTypeNew(call.Args[0], MoValPrimType(ty.Singleton.(MoValPrimTypeTag)))
+				}
+				return nil
+			})
 		}
-		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, ty_prim, call.Args[1].Type, self.Type)
+		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
 	}
 }
 
@@ -459,7 +462,7 @@ func (me *SrcPack) semTyPrimFnPrimTypeTag(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypePrimTypeTag)
 	if me.semCheckCount(1, 1, call.Args, self, true) {
-		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, semTypeNew(call.Callee, MoPrimTypePrimTypeTag))
+		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
 	}
 }
 

@@ -167,7 +167,7 @@ func (me *SemType) stringifyTo(w *strings.Builder) {
 	if me == nil {
 		w.WriteString("<untypifyable>")
 		return
-	} else if w.Len() > 123 { // infinite-type guard
+	} else if w.Len() > 321 { // infinite-type guard
 		w.WriteString("..")
 		return
 	}
