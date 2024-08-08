@@ -322,7 +322,8 @@ func (me *SrcPack) semTyPrimOpBoolCond(self *SemExpr) {
 			if me.semCheckCount(1, -1, dict.Keys, call.Args[0], false) {
 				new_ty := semTypeNew(self, MoPrimTypeOr)
 				for i, dict_key := range dict.Keys {
-					new_ty.TArgs = append(new_ty.TArgs, dict.Vals[i].Type)
+					ty_val := dict.Vals[i].Type // me.semTypify(dict.Vals[i], me.semTypeNarrow(env, dict_key, true))
+					new_ty.TArgs = append(new_ty.TArgs, ty_val)
 					_ = me.semCheckType(dict_key, semTypeNew(call.Callee, MoPrimTypeBool))
 				}
 				if len(new_ty.TArgs) > 0 {
