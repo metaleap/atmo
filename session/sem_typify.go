@@ -23,11 +23,11 @@ func init() {
 		moPrimOpQuote:    (*SrcPack).semTyPrimOpQuote,
 		moPrimOpQQuote:   (*SrcPack).semTyPrimOpQuote,
 		moPrimOpBoolCond: (*SrcPack).semTyPrimOpBoolCond,
-		moPrimOpExpand:   (*SrcPack).semTyPrimOpExpand,
 		moPrimOpFnCall:   (*SrcPack).semTyPrimOpFnCall,
 	}
 	semTyPrimFns = map[MoValIdent]func(*SrcPack, *SemExpr){
 		moPrimFnMacro:       (*SrcPack).semTyPrimFnMacro,
+		moPrimFnMacroExpand: (*SrcPack).semTyPrimFnMacroExpand,
 		moPrimFnBoolNot:     (*SrcPack).semTyPrimFnNot,
 		moPrimFnReplEnv:     (*SrcPack).semTyPrimFnReplEnv,
 		moPrimFnReplPrint:   (*SrcPack).semTyPrimFnReplPrint,
@@ -86,6 +86,7 @@ func init() {
 		t_ord, t_list, t_tup, t_dict, t_obj, t_err, t_func := t(nil, MoPrimTypeOr, t_int, t_uint, t_float, t_chr, t_str), t(nil, MoPrimTypeList, t_any), t(nil, MoPrimTypeTup, t_any), t(nil, MoPrimTypeList, t_any, t_any), semTypeNew(nil, MoPrimTypeObj), semTypeNew(nil, MoPrimTypeErr, t_any), semTypeNew(nil, MoPrimTypeFunc)
 		semPrimFnTypes = map[MoValIdent]*SemType{
 			moPrimFnMacro:       t(nil, fn, t_func, t_func),
+			moPrimFnMacroExpand: t(nil, fn, t(nil, MoPrimTypeCall), t_any),
 			moPrimFnReplEnv:     t(nil, fn, t(nil, MoPrimTypeDict, t_ident, t_any)),
 			moPrimFnReplPrint:   t(nil, fn, t_any, t_void),
 			moPrimFnReplReset:   t(nil, fn, t_void),
@@ -256,7 +257,7 @@ func (me *SrcPack) semTyPrimOpDo(self *SemExpr) {
 			if me.semCheckCount(1, -1, list.Items, call.Args[0], false) {
 				self.Type = list.Items[len(list.Items)-1].Type
 				for i, expr := range list.Items {
-					if (i < len(list.Items)-1) && !expr.HasFact(SemFactNotPure, nil, false, true) {
+					if (i < len(list.Items)-1) && !expr.HasFact(SemFactNotPure, nil, false, false) {
 						expr.Fact(SemFact{Kind: SemFactUnused}, expr)
 					}
 				}
@@ -266,7 +267,7 @@ func (me *SrcPack) semTyPrimOpDo(self *SemExpr) {
 }
 
 func (me *SrcPack) semTyPrimOpFn(self *SemExpr) {
-	// no-op: whenever this call happens, it's always on a broken `@fn` or `@macro` call, because
+	// no-op: whenever this call happens, it's always on a broken `@fn` call, because
 	// otherwise `semPrepScopeOnFn` would have replaced the call with a `SemValFunc` expr already
 	if !self.HasErrs() {
 		self.ErrAdd(self.ErrNew(ErrCodeAtmoTodo, "encountered an `@fn` call despite no errors in it"))
@@ -329,17 +330,6 @@ func (me *SrcPack) semTyPrimOpBoolCond(self *SemExpr) {
 	}
 }
 
-func (me *SrcPack) semTyPrimOpExpand(self *SemExpr) {
-	call := self.Val.(*SemValCall)
-	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
-	if me.semCheckCount(1, 1, call.Args, self, true) {
-		_ = call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
-			_ = ty.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeCall, 0)
-			return ty
-		})
-	}
-}
-
 func (me *SrcPack) semTyPrimOpFnCall(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
@@ -392,6 +382,18 @@ func (me *SrcPack) semTyPrimFnMacro(self *SemExpr) {
 				return ty
 			}
 			return nil
+		})
+		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
+	}
+}
+
+func (me *SrcPack) semTyPrimFnMacroExpand(self *SemExpr) {
+	call := self.Val.(*SemValCall)
+	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		_ = call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
+			_ = ty.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeCall, 0)
+			return ty
 		})
 		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
 	}

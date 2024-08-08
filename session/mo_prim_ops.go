@@ -25,9 +25,9 @@ const (
 	moPrimOpBoolOr        MoValIdent = "@boolOr"
 	moPrimOpFn            MoValIdent = "@fn"
 	moPrimOpFnCall        MoValIdent = "@fnCall"
-	moPrimOpExpand        MoValIdent = "@macroExpand"
 
 	moPrimFnMacro       MoValIdent = "@macro"
+	moPrimFnMacroExpand MoValIdent = "@macroExpand"
 	moPrimFnReplEnv     MoValIdent = "@replEnv"
 	moPrimFnReplPrint   MoValIdent = "@replPrint"
 	moPrimFnReplReset   MoValIdent = "@replReset"
@@ -88,13 +88,13 @@ func init() {
 		moPrimOpBoolCond: (*Interp).primOpBoolCond,
 		moPrimOpBoolAnd:  (*Interp).primOpBoolAnd,
 		moPrimOpBoolOr:   (*Interp).primOpBoolOr,
-		moPrimOpExpand:   (*Interp).primOpMacroExpand,
 		moPrimOpQuote:    (*Interp).primOpQuote,
 		moPrimOpQQuote:   (*Interp).primOpQuasiQuote,
 		moPrimOpSet:      (*Interp).primOpSet,
 		moPrimOpDo:       (*Interp).primOpDo,
 	}
 	moPrimOpsEager = map[MoValIdent]moFnEager{
+		moPrimFnMacroExpand: (*Interp).primFnMacroExpand,
 		moPrimFnReplEnv:     (*Interp).primFnReplEnv,
 		moPrimFnReplPrint:   (*Interp).primFnReplPrint,
 		moPrimFnReplReset:   (*Interp).primFnReplReset,
@@ -353,16 +353,6 @@ func (me *Interp) primOpQuasiQuote(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr
 		me.srcFile(false, true, args...), me.diagSpan(false, true, args...))
 }
 
-func (me *Interp) primOpMacroExpand(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
-	if err := me.checkCount(1, 1, args); err != nil {
-		return nil, me.exprErr(err)
-	}
-	if err := me.checkIs(MoPrimTypeCall, args[0]); err != nil {
-		return nil, me.exprErr(err)
-	}
-	return nil, me.exprFrom(me.macroExpand(env, args[0]), args...)
-}
-
 func (me *Interp) primOpBoolCond(env *MoEnv, args ...*MoExpr) (*MoEnv, *MoExpr) {
 	if err := me.check(MoPrimTypeDict, 1, 1, args...); err != nil {
 		return nil, me.exprErr(err)
@@ -437,6 +427,15 @@ func (me *Interp) primFnMacro(_ *MoEnv, args ...*MoExpr) *MoExpr {
 	dupl := *fn
 	dupl.IsMacro = true
 	return me.expr(&dupl, nil, nil, args...)
+}
+
+func (me *Interp) primFnMacroExpand(env *MoEnv, args ...*MoExpr) *MoExpr {
+	if err := me.checkCount(1, 1, args); err != nil {
+		return me.exprErr(err)
+	} else if err := me.checkIs(MoPrimTypeCall, args[0]); err != nil {
+		return me.exprErr(err)
+	}
+	return me.exprFrom(me.macroExpand(env, args[0]), args...)
 }
 
 func (me *Interp) primFnBoolNot(_ *MoEnv, args ...*MoExpr) *MoExpr {
