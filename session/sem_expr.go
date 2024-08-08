@@ -268,10 +268,6 @@ func (me SemExprs) Errs() (ret Diags) {
 	return
 }
 
-func (me SemExprs) FindFirstWhere(pred func(*SemExpr) bool) *SemExpr {
-	return nil
-}
-
 func (me SemExprs) Walk(onlyInFile *SrcFile, onBefore func(it *SemExpr) bool, onAfter func(it *SemExpr)) {
 	for _, expr := range me {
 		if (onlyInFile == nil) || (expr.From.SrcFile == onlyInFile) {

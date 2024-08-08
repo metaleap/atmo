@@ -43,6 +43,25 @@ func (me *SemType) hasSingletons() bool {
 	return (me == nil) || (me.Singleton != nil) || sl.Any(me.TArgs, (*SemType).hasSingletons)
 }
 
+func (me *SemType) isTruthy() bool {
+	switch me.Prim {
+	case MoPrimTypeOr:
+		return me.TArgs.All((*SemType).isTruthy)
+	case MoPrimTypeAnd:
+		return me.TArgs.Any((*SemType).isTruthy)
+	}
+	return me.Singleton == MoValBool(true)
+}
+func (me *SemType) isFalsy() bool {
+	switch me.Prim {
+	case MoPrimTypeOr:
+		return me.TArgs.All((*SemType).isFalsy)
+	case MoPrimTypeAnd:
+		return me.TArgs.Any((*SemType).isFalsy)
+	}
+	return me.Singleton == MoValBool(false)
+}
+
 func (me *SemType) IsAny() bool { return me.Prim == MoPrimTypeAny }
 
 func (me *SemType) IsSuperTypeOf(of *SemType) bool { return of.IsSubTypeOf(me) }
@@ -494,4 +513,144 @@ func semTypeErrOn(self *SemExpr, expect *SemType, have *SemType) *Diag {
 		str.Fmt("but given %s due to `%s`", s2, str.Shorten(dt2.String(false), 22)),
 	}, t1.DueTo, t2.DueTo)
 	return err
+}
+
+func (me *SrcPack) semTypeNarrow(env semTyEnv, self *SemExpr, isTrue bool) semTyEnv {
+	switch val := self.Val.(type) {
+	case *SemValCall:
+		switch callee := val.Callee.MaybeIdent(false); callee {
+		case moPrimFnBoolNot:
+			return me.semTypeNarrow(env, val.Args[0], !isTrue)
+		case moPrimOpBoolAnd:
+			if isTrue {
+				return me.semTypeNarrow(me.semTypeNarrow(env, val.Args[0], true), val.Args[1], true)
+			} else if me.semTypify(val.Args[0], env); (val.Args[0].Type != nil) && val.Args[0].Type.isTruthy() {
+				return me.semTypeNarrow(env, val.Args[1], false)
+			} else if me.semTypify(val.Args[1], env); (val.Args[1].Type != nil) && val.Args[1].Type.isTruthy() {
+				return me.semTypeNarrow(env, val.Args[0], false)
+			}
+		case moPrimOpBoolOr:
+			if !isTrue {
+				return me.semTypeNarrow(me.semTypeNarrow(env, val.Args[0], false), val.Args[1], false)
+			} else if me.semTypify(val.Args[0], env); (val.Args[0].Type != nil) && val.Args[0].Type.isFalsy() {
+				return me.semTypeNarrow(env, val.Args[1], true)
+			} else if me.semTypify(val.Args[1], env); (val.Args[1].Type != nil) && val.Args[1].Type.isFalsy() {
+				return me.semTypeNarrow(env, val.Args[0], true)
+			}
+		case moPrimFnCmpEq, moPrimFnCmpNeq:
+			me.semTypify(val.Args[0], env)
+			me.semTypify(val.Args[1], env)
+			if ((callee == moPrimFnCmpEq) && isTrue) || ((callee == moPrimFnCmpNeq) && !isTrue) {
+				return me.semTypeNarrowPath(me.semTypeNarrowPath(env, val.Args[0], val.Args[1].Type), val.Args[1], val.Args[0].Type)
+			} else if ((callee == moPrimFnCmpNeq) && isTrue) || ((callee == moPrimFnCmpEq) && !isTrue) {
+				if val.Args[1].Type.Singleton != nil {
+					env = me.semTypeNarrowPath(env, val.Args[0], semTypeNew(val.Callee, MoPrimTypeNot, val.Args[1].Type))
+				}
+				if val.Args[0].Type.Singleton != nil {
+					env = me.semTypeNarrowPath(env, val.Args[1], semTypeNew(val.Callee, MoPrimTypeNot, val.Args[0].Type))
+				}
+			}
+		}
+	}
+	return env
+}
+
+func (me *SrcPack) semTypeNarrowPath(env semTyEnv, self *SemExpr, ty *SemType) semTyEnv {
+	switch val := self.Val.(type) {
+	case *SemValIdent:
+		if t := env[val.Name]; t != nil {
+			return env.set(val.Name, me.semTypeNarrowType(self, t, ty))
+		}
+	case *SemValCall:
+		if self.MaybeIdent(false) == moPrimFnObjGet {
+			ty_obj := semTypeNew(val.Callee, MoPrimTypeObj, ty)
+			ty_obj.Fields = sl.Of[MoValIdent]{val.Args[1].Val.(*SemValIdent).Name}
+			return me.semTypeNarrowPath(env, val.Args[0], ty_obj)
+		}
+	}
+	return env
+}
+
+func (me *SrcPack) semTypeWidenNots(ty *SemType) *SemType {
+	switch ty.Prim {
+	case MoPrimTypeNot:
+		return semTypeNew(ty.DueTo, MoPrimTypeAny)
+	case MoPrimTypeOr:
+		return semTypeOr(ty.DueTo, false, sl.To(ty.TArgs, me.semTypeWidenNots)...)
+	case MoPrimTypeAnd:
+		return semTypeAnd(ty.DueTo, sl.To(ty.TArgs, me.semTypeWidenNots)...)
+	case MoPrimTypeList, MoPrimTypeDict, MoPrimTypeTup, MoPrimTypeObj:
+		dupl := *ty
+		dupl.TArgs = sl.To(dupl.TArgs, me.semTypeWidenNots)
+		return &dupl
+	}
+	return ty
+}
+
+func (me *SrcPack) semTypeNarrowType(dueTo *SemExpr, t1 *SemType, t2 *SemType) *SemType {
+	ty_never := semTypeNew(dueTo, MoPrimTypeNever)
+	switch {
+	case (t1 == nil) || (t2 == nil) || (t1.Prim == MoPrimTypeNever) || (t2.Prim == MoPrimTypeNever):
+		return ty_never
+	case t1.Prim == MoPrimTypeAny:
+		return me.semTypeWidenNots(t2)
+	case t2.Prim == MoPrimTypeAny:
+		return t1
+	case t1.Prim == MoPrimTypeOr:
+		return semTypeOr(t1.DueTo, false, sl.To(t1.TArgs, func(t *SemType) *SemType { return me.semTypeNarrowType(t.DueTo, t, t2) })...)
+	case t2.Prim == MoPrimTypeOr:
+		return semTypeOr(t2.DueTo, false, sl.To(t2.TArgs, func(t *SemType) *SemType { return me.semTypeNarrowType(t.DueTo, t1, t) })...)
+	case t1.Prim == MoPrimTypeAnd:
+		return semTypeAnd(t1.DueTo, sl.To(t1.TArgs, func(t *SemType) *SemType { return me.semTypeNarrowType(t.DueTo, t, t2) })...)
+	case t2.Prim == MoPrimTypeAnd:
+		return semTypeAnd(t2.DueTo, sl.To(t2.TArgs, func(t *SemType) *SemType { return me.semTypeNarrowType(t.DueTo, t1, t) })...)
+	case t2.Prim == MoPrimTypeNot:
+		if t1.IsSubTypeOf(t2.TArgs[0]) {
+			return ty_never
+		} else if (t1.Prim == MoPrimTypeBool) && (t2.TArgs[0].Singleton != nil) && (t2.TArgs[0].Prim == MoPrimTypeBool) {
+			ret := semTypeNew(dueTo, MoPrimTypeBool)
+			ret.Singleton = !t2.TArgs[0].Singleton.(MoValBool)
+			return ret
+		} else {
+			return t1
+		}
+	case (t1.Singleton != nil) && (t2.Singleton != nil):
+		return util.If(t1.Singleton == t2.Singleton, t1, ty_never)
+	case t1.Singleton != nil:
+		return util.If(t1.Prim == t2.Prim, t1, ty_never)
+	case t2.Singleton != nil:
+		return util.If(t2.Prim == t1.Prim, t2, ty_never)
+	case (t2.Prim == t1.Prim) && (MoPrimTypeObj == t1.Prim):
+		var fields []MoValIdent
+		var types []*SemType
+		for i, targ := range t1.TArgs {
+			name := t1.Fields[i]
+			idx := sl.IdxOf(t2.Fields, name)
+			tf := targ
+			if idx >= 0 {
+				tf = me.semTypeNarrowType(dueTo, targ, t2.TArgs[idx])
+			}
+			fields, types = append(fields, name), append(types, tf)
+		}
+		if sl.Any(types, func(t *SemType) bool { return (t == nil) || (t.Prim == MoPrimTypeNever) }) {
+			return ty_never
+		}
+		ret := semTypeNew(dueTo, MoPrimTypeObj, types...)
+		ret.Fields = fields
+		return ret
+	case (t2.Prim == t1.Prim) && ((MoPrimTypeTup == t1.Prim) || (MoPrimTypeDict == t1.Prim) || (MoPrimTypeList == t1.Prim)):
+		var types []*SemType
+		for i, targ := range t1.TArgs {
+			tf := targ
+			if i < len(t2.TArgs) {
+				tf = me.semTypeNarrowType(dueTo, targ, t2.TArgs[i])
+			}
+			types = append(types, tf)
+		}
+		if sl.Any(types, func(t *SemType) bool { return (t == nil) || (t.Prim == MoPrimTypeNever) }) {
+			return ty_never
+		}
+		return semTypeNew(dueTo, t1.Prim /*same as t2 remember*/, types...)
+	}
+	return semTypeAnd(dueTo, t1, t2)
 }

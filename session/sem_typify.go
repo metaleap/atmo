@@ -144,6 +144,12 @@ func init() {
 
 type semTyEnv map[MoValIdent]*SemType
 
+func (me semTyEnv) set(name MoValIdent, ty *SemType) semTyEnv {
+	ret := maps.Clone(me)
+	ret[name] = ty
+	return ret
+}
+
 func (me *SrcPack) semTySynth() {
 	env := semTyEnv{}
 	for _, top_expr := range me.Trees.Sem.TopLevel {
