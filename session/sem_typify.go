@@ -374,17 +374,23 @@ func semPrimFnArith[T MoValNumInt | MoValNumUint | MoValNumFloat](t MoValPrimTyp
 func (me *SrcPack) semTyPrimFnMacro(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeFunc)
-	sl.Each(call.Args, func(arg *SemExpr) { me.semCheckType(arg, self.Type) })
-	if me.semCheckCount(1, 1, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeFunc, -1) {
-		self.Type = call.Args[0].Type
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		self.Type = call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
+			if ty.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeFunc, -1) {
+				return ty
+			}
+			return nil
+		})
+		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, self.Type)
 	}
 }
 
 func (me *SrcPack) semTyPrimFnNot(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeBool)
-	sl.Each(call.Args, func(arg *SemExpr) { me.semCheckType(arg, self.Type) })
-	_ = me.semCheckCount(1, 1, call.Args, self, true)
+	if me.semCheckCount(1, 1, call.Args, self, true) {
+		me.semCheckType(call.Args[0], self.Type)
+	}
 }
 
 func (me *SrcPack) semTyPrimFnReplEnv(self *SemExpr) {

@@ -80,6 +80,8 @@ func (me *SemType) IsSubTypeOf(of *SemType) bool {
 				return false
 			}
 		}
+	case (me.Prim == MoPrimTypeFunc) && (of.Prim == MoPrimTypeFunc) && (len(of.TArgs) == 0): // match "is function at all (whatever arity)"
+		return true
 	case me.Prim == MoPrimTypeOr:
 		return sl.All(me.TArgs, func(ty *SemType) bool { return ty.IsSubTypeOf(of) })
 	case of.Prim == MoPrimTypeOr: // TODO: {foo:1|2} is in fact sub of {foo:1}|{foo:2} — yet the below code doesn't agree yet, and should.
