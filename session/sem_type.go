@@ -92,19 +92,32 @@ func (me *SemType) IsSubTypeOf(of *SemType) bool {
 	return me.Eq(of)
 }
 
-func (me *SemType) mapIfOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemType {
-	if (me == nil) || (me.Prim != MoPrimTypeOr) {
+func (me *SemType) mapIfAndOr(dueTo *SemExpr, f func(ty *SemType) *SemType) *SemType {
+	switch {
+	case (me == nil):
+		return f(me)
+	case (me.Prim == MoPrimTypeOr):
+		ts := sl.To(me.TArgs, func(t *SemType) *SemType { return t.mapIfAndOr(dueTo, f) })
+		if sl.Has(ts, nil) {
+			return nil
+		} else {
+			return semTypeOr(dueTo, false, ts...)
+		}
+	case (me.Prim == MoPrimTypeAnd):
+		ts := sl.To(me.TArgs, f)
+		if sl.Has(ts, nil) {
+			return nil
+		} else {
+			return semTypeAnd(dueTo, ts...)
+		}
+	default:
 		return f(me)
 	}
-	targs := sl.To(me.TArgs, f)
-	if sl.Has(targs, nil) {
-		return nil
-	}
-	return semTypeFromMultiple(dueTo, false, targs...)
 }
 
 func (me *SemType) normalizeIfAdt() bool {
 	if (me.Prim == MoPrimTypeOr) || (me.Prim == MoPrimTypeAnd) {
+		// flatten:
 		for i := 0; i < me.TArgs.Len(); i++ {
 			if t := me.TArgs[i]; (t == nil) || (t.Prim == MoPrimTypeNever) {
 				return false
@@ -116,17 +129,38 @@ func (me *SemType) normalizeIfAdt() bool {
 				i--
 			}
 		}
-		me.TArgs.EnsureAllUnique((*SemType).Eq)
-		i1 := -1
-		me.TArgs = me.TArgs.Where(func(t1 *SemType) bool {
-			i1++
-			i2 := -1
-			return me.TArgs.All(func(t2 *SemType) bool {
-				i2++
-				fn_is := util.If(me.Prim == MoPrimTypeAnd, (*SemType).IsSuperTypeOf, (*SemType).IsSubTypeOf)
-				return (t1 == t2) || (!fn_is(t1, t2) || ((i1 < i2) && fn_is(t2, t1)))
+		collapse := func(ts []*SemType) []*SemType {
+			i1 := -1
+			return sl.Where(ts, func(t1 *SemType) bool {
+				i1++
+				i2 := -1
+				return sl.All(ts, func(t2 *SemType) bool {
+					i2++
+					fn_is := util.If(me.Prim == MoPrimTypeAnd, (*SemType).IsSuperTypeOf, (*SemType).IsSubTypeOf)
+					return (t1 == t2) || (!fn_is(t1, t2) || ((i1 < i2) && fn_is(t2, t1)))
+				})
 			})
-		})
+		}
+		if me.Prim == MoPrimTypeOr {
+			me.TArgs = collapse(me.TArgs)
+		} else { // still following along jaked.org/blog/2021-10-28-Reconstructing-TypeScript-part-5#normalizing-intersections
+			me.Prim, me.TArgs = MoPrimTypeOr, sl.To(semTypeDistributeUnions(me.TArgs...), func(ts []*SemType) *SemType {
+				for i := 0; i < len(ts); i++ {
+					for j := 0; j < len(ts); j++ {
+						if (i < j) && !ts[i].overlaps(ts[j]) {
+							return semTypeNew(me.DueTo, MoPrimTypeNever)
+						}
+					}
+				}
+				ts = collapse(ts)
+				if len(ts) == 0 {
+					return semTypeNew(me.DueTo, MoPrimTypeNever)
+				} else if len(ts) == 1 {
+					return ts[0]
+				}
+				return semTypeNew(me.DueTo, MoPrimTypeAnd, ts...)
+			})
+		}
 		switch len(me.TArgs) {
 		case 0:
 			return false
@@ -181,7 +215,7 @@ func (me *SemType) overlaps(ty *SemType) bool {
 	case (me.Prim == MoPrimTypeDict) && (ty.Prim == MoPrimTypeDict):
 		return me.TArgs[0].overlaps(ty.TArgs[0]) && me.TArgs[1].overlaps(ty.TArgs[1])
 	}
-	return me.Eq(ty)
+	return (me.Prim == ty.Prim)
 }
 
 func (me *SemType) sansSingletons() *SemType {
@@ -317,16 +351,29 @@ func semTypeEnsureDueTo(dueTo *SemExpr, ty *SemType) *SemType {
 	return ty
 }
 
-func semTypeMapIfOr(dueTo *SemExpr, t1 *SemType, t2 *SemType, f func(t1 *SemType, t2 *SemType) *SemType) *SemType {
-	if or1, or2 := (t1.Prim == MoPrimTypeOr), (t2.Prim == MoPrimTypeOr); or1 || or2 {
-		t1s, t2s := util.If(or1, t1.TArgs, []*SemType{t1}), util.If(or2, t2.TArgs, []*SemType{t2})
+func semTypeMapIfAndOr(dueTo *SemExpr, t1 *SemType, t2 *SemType, f func(t1 *SemType, t2 *SemType) *SemType) *SemType {
+	or1, or2, and1, and2 := (t1.Prim == MoPrimTypeOr), (t2.Prim == MoPrimTypeOr), (t1.Prim == MoPrimTypeAnd), (t2.Prim == MoPrimTypeAnd)
+	if is_or := or1 || or2; is_or || and1 || and2 {
+		var t1s, t2s []*SemType
+		if is_or {
+			t1s, t2s = util.If(or1, t1.TArgs, []*SemType{t1}), util.If(or2, t2.TArgs, []*SemType{t2})
+		} else {
+			t1s, t2s = util.If(and1, t1.TArgs, []*SemType{t1}), util.If(and2, t2.TArgs, []*SemType{t2})
+		}
 		var ret sl.Of[*SemType]
 		for _, t1 := range t1s {
 			for _, t2 := range t2s {
-				ret.Add(f(t1, t2))
+				if is_or {
+					ret.Add(semTypeMapIfAndOr(dueTo, t1, t2, f))
+				} else {
+					ret.Add(f(t1, t2))
+				}
 			}
 		}
-		return semTypeFromMultiple(dueTo, false, ret...)
+		if is_or {
+			return semTypeOr(dueTo, false, ret...)
+		}
+		return semTypeAnd(dueTo, ret...)
 	}
 	return f(t1, t2)
 }
@@ -342,7 +389,13 @@ func semTypeNew(dueTo *SemExpr, prim MoValPrimType, tyArgs ...*SemType) *SemType
 	return ret
 }
 
-func semTypeFromMultiple(dueTo *SemExpr, anyIfEmpty bool, ty ...*SemType) *SemType {
+func semTypeOr(dueTo *SemExpr, anyIfEmpty bool, ty ...*SemType) *SemType {
+	return semTypeMulti(dueTo, anyIfEmpty, false, ty...)
+}
+func semTypeAnd(dueTo *SemExpr, ty ...*SemType) *SemType {
+	return semTypeMulti(dueTo, false, true, ty...)
+}
+func semTypeMulti(dueTo *SemExpr, anyIfEmpty bool, isAnd bool, ty ...*SemType) *SemType {
 	types := (sl.Of[*SemType])(ty)
 	use_any := anyIfEmpty && (len(types) == 0)
 	types = types.Without(func(t *SemType) bool { return t == nil })
@@ -352,7 +405,7 @@ func semTypeFromMultiple(dueTo *SemExpr, anyIfEmpty bool, ty ...*SemType) *SemTy
 	case 1:
 		return types[0]
 	default:
-		return semTypeNew(dueTo, MoPrimTypeOr, types...)
+		return semTypeNew(dueTo, util.If(isAnd, MoPrimTypeAnd, MoPrimTypeOr), types...)
 	}
 }
 
