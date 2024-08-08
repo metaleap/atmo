@@ -340,8 +340,17 @@ func (me *SrcPack) semTyPrimOpExpand(self *SemExpr) {
 func (me *SrcPack) semTyPrimOpFnCall(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeAny)
-	if me.semCheckCount(2, 2, call.Args, self, true) && me.semCheckTypePrim(call.Args[0], call.Callee, MoPrimTypeFunc, -1) && me.semCheckTypePrim(call.Args[1], call.Callee, MoPrimTypeList, -1) {
-		call.Callee.Type = semTypeNew(call.Args[0], MoPrimTypeFunc, call.Args[0].Type, call.Args[1].Type, self.Type)
+	if me.semCheckCount(2, 2, call.Args, self, true) {
+		_ = call.Args[1].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
+			_ = ty.checkIsPrimElseErrOn(call.Callee, self, call.Args[1], MoPrimTypeList, 1)
+			return ty
+		})
+		self.Type = call.Args[0].Type.mapIfOr(call.Callee, func(ty *SemType) *SemType {
+			if ty.checkIsPrimElseErrOn(call.Callee, self, call.Args[0], MoPrimTypeFunc, -1) {
+				return ty.TArgs[len(ty.TArgs)-1]
+			}
+			return nil
+		})
 	}
 }
 
