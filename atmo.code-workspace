@@ -10,10 +10,13 @@
 			"path": "../../../at"
 		},
 		{
-			"path": "../../src/github.com/metaleap/polyglot-lsp"
+			"path": "../flowtyping-exploration"
 		}
 	],
 	"settings": {
-		"typescript.tsc.autoDetect": "off"
+		"typescript.tsc.autoDetect": "off",
+		"ocaml.sandbox": {
+			"kind": "global"
+		}
 	}
 }

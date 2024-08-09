@@ -92,11 +92,11 @@ func (me MoValPrimType) Str(natLang bool) string {
 	}
 	if me < 0 {
 		if letter := rune((-me) + 64); (letter >= 'A') && (letter <= 'Z') {
-			return "@Some" + string(letter)
+			return "@ᴛ" + string(letter)
 		}
-		return "@Some" + str.FromInt(int(-me))
+		return "@ᴛ" + str.FromInt(int(-me))
 	}
-	return "@Some" + str.FromInt(int(me))
+	return "@TODO" + str.FromInt(int(me))
 }
 
 type MoVal interface {
