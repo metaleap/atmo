@@ -212,7 +212,7 @@ func (me *SrcPack) semTypify(self *SemExpr, env semTyEnv) *SemType {
 		sl.Each(val.Args, func(it *SemExpr) { me.semTypify(it, env) })
 		callee_name := val.Callee.MaybeIdent(false)
 		prim_op, prim_fn := semTyPrimOps[callee_name], semTyPrimFns[callee_name]
-		if (callee_name != moPrimOpQQuote) && (callee_name != moPrimOpQuote) && sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
+		if (prim_op == nil) && sl.Any(val.Args, func(it *SemExpr) bool { return it.Type == nil }) {
 			break
 		}
 		if prim_op != nil {
@@ -254,6 +254,9 @@ func (me *SrcPack) semTyPrimOpSet(self *SemExpr) {
 	call := self.Val.(*SemValCall)
 	self.Fact(SemFact{Kind: SemFactNotPure}, self)
 	self.Type = semTypeNew(call.Callee, MoPrimTypeVoid)
+	if me.semCheckCount(2, 2, call.Args, self, true) {
+		call.Args[0].Type = call.Args[1].Type
+	}
 }
 
 func (me *SrcPack) semTyPrimOpDo(self *SemExpr) {

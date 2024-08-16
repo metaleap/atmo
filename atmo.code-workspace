@@ -10,7 +10,10 @@
 			"path": "../../../at"
 		},
 		{
-			"path": "../flowtyping-exploration"
+			"path": "../../../../g/simple-sub/shared/src/main/scala/simplesub"
+		},
+		{
+			"path": "../type-stuff"
 		}
 	],
 	"settings": {
