@@ -1,12 +1,14 @@
 import * as vscode from 'vscode'
 
-export function activate(context: vscode.ExtensionContext) {
-	console.log('Congratulations, your extension "vscode-atmo" is now active!')
+import * as vfs from './vfs'
 
-	const disposable = vscode.commands.registerCommand('vscode-atmo.helloWorld', () =>
-		vscode.window.showInformationMessage('Hello World!'))
 
-	context.subscriptions.push(disposable)
+
+export function activate(ctx: vscode.ExtensionContext) {
+	ctx.subscriptions.push(vscode.workspace.registerFileSystemProvider(
+		vfs.uriScheme,
+		new vfs.FS(),
+		{ isCaseSensitive: !process.platform.startsWith('win') }))
 }
 
 export function deactivate() { }

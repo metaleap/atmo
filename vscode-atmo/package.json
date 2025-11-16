@@ -9,7 +9,7 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [ ],
+  "activationEvents": [ "onFileSystem:atmo", "workspaceContains:*.ts", "workspaceContains:*.go", "workspaceContains:*.at", "workspaceContains:*.go.at", "workspaceContains:*.ts.at" ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
