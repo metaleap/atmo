@@ -1,5 +1,5 @@
 *.js linguist-generated
 *.mjs linguist-vendored
-**/dist linguist-generated
-**/out linguist-generated
-**/node_modules linguist-vendored
+dist linguist-generated
+out linguist-generated
+node_modules linguist-vendored
