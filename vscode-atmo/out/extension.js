@@ -38,7 +38,7 @@ exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 function activate(context) {
     console.log('Congratulations, your extension "vscode-atmo" is now active!');
-    const disposable = vscode.commands.registerCommand('vscode-atmo.helloWorld', () => vscode.window.showInformationMessage('Hello World!'));
+    const disposable = vscode.commands.registerCommand('vscode-atmo.helloWorld', () => vscode.window.showInformationMessage('Hello World..'));
     context.subscriptions.push(disposable);
 }
 function deactivate() { }
